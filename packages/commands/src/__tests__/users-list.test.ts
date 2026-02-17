@@ -143,4 +143,186 @@ describe("users list command", () => {
     expect(result.error.code).toBe("INVALID_ARGUMENT");
     expect(result.error.message).toBe("Slack token is not configured.");
   });
+
+  test("filters users by username with case-insensitive query", async () => {
+    const handler = createUsersListHandler({
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({
+          users: [
+            {
+              id: "U001",
+              username: "alice",
+              displayName: "Alice",
+              realName: "Alice Kim",
+              email: "alice@example.com",
+              isBot: false,
+              isDeleted: false,
+              isAdmin: true,
+            },
+            {
+              id: "U002",
+              username: "bob",
+              displayName: "Bob",
+              realName: "Bob Smith",
+              email: "bob@example.com",
+              isBot: false,
+              isDeleted: false,
+              isAdmin: false,
+            },
+          ],
+        }),
+        searchMessages: async () => ({
+          query: "",
+          total: 0,
+          messages: [],
+        }),
+      }),
+    });
+
+    const result = await handler({
+      commandPath: ["users", "list"],
+      positionals: ["ALICE"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    if (!isRecord(result.data)) {
+      return;
+    }
+
+    expect(Array.isArray(result.data.users)).toBe(true);
+    expect(result.data.count).toBe(1);
+
+    const users = result.data.users;
+    if (Array.isArray(users) && users.length > 0) {
+      const user = users[0];
+      if (isRecord(user)) {
+        expect(user.username).toBe("alice");
+      }
+    }
+  });
+
+  test("filters users by email", async () => {
+    const handler = createUsersListHandler({
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({
+          users: [
+            {
+              id: "U001",
+              username: "alice",
+              displayName: "Alice",
+              realName: "Alice Kim",
+              email: "alice@example.com",
+              isBot: false,
+              isDeleted: false,
+              isAdmin: true,
+            },
+            {
+              id: "U002",
+              username: "bob",
+              displayName: "Bob",
+              realName: "Bob Smith",
+              email: "bob@example.com",
+              isBot: false,
+              isDeleted: false,
+              isAdmin: false,
+            },
+          ],
+        }),
+        searchMessages: async () => ({
+          query: "",
+          total: 0,
+          messages: [],
+        }),
+      }),
+    });
+
+    const result = await handler({
+      commandPath: ["users", "list"],
+      positionals: ["@example.com"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    if (!isRecord(result.data)) {
+      return;
+    }
+
+    expect(result.data.count).toBe(2);
+  });
+
+  test("returns invalid argument for invalid regex query", async () => {
+    const handler = createUsersListHandler({
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({
+          users: [
+            {
+              id: "U001",
+              username: "alice",
+              displayName: "Alice",
+              realName: "Alice Kim",
+              email: "alice@example.com",
+              isBot: false,
+              isDeleted: false,
+              isAdmin: true,
+            },
+          ],
+        }),
+        searchMessages: async () => ({
+          query: "",
+          total: 0,
+          messages: [],
+        }),
+      }),
+    });
+
+    const result = await handler({
+      commandPath: ["users", "list"],
+      positionals: ["[invalid(regex"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("Invalid query regex");
+  });
 });

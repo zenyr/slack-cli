@@ -158,6 +158,7 @@ const mapUser = (value: unknown): SlackUser | undefined => {
         ? undefined
         : (readString(profile, "display_name") ?? readString(profile, "real_name")),
     realName: profile === undefined ? undefined : readString(profile, "real_name"),
+    email: profile === undefined ? undefined : readString(profile, "email"),
     isBot: readBoolean(value, "is_bot") ?? false,
     isDeleted: readBoolean(value, "deleted") ?? false,
     isAdmin: readBoolean(value, "is_admin") ?? false,

@@ -41,6 +41,24 @@ const toUserLine = (user: SlackUser): string => {
   return `- ${identity} (${user.id})${suffix}`;
 };
 
+const compileUserFilterRegexp = (query: string): RegExp | string => {
+  try {
+    return new RegExp(query, "i");
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    return `Invalid query regex: ${errorMsg}`;
+  }
+};
+
+const matchesUserFilter = (user: SlackUser, regexp: RegExp): boolean => {
+  return (
+    regexp.test(user.username) ||
+    (user.realName !== undefined && regexp.test(user.realName)) ||
+    (user.displayName !== undefined && regexp.test(user.displayName)) ||
+    (user.email !== undefined && regexp.test(user.email))
+  );
+};
+
 type UsersListHandlerDeps = {
   createClient: () => SlackWebApiClient;
 };
@@ -61,9 +79,28 @@ export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDe
     try {
       const client = deps.createClient();
       const result = await client.listUsers();
-      const lines: string[] = [`Found ${result.users.length} users.`, ""];
 
-      for (const user of result.users) {
+      const queryParts = request.positionals.join(" ").trim();
+      let filteredUsers = result.users;
+      let appliedQuery: string | undefined;
+
+      if (queryParts.length > 0) {
+        const regexOrError = compileUserFilterRegexp(queryParts);
+        if (typeof regexOrError === "string") {
+          return createError("INVALID_ARGUMENT", regexOrError, undefined, command);
+        }
+
+        appliedQuery = queryParts;
+        filteredUsers = result.users.filter((user) => matchesUserFilter(user, regexOrError));
+      }
+
+      const lines: string[] = [];
+      const headerMsg = appliedQuery
+        ? `Found ${filteredUsers.length} users (filtered by: ${appliedQuery}).`
+        : `Found ${filteredUsers.length} users.`;
+      lines.push(headerMsg, "");
+
+      for (const user of filteredUsers) {
         lines.push(toUserLine(user));
       }
 
@@ -76,10 +113,12 @@ export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDe
       return {
         ok: true,
         command: "users.list",
-        message: `Listed ${result.users.length} users`,
+        message: appliedQuery
+          ? `Listed ${filteredUsers.length} users (query: ${appliedQuery})`
+          : `Listed ${result.users.length} users`,
         data: {
-          users: result.users,
-          count: result.users.length,
+          users: filteredUsers,
+          count: filteredUsers.length,
           nextCursor: result.nextCursor,
         },
         textLines: lines,

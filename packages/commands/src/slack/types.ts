@@ -56,6 +56,7 @@ export type SlackUser = {
   username: string;
   displayName?: string;
   realName?: string;
+  email?: string;
   isBot: boolean;
   isDeleted: boolean;
   isAdmin: boolean;
