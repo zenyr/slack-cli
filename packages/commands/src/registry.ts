@@ -8,6 +8,7 @@ import {
   authUseHandler,
   authWhoamiHandler,
   channelsListHandler,
+  messagesRepliesHandler,
   messagesSearchHandler,
   usersListHandler,
 } from "./handlers/stubs";
@@ -80,5 +81,10 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-history",
     path: ["messages", "history"],
     execute: messagesHistoryHandler,
+  },
+  {
+    id: "messages-replies",
+    path: ["messages", "replies"],
+    execute: messagesRepliesHandler,
   },
 ];

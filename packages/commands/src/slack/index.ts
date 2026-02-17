@@ -4,6 +4,7 @@ export type {
   ResolvedSlackToken,
   SlackChannel,
   SlackChannelHistoryResult,
+  SlackChannelRepliesResult,
   SlackChannelsSort,
   SlackChannelType,
   SlackClientError,
