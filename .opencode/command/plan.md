@@ -47,6 +47,14 @@ Main agent must:
 7. read sibling `result.md`
 8. delegate validation to `haiku` or `spark`
 9. on validation fail, regenerate updated `todo.md` for that worktree and continue loop
+10. when all assigned units pass validation, merge approved worktree branches into main with conflict-safe ordering
+11. after merges and delegated post-merge validation pass, update `docs/feature-parity.md` boundary/status
+
+Validation execution rule:
+
+- Main agent MUST delegate implementation validation to `haiku` or `spark`.
+- Main agent MUST NOT perform primary validation by directly running typecheck/test for worktree units.
+- Main agent may run minimal orchestration checks only (for example `git status`, branch/head checks, monitor process lifecycle).
 
 ## Planner Identity
 
@@ -316,6 +324,42 @@ Implementation note (recommended shell shape):
 - This converts polling into event-like orchestration via process exit + `notifyOnExit`.
 
 Never accept completion without independent verification.
+
+## Merge Readiness Validation Rule
+
+Before merging any completed worktree branch:
+
+1. Delegate merge-readiness validation to `haiku` or `spark` with explicit checks:
+   - scope/file contract adherence
+   - required verification command outcomes
+   - clean commit topology evidence from `result.md`
+2. Only merge branches with validator verdict `pass`.
+3. If validator verdict is `fail`, regenerate corrective `todo.md` and re-enter long-poll loop.
+
+After merge to main:
+
+1. Delegate post-merge validation (targeted regression checks) to `haiku` or `spark`.
+2. Update `docs/feature-parity.md` only after delegated post-merge validation passes.
+
+## Conflict Resolution Delegation Rule
+
+- Default conflict resolver: `haiku` or `spark`.
+- If conflict is non-trivial (multi-file semantic coupling, API contract ambiguity, or repeated fail after one fix round), delegated agent must bail quickly with concise blocker summary.
+- On bail, escalate conflict resolution to `general` with explicit merge intent + acceptance criteria.
+- Never force speculative conflict resolution when contract is unclear.
+
+## Iteration Closure and Commit Rule
+
+After all assigned branches are merged and delegated post-merge validation passes:
+
+1. Update `docs/feature-parity.md` to reflect:
+   - moved implementation boundary
+   - completed units in this iteration
+   - next smallest pending unit
+2. Ensure no in-progress merge remains (`git status` must not show merge-in-progress).
+3. Commit remaining main-worktree changes in logical units (avoid one mega commit when docs/process and code fixes are separable).
+4. Commit messages must be English, concise, and why-focused.
+5. Do not push unless explicitly requested.
 
 ## Shared Ignore Hygiene
 
