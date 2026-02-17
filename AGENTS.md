@@ -29,19 +29,15 @@
   - WS: built-in `WebSocket` not `ws`.
   - IO/exec: prefer `Bun.file`, `Bun.$`.
 
-## Commit Conditions
+## Commit Execution
 
 - APPLY: user asks `commit`.
-  - DEFAULT: grouped commits by logical task/intent unit.
-  - NEVER interpret `split commits well` as hunk split in one file.
-  - NEVER use one mega commit when multiple logical units exist.
-  - PREFER grouping by file/module purpose (`feat|fix|refactor|test|docs|chore`).
+  - POLICY: default to grouped commits by logical task/intent unit.
+  - POLICY: never interpret `split commits well` as hunk split in one file.
+  - POLICY: never use one mega commit when multiple logical units exist.
+  - POLICY: prefer grouping by file/module purpose (`feat|fix|refactor|test|docs|chore`).
   - FALLBACK: if split needs hunk surgery, use one combined commit + reason in body.
   - MSG: English, concise, unit impact.
-
-## Git Delegation Contract
-
-- APPLY: delegating commit work to git agent.
-  - Caller sends only: intent unit(s), topology (`single|multi|combined-exception`), include/exclude.
-  - Git agent owns: `status/log/diff`, staging plan, commit execution, msg draft.
-  - Keep safety defaults: no push/amend/force/hook-bypass unless explicitly requested.
+  - DELEGATION INPUT: caller sends only intent unit(s), topology (`single|multi|combined-exception`), include/exclude.
+  - DELEGATION OWNER: git agent owns `status/log/diff`, staging plan, commit execution, msg draft.
+  - SAFETY DEFAULT: no push/amend/force/hook-bypass unless explicitly requested.
