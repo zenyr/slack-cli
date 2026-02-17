@@ -67,12 +67,12 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Add dynamic channel resolution (`#general` -> channel ID)
   - Add optional activity message inclusion controls
 
-#### 2. `messages replies` - Add Thread Replies Command
-- **Current state**: Missing
+#### 2. `messages replies` - Align and Harden Thread Replies Command
+- **Current state**: Partial (core handler + client + tests landed)
 - **Remaining work**:
-  - Add `conversations.replies` client + handler
-  - Support thread_ts + cursor pagination
-  - Add tests and CLI/config registration
+  - Align exposed CLI contract to implemented flags (remove unsupported `--sort`, `--filter-text`)
+  - Tighten `--limit` parsing semantics to reject mixed numeric strings (for parity with history strictness)
+  - Add/adjust tests for contract alignment and limit validation edge cases
 
 ---
 
@@ -83,7 +83,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | Org Tool (14 total)              | Main CLI Status | Priority | Complexity |
 |----------------------------------|-----------------|----------|------------|
 | `conversations_history`            | ⚠️ Partial      | **P0**   | Medium     |
-| `conversations_replies`            | ❌ Missing       | **P1**   | Medium     |
+| `conversations_replies`            | ⚠️ Partial      | **P1**   | Medium     |
 | `conversations_add_message`        | ❌ Missing       | **P1**   | High       |
 | `conversations_search_messages`    | ⚠️ Partial      | **P0**   | Low        |
 | `channels_list`                    | ✅ Implemented   | **P0**   | Low        |
@@ -97,7 +97,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `usergroups_users_update`          | ❌ Missing       | P2       | Medium     |
 | `usergroups_me`                    | ❌ Missing       | P3       | High       |
 
-**Summary**: 2 implemented, 2 partial, 10 missing
+**Summary**: 2 implemented, 3 partial, 9 missing
 
 ---
 
@@ -120,15 +120,17 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - command wiring + dedicated tests
 - **Next smallest unit**: Add time expression parser + `#channel` resolution
 
-#### `messages replies` Command  
+#### `messages replies` Command
 - **Org tool**: `conversations_replies`
 - **Slack API**: `conversations.replies`
 - **Required features**:
   - Fetch thread messages by channel_id + thread_ts
   - Cursor-based pagination
-- **Dependencies**: Requires message history foundation for message identification
-- **Complexity**: Medium (thread_ts discovery, pagination)
-- **Smallest unit**: Add conversations.replies client after history types exist
+- **Current state**: Base command implemented with cursor pagination and test coverage
+- **Remaining gap**: CLI contract/docs mismatch + strict input-validation alignment
+- **Dependencies**: message history foundation complete
+- **Complexity**: Low-Medium (contract hardening + validation)
+- **Smallest unit**: Contract alignment + limit parsing strictness + targeted tests
 
 ---
 
