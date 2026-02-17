@@ -11,6 +11,9 @@ import type {
   SlackMessage,
   SlackPostMessageResult,
   SlackPostWebApiClient,
+  SlackReactionParams,
+  SlackReactionResult,
+  SlackReactionsWebApiClient,
   SlackRepliesWebApiClient,
   SlackSearchMessage,
   SlackSearchMessagesResult,
@@ -219,7 +222,10 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
 
 export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
-): SlackWebApiClient & SlackRepliesWebApiClient & SlackPostWebApiClient => {
+): SlackWebApiClient &
+  SlackRepliesWebApiClient &
+  SlackPostWebApiClient &
+  SlackReactionsWebApiClient => {
   const fetchImpl = options.fetchImpl ?? fetch;
   const baseUrl = options.baseUrl ?? DEFAULT_SLACK_API_BASE_URL;
   const explicitToken = options.token;
@@ -539,6 +545,101 @@ export const createSlackWebApiClient = (
     };
   };
 
+  const normalizeReactionParams = (params: SlackReactionParams): SlackReactionParams => {
+    const channel = params.channel.trim();
+    const timestamp = params.timestamp.trim();
+    const name = params.name.trim();
+
+    if (channel.length === 0) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: "Reaction channel is empty.",
+        hint: "Provide non-empty channel id for reactions.add/remove.",
+      });
+    }
+
+    if (timestamp.length === 0) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: "Reaction timestamp is empty.",
+        hint: "Provide non-empty message timestamp for reactions.add/remove.",
+      });
+    }
+
+    if (!/^\d+\.\d+$/.test(timestamp)) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: `Reaction timestamp is invalid: ${timestamp}.`,
+        hint: "Use Slack message timestamp format: 1700000000.000000.",
+      });
+    }
+
+    if (name.length === 0) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: "Reaction name is empty.",
+        hint: "Provide non-empty emoji name for reactions.add/remove.",
+      });
+    }
+
+    if (/\s/.test(name)) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: `Reaction name contains whitespace: ${name}.`,
+        hint: "Use Slack emoji name without spaces, for example thumbs_up.",
+      });
+    }
+
+    return { channel, timestamp, name };
+  };
+
+  const readReactionResult = (
+    payloadData: Record<string, unknown>,
+    params: SlackReactionParams,
+    method: "reactions.add" | "reactions.remove",
+  ): SlackReactionResult => {
+    const channel = readString(payloadData, "channel");
+    const itemType = readString(payloadData, "type");
+    const message = readRecord(payloadData, "message");
+    const ts = message === undefined ? undefined : readString(message, "ts");
+
+    if (channel === undefined || ts === undefined || itemType !== "message") {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: `Slack API returned malformed ${method} payload.`,
+        hint: "Verify token scopes and channel access for reaction methods.",
+      });
+    }
+
+    return {
+      channel,
+      ts,
+      name: params.name,
+    };
+  };
+
+  const addReaction = async (params: SlackReactionParams): Promise<SlackReactionResult> => {
+    const normalized = normalizeReactionParams(params);
+    const payload = new URLSearchParams({
+      channel: normalized.channel,
+      timestamp: normalized.timestamp,
+      name: normalized.name,
+    });
+    const payloadData = await callApiPost("reactions.add", payload);
+    return readReactionResult(payloadData, normalized, "reactions.add");
+  };
+
+  const removeReaction = async (params: SlackReactionParams): Promise<SlackReactionResult> => {
+    const normalized = normalizeReactionParams(params);
+    const payload = new URLSearchParams({
+      channel: normalized.channel,
+      timestamp: normalized.timestamp,
+      name: normalized.name,
+    });
+    const payloadData = await callApiPost("reactions.remove", payload);
+    return readReactionResult(payloadData, normalized, "reactions.remove");
+  };
+
   return {
     listChannels,
     listUsers,
@@ -546,5 +647,7 @@ export const createSlackWebApiClient = (
     fetchChannelHistory,
     fetchMessageReplies,
     postMessage,
+    addReaction,
+    removeReaction,
   };
 };
