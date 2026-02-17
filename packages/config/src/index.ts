@@ -21,18 +21,18 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "channels list",
-    args: "[--json] [--workspace <id>]",
-    description: "Stub: list channels (not implemented yet)",
+    args: "[--json]",
+    description: "List channels",
   },
   {
     name: "users list",
-    args: "[--json] [--workspace <id>]",
-    description: "Stub: list users (not implemented yet)",
+    args: "[--json]",
+    description: "List users",
   },
   {
     name: "messages search",
-    args: "<query> [--json] [--workspace <id>]",
-    description: "Stub: search messages (not implemented yet)",
+    args: "<query> [--json]",
+    description: "Search messages",
   },
   {
     name: "resources",
