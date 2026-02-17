@@ -65,6 +65,11 @@ export const COMMANDS: CliCommand[] = [
     description: "Fetch channel message history",
   },
   {
+    name: "messages post",
+    args: "<channel-id> <text> [--json]",
+    description: "Post plain text message to channel",
+  },
+  {
     name: "messages replies",
     args: "<channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--json]",
     description: "Fetch thread message replies",

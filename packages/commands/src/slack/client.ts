@@ -9,6 +9,8 @@ import type {
   SlackListChannelsResult,
   SlackListUsersResult,
   SlackMessage,
+  SlackPostMessageResult,
+  SlackPostWebApiClient,
   SlackRepliesWebApiClient,
   SlackSearchMessage,
   SlackSearchMessagesResult,
@@ -66,6 +68,11 @@ const buildApiUrl = (baseUrl: string, method: string, params: URLSearchParams): 
   const url = new URL(`${normalizedBase}/${method}`);
   url.search = params.toString();
   return url;
+};
+
+const buildMethodUrl = (baseUrl: string, method: string): URL => {
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  return new URL(`${normalizedBase}/${method}`);
 };
 
 const resolveTokenTypeFromValue = (token: string): "xoxp" | "xoxb" | undefined => {
@@ -212,7 +219,7 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
 
 export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
-): SlackWebApiClient & SlackRepliesWebApiClient => {
+): SlackWebApiClient & SlackRepliesWebApiClient & SlackPostWebApiClient => {
   const fetchImpl = options.fetchImpl ?? fetch;
   const baseUrl = options.baseUrl ?? DEFAULT_SLACK_API_BASE_URL;
   const explicitToken = options.token;
@@ -292,6 +299,62 @@ export const createSlackWebApiClient = (
     if (!response.ok) {
       const payload = ensureSuccessPayload(parsedBody);
       const errorCode = readString(payload, "error") ?? `http_${response.status}`;
+      throw createSlackClientError({
+        code: "SLACK_HTTP_ERROR",
+        message: `Slack HTTP request failed: ${errorCode}.`,
+        hint: "Confirm network access and token scopes.",
+        status: response.status,
+      });
+    }
+
+    return ensureSuccessPayload(parsedBody);
+  };
+
+  const callApiPost = async (
+    method: string,
+    payload: URLSearchParams,
+  ): Promise<Record<string, unknown>> => {
+    const token = (await getResolvedToken()).token;
+    const url = buildMethodUrl(baseUrl, method);
+    const response = await fetchImpl(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: payload.toString(),
+    });
+
+    if (response.status === 429) {
+      const retryAfterSeconds = parseRetryAfterHeader(response.headers.get("retry-after"));
+      throw createSlackClientError({
+        code: "SLACK_HTTP_ERROR",
+        message: "Slack API rate limit reached.",
+        hint: "Retry later or narrow query scope.",
+        status: response.status,
+        retryAfterSeconds,
+      });
+    }
+
+    const rawBody = await response.text();
+    let parsedBody: unknown = {};
+
+    if (rawBody.length > 0) {
+      try {
+        parsedBody = JSON.parse(rawBody);
+      } catch {
+        throw createSlackClientError({
+          code: "SLACK_RESPONSE_ERROR",
+          message: "Slack API returned non-JSON response body.",
+          hint: "Verify network/proxy path to slack.com/api.",
+          status: response.status,
+        });
+      }
+    }
+
+    if (!response.ok) {
+      const payloadData = ensureSuccessPayload(parsedBody);
+      const errorCode = readString(payloadData, "error") ?? `http_${response.status}`;
       throw createSlackClientError({
         code: "SLACK_HTTP_ERROR",
         message: `Slack HTTP request failed: ${errorCode}.`,
@@ -449,11 +512,39 @@ export const createSlackWebApiClient = (
     };
   };
 
+  const postMessage = async (params: {
+    channel: string;
+    text: string;
+  }): Promise<SlackPostMessageResult> => {
+    const payload = new URLSearchParams({
+      channel: params.channel,
+      text: params.text,
+    });
+    const payloadData = await callApiPost("chat.postMessage", payload);
+    const channel = readString(payloadData, "channel") ?? params.channel;
+    const ts = readString(payloadData, "ts");
+
+    if (ts === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack API returned malformed post message payload.",
+        hint: "Verify token scopes and channel access for chat.postMessage.",
+      });
+    }
+
+    return {
+      channel,
+      ts,
+      message: mapMessage(readRecord(payloadData, "message")),
+    };
+  };
+
   return {
     listChannels,
     listUsers,
     searchMessages,
     fetchChannelHistory,
     fetchMessageReplies,
+    postMessage,
   };
 };
