@@ -65,6 +65,39 @@ describe("messages replies command", () => {
     expect(parsed.error.message).toContain("messages replies requires <thread-ts>");
   });
 
+  const invalidThreadTsTestCases = [
+    "1700000000",
+    "1700000000.",
+    ".000000",
+    "abc.def",
+    "1700000000.000000.1",
+  ];
+
+  invalidThreadTsTestCases.forEach((threadTs) => {
+    test(`returns error when thread-ts positional has invalid format (${threadTs})`, async () => {
+      const result = await runCliWithBuffer(["messages", "replies", "C123", threadTs, "--json"]);
+
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr.length).toBe(0);
+
+      const parsed = parseJsonOutput(result.stdout);
+      expect(isRecord(parsed)).toBe(true);
+      if (!isRecord(parsed)) {
+        return;
+      }
+
+      expect(parsed.ok).toBe(false);
+      expect(isRecord(parsed.error)).toBe(true);
+      if (!isRecord(parsed.error)) {
+        return;
+      }
+
+      expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+      expect(parsed.error.message).toContain("seconds.fraction");
+      expect(parsed.error.message).toContain(threadTs);
+    });
+  });
+
   const missingValueOptionsTestCases = [
     {
       option: "limit",

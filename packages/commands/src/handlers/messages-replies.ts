@@ -57,6 +57,10 @@ const readStringOption = (options: CliOptions, key: string): string | undefined 
   return typeof value === "string" ? value : undefined;
 };
 
+const isValidSlackTimestamp = (value: string): boolean => {
+  return /^\d+\.\d+$/.test(value);
+};
+
 const parseLimitOption = (options: CliOptions): number | undefined | CliResult => {
   const value = options.limit;
 
@@ -69,6 +73,15 @@ const parseLimitOption = (options: CliOptions): number | undefined | CliResult =
       "INVALID_ARGUMENT",
       "messages replies --limit requires a value. [MISSING_ARGUMENT]",
       "Provide an integer: --limit=<n>.",
+      COMMAND_ID,
+    );
+  }
+
+  if (typeof value !== "string") {
+    return createError(
+      "INVALID_ARGUMENT",
+      "messages replies --limit requires an integer value.",
+      "Use --limit with a positive integer, e.g. --limit=25.",
       COMMAND_ID,
     );
   }
@@ -214,11 +227,30 @@ export const createMessagesRepliesHandler = (
       );
     }
 
-    const threadTs = request.positionals[1];
-    if (threadTs === undefined || threadTs.length === 0) {
+    const rawThreadTs = request.positionals[1];
+    if (rawThreadTs === undefined || rawThreadTs.length === 0) {
       return createError(
         "INVALID_ARGUMENT",
         "messages replies requires <thread-ts>. [MISSING_ARGUMENT]",
+        "Usage: slack messages replies <channel-id> <thread-ts> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--json]",
+        COMMAND_ID,
+      );
+    }
+
+    const threadTs = rawThreadTs.trim();
+    if (threadTs.length === 0) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "messages replies requires <thread-ts>. [MISSING_ARGUMENT]",
+        "Usage: slack messages replies <channel-id> <thread-ts> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--json]",
+        COMMAND_ID,
+      );
+    }
+
+    if (!isValidSlackTimestamp(threadTs)) {
+      return createError(
+        "INVALID_ARGUMENT",
+        `messages replies <thread-ts> must match Slack timestamp format seconds.fraction. Received: ${threadTs}`,
         "Usage: slack messages replies <channel-id> <thread-ts> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--json]",
         COMMAND_ID,
       );
