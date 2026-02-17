@@ -114,6 +114,32 @@ const readStringOption = (options: CliOptions, key: string): string | undefined 
   return typeof value === "string" ? value : undefined;
 };
 
+const buildWhoamiTextLines = (data: unknown): string[] => {
+  if (!isRecord(data)) {
+    return ["Authenticated identity loaded."];
+  }
+
+  const userName = readString(data, "userName") ?? readString(data, "userId");
+  const teamName = readString(data, "teamName") ?? readString(data, "teamId");
+  const tokenType = readString(data, "tokenType");
+
+  const lines: string[] = [];
+
+  if (userName !== undefined && teamName !== undefined) {
+    lines.push(`You are ${userName} on ${teamName}.`);
+  } else if (userName !== undefined) {
+    lines.push(`You are ${userName}.`);
+  } else {
+    lines.push("Authenticated identity loaded.");
+  }
+
+  if (tokenType !== undefined) {
+    lines.push(`Token type: ${tokenType}`);
+  }
+
+  return lines;
+};
+
 const validateLoginInput = async (
   request: CommandRequest,
   readTokenFromStdinFn: () => Promise<string | undefined>,
@@ -244,7 +270,7 @@ export const createAuthWhoamiHandler = (depsOverrides: Partial<AuthHandlerDeps> 
         command: AUTH_WHOAMI_COMMAND,
         message: "Auth whoami succeeded",
         data,
-        textLines: ["Authenticated identity loaded."],
+        textLines: buildWhoamiTextLines(data),
       };
     } catch (error) {
       return mapAuthErrorToCliResult(error, AUTH_WHOAMI_COMMAND);

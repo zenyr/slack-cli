@@ -5,6 +5,7 @@ import {
   createAuthCheckHandler,
   createAuthLoginHandler,
   createAuthUseHandler,
+  createAuthWhoamiHandler,
 } from "../handlers/auth";
 import type { CommandRequest } from "../types";
 
@@ -242,6 +243,32 @@ describe("auth handlers", () => {
 
     expect(result.command).toBe("auth.check");
     expect(result.message).toBe("Auth check succeeded");
+  });
+
+  test("prints identity details for auth whoami", async () => {
+    const handler = createAuthWhoamiHandler({
+      getAuthLayer: async () => {
+        return {
+          ...createMockLayer(),
+          whoami: async () => {
+            return {
+              userName: "alice",
+              teamName: "Acme",
+              tokenType: "xoxp",
+            };
+          },
+        };
+      },
+    });
+
+    const result = await handler(createRequest(["auth", "whoami"]));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.textLines).toEqual(["You are alice on Acme.", "Token type: xoxp"]);
   });
 
   test("maps auth store failure to internal error", async () => {
