@@ -55,7 +55,75 @@ const readStringOption = (options: CliOptions, key: string): string | undefined 
   return typeof value === "string" ? value : undefined;
 };
 
-const parseLimitOption = (options: CliOptions): number | undefined | CliResult => {
+const parseTimeRangeToken = (token: string): { oldest: string } | CliResult => {
+  const match = token.match(/^(\d+)([dw])$/);
+  if (match === null || match.length < 3) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages history --limit time-range token invalid: ${token}. [INVALID_RANGE_TOKEN]`,
+      "Use numeric value (e.g. --limit=25) or range token: 1d, 1w, 30d, 90d.",
+      COMMAND_ID,
+    );
+  }
+
+  const matchValue = match[1];
+  const matchUnit = match[2];
+  if (matchValue === undefined || matchUnit === undefined) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages history --limit time-range token invalid: ${token}. [INVALID_RANGE_TOKEN]`,
+      "Use numeric value (e.g. --limit=25) or range token: 1d, 1w, 30d, 90d.",
+      COMMAND_ID,
+    );
+  }
+
+  const value = Number.parseInt(matchValue, 10);
+  const unit = matchUnit;
+
+  // Validate allowed tokens
+  if (unit === "d" && value !== 1 && value !== 30 && value !== 90) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages history --limit time-range token invalid: ${token}. [INVALID_RANGE_TOKEN]`,
+      "Use numeric value (e.g. --limit=25) or range token: 1d, 1w, 30d, 90d.",
+      COMMAND_ID,
+    );
+  }
+
+  if (unit === "w" && value !== 1) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages history --limit time-range token invalid: ${token}. [INVALID_RANGE_TOKEN]`,
+      "Use numeric value (e.g. --limit=25) or range token: 1d, 1w, 30d, 90d.",
+      COMMAND_ID,
+    );
+  }
+
+  const secondsPerUnit: Record<string, number> = {
+    d: 86400,
+    w: 604800,
+  };
+
+  const secondsValue = secondsPerUnit[unit];
+  if (secondsValue === undefined) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages history --limit time-range token invalid: ${token}. [INVALID_RANGE_TOKEN]`,
+      "Use numeric value (e.g. --limit=25) or range token: 1d, 1w, 30d, 90d.",
+      COMMAND_ID,
+    );
+  }
+
+  const seconds = secondsValue * value;
+  const now = Math.floor(Date.now() / 1000);
+  const oldest = Math.floor(now - seconds).toString();
+
+  return { oldest };
+};
+
+type LimitParseResult = number | { oldest: string } | undefined;
+
+const parseLimitOption = (options: CliOptions): LimitParseResult | CliResult => {
   const value = options.limit;
 
   if (value === undefined) {
@@ -66,7 +134,7 @@ const parseLimitOption = (options: CliOptions): number | undefined | CliResult =
     return createError(
       "INVALID_ARGUMENT",
       "messages history --limit requires a value. [MISSING_ARGUMENT]",
-      "Provide an integer: --limit=<n>.",
+      "Provide an integer: --limit=<n>, or range token: 1d, 1w, 30d, 90d.",
       COMMAND_ID,
     );
   }
@@ -80,23 +148,29 @@ const parseLimitOption = (options: CliOptions): number | undefined | CliResult =
   if (trimmed.length === 0) {
     return createError(
       "INVALID_ARGUMENT",
-      "messages history --limit value cannot be empty. [MISSING_ARGUMENT]",
-      "Provide an integer: --limit=<n>.",
+      "messages history --limit value cannot be empty. [INVALID_RANGE_TOKEN]",
+      "Provide an integer: --limit=<n>, or range token: 1d, 1w, 30d, 90d.",
       COMMAND_ID,
     );
   }
 
-  const parsed = Number.parseInt(trimmed, 10);
-  if (Number.isNaN(parsed) || parsed <= 0) {
+  // Try numeric first - verify it's all digits
+  if (/^\d+$/.test(trimmed)) {
+    const parsed = Number.parseInt(trimmed, 10);
+    if (parsed > 0) {
+      return parsed;
+    }
+    // Numeric but invalid (<=0)
     return createError(
       "INVALID_ARGUMENT",
       `messages history --limit must be a positive integer. Received: ${trimmed}`,
-      "Use --limit with a positive integer, e.g. --limit=25.",
+      "Use --limit with a positive integer, e.g. --limit=25, or range token: 1d, 1w, 30d, 90d.",
       COMMAND_ID,
     );
   }
 
-  return parsed;
+  // Not numeric, try time-range token
+  return parseTimeRangeToken(trimmed);
 };
 
 const readRangeOption = (options: CliOptions, key: string): string | undefined | CliResult => {
@@ -126,7 +200,7 @@ const readRangeOption = (options: CliOptions, key: string): string | undefined |
   return value.trim();
 };
 
-const isCliErrorResult = (value: number | string | undefined | CliResult): value is CliResult => {
+const isCliErrorResult = (value: unknown): value is CliResult => {
   return typeof value === "object" && value !== null && "ok" in value;
 };
 
@@ -151,6 +225,66 @@ const readOptionalCursor = (options: CliOptions): string | undefined | CliResult
   }
 
   return stringValue.trim();
+};
+
+const isRawChannelId = (candidate: string): boolean => {
+  return /^[CGD][A-Z0-9]+$/.test(candidate);
+};
+
+const resolveChannelIdentifier = async (
+  identifier: string,
+  client: SlackWebApiClient,
+): Promise<string | CliResult> => {
+  // If it's a raw ID, return as-is
+  if (isRawChannelId(identifier)) {
+    return identifier;
+  }
+
+  // If it starts with #, resolve the name
+  if (identifier.startsWith("#")) {
+    const channelName = identifier.slice(1);
+
+    if (channelName.length === 0) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "Channel name cannot be empty after #. [INVALID_CHANNEL_NAME]",
+        "Provide a channel name: #channel-name, or raw ID: C..., G..., D...",
+        COMMAND_ID,
+      );
+    }
+
+    try {
+      const result = await client.listChannels({
+        types: ["public", "private", "im", "mpim"],
+        limit: 999,
+      });
+
+      const found = result.channels.find((ch) => ch.name === channelName);
+      if (found !== undefined) {
+        return found.id;
+      }
+
+      return createError(
+        "INVALID_ARGUMENT",
+        `Channel not found: ${identifier}. [CHANNEL_NOT_FOUND]`,
+        "Verify channel name exists and you have access.",
+        COMMAND_ID,
+      );
+    } catch (error) {
+      if (isCliErrorResult(error)) {
+        return error;
+      }
+      return mapSlackClientError(error);
+    }
+  }
+
+  // Doesn't match raw ID pattern or #prefix
+  return createError(
+    "INVALID_ARGUMENT",
+    `Invalid channel identifier: ${identifier}. [INVALID_CHANNEL_IDENTIFIER]`,
+    "Provide a channel name (#channel-name) or raw ID (C..., G..., D...).",
+    COMMAND_ID,
+  );
 };
 
 const mapSlackClientError = (error: unknown): CliResult => {
@@ -193,12 +327,12 @@ export const createMessagesHistoryHandler = (
   };
 
   return async (request: CommandRequest): Promise<CliResult> => {
-    const channel = request.positionals[0];
-    if (channel === undefined || channel.length === 0) {
+    const channelIdentifier = request.positionals[0];
+    if (channelIdentifier === undefined || channelIdentifier.length === 0) {
       return createError(
         "INVALID_ARGUMENT",
-        "messages history requires <channel-id>. [MISSING_ARGUMENT]",
-        "Usage: slack messages history <channel-id> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--json]",
+        "messages history requires <channel-id or #channel-name>. [MISSING_ARGUMENT]",
+        "Usage: slack messages history <channel-id or #channel-name> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--json]",
         COMMAND_ID,
       );
     }
@@ -223,16 +357,38 @@ export const createMessagesHistoryHandler = (
       return cursorOrError;
     }
 
-    const limit = limitOrError === undefined ? 100 : limitOrError;
-
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
 
+      // Resolve channel identifier to raw ID
+      const channelIdOrError = await resolveChannelIdentifier(channelIdentifier, client);
+      if (isCliErrorResult(channelIdOrError)) {
+        return channelIdOrError;
+      }
+
+      // Process limit to determine final limit and oldest values
+      let finalLimit = 100;
+      let finalOldest = oldestOrError;
+
+      if (typeof limitOrError === "number") {
+        finalLimit = limitOrError;
+      } else if (
+        limitOrError !== undefined &&
+        typeof limitOrError === "object" &&
+        "oldest" in limitOrError
+      ) {
+        // If limit is time-range token, use computed oldest unless explicit --oldest provided
+        if (oldestOrError === undefined) {
+          finalOldest = limitOrError.oldest;
+        }
+        // Keep default limit when using time-range token
+      }
+
       const query = {
-        channel,
-        limit,
-        oldest: oldestOrError,
+        channel: channelIdOrError,
+        limit: finalLimit,
+        oldest: finalOldest,
         latest: latestOrError,
         cursor: cursorOrError,
       };
@@ -247,7 +403,7 @@ export const createMessagesHistoryHandler = (
           next_cursor: data.nextCursor,
           channel: data.channel,
         },
-        textLines: buildTextLines(channel, data),
+        textLines: buildTextLines(channelIdOrError, data),
       };
     } catch (error) {
       return mapSlackClientError(error);

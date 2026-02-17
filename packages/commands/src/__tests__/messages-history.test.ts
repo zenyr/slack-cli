@@ -39,7 +39,9 @@ describe("messages history command", () => {
 
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toContain("MISSING_ARGUMENT");
-    expect(parsed.error.message).toContain("messages history requires <channel-id>");
+    expect(parsed.error.message).toContain("messages history requires");
+    expect(parsed.error.message).toContain("channel-id");
+    expect(parsed.error.message).toContain("channel-name");
   });
 
   const missingValueOptionsTestCases = [
@@ -267,6 +269,419 @@ describe("messages history command", () => {
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
     expect(result.error.message).toContain("AUTH_ERROR");
+  });
+});
+
+describe("--limit time-range tokens", () => {
+  test("--limit=1d computes oldest and passes to history call", async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => {
+        const now = Math.floor(Date.now() / 1000);
+        const expectedOldest = Math.floor(now - 86400).toString();
+
+        return {
+          listChannels: async () => ({
+            channels: [{ id: "C123", name: "general", isPrivate: false, isArchived: false }],
+          }),
+          listUsers: async () => ({ users: [] }),
+          searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+          fetchChannelHistory: async (params) => {
+            expect(params.channel).toBe("C123");
+            expect(params.oldest).toBe(expectedOldest);
+            expect(params.latest).toBeUndefined();
+            expect(params.limit).toBe(100);
+            return {
+              channel: "C123",
+              messages: [],
+              nextCursor: undefined,
+            };
+          },
+        };
+      },
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["C123"],
+      options: { limit: "1d" },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  test("--limit=1w computes oldest and passes to history call", async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => {
+        const now = Math.floor(Date.now() / 1000);
+        const expectedOldest = Math.floor(now - 604800).toString();
+
+        return {
+          listChannels: async () => ({ channels: [] }),
+          listUsers: async () => ({ users: [] }),
+          searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+          fetchChannelHistory: async (params) => {
+            expect(params.channel).toBe("C456");
+            expect(params.oldest).toBe(expectedOldest);
+            expect(params.latest).toBeUndefined();
+            return {
+              channel: "C456",
+              messages: [],
+              nextCursor: undefined,
+            };
+          },
+        };
+      },
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["C456"],
+      options: { limit: "1w" },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  test("invalid token (2d) returns INVALID_ARGUMENT with guidance", async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        fetchChannelHistory: async () => ({ channel: "", messages: [], nextCursor: undefined }),
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["C123"],
+      options: { limit: "2d" },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("INVALID_RANGE_TOKEN");
+    expect(result.error.hint).toContain("1d, 1w, 30d, 90d");
+  });
+
+  test("explicit --oldest wins over --limit time-range token", async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        fetchChannelHistory: async (params) => {
+          expect(params.oldest).toBe("500");
+          return {
+            channel: "C123",
+            messages: [],
+            nextCursor: undefined,
+          };
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["C123"],
+      options: { limit: "1d", oldest: "500" },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe("channel identifier resolution", () => {
+  test("numeric limit unchanged with raw channel ID", async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        fetchChannelHistory: async (params) => {
+          expect(params.channel).toBe("C789");
+          expect(params.limit).toBe(50);
+          return {
+            channel: "C789",
+            messages: [],
+            nextCursor: undefined,
+          };
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["C789"],
+      options: { limit: "50" },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  test("positional #channel-name resolves to ID before history fetch", async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => ({
+        listChannels: async () => ({
+          channels: [
+            { id: "C123ABC", name: "announcements", isPrivate: false, isArchived: false },
+            { id: "C456DEF", name: "general", isPrivate: false, isArchived: false },
+          ],
+        }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        fetchChannelHistory: async (params) => {
+          expect(params.channel).toBe("C123ABC");
+          return {
+            channel: "C123ABC",
+            messages: [],
+            nextCursor: undefined,
+          };
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["#announcements"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    if (!isRecord(result.data)) {
+      return;
+    }
+
+    expect(result.data.channel).toBe("C123ABC");
+  });
+
+  test("positional #missing returns INVALID_ARGUMENT with actionable error", async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => ({
+        listChannels: async () => ({
+          channels: [{ id: "C123ABC", name: "general", isPrivate: false, isArchived: false }],
+        }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+          nextCursor: undefined,
+        }),
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["#nonexistent"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("Channel not found");
+    expect(result.error.message).toContain("#nonexistent");
+    expect(result.error.hint).toContain("Verify channel name");
+  });
+
+  test("empty channel name after # returns error with guidance", async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+          nextCursor: undefined,
+        }),
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["#"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("Channel name cannot be empty");
+  });
+
+  test('--limit with empty string value (--limit="") returns INVALID_RANGE_TOKEN marker', async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+          nextCursor: undefined,
+        }),
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["C123"],
+      options: { limit: "" },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("INVALID_RANGE_TOKEN");
+    expect(result.error.message).toContain("cannot be empty");
+  });
+
+  test('--limit with whitespace-only value (--limit="  ") returns INVALID_RANGE_TOKEN marker', async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+          nextCursor: undefined,
+        }),
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["C123"],
+      options: { limit: "   " },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("INVALID_RANGE_TOKEN");
   });
 });
 
