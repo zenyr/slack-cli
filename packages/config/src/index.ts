@@ -55,6 +55,11 @@ export const COMMANDS: CliCommand[] = [
     description: "List users",
   },
   {
+    name: "usergroups list",
+    args: "[--json]",
+    description: "List user groups",
+  },
+  {
     name: "messages search",
     args: "<query> [--channel <value>] [--user <value>] [--after YYYY-MM-DD] [--before YYYY-MM-DD] [--threads] [--json]",
     description: "Search messages",

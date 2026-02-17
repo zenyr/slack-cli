@@ -7,6 +7,7 @@ import type {
   SlackChannelType,
   SlackListChannelsOptions,
   SlackListChannelsResult,
+  SlackListUsergroupsResult,
   SlackListUsersResult,
   SlackMessage,
   SlackPostMessageResult,
@@ -18,6 +19,8 @@ import type {
   SlackSearchMessage,
   SlackSearchMessagesResult,
   SlackUser,
+  SlackUserGroup,
+  SlackUsergroupsWebApiClient,
   SlackWebApiClient,
 } from "./types";
 import {
@@ -177,6 +180,30 @@ const mapUser = (value: unknown): SlackUser | undefined => {
   };
 };
 
+const mapUserGroup = (value: unknown): SlackUserGroup | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const id = readString(value, "id");
+  const handle = readString(value, "handle");
+  const name = readString(value, "name");
+  if (id === undefined || handle === undefined || name === undefined) {
+    return undefined;
+  }
+
+  const descriptionRaw = readString(value, "description");
+  const description =
+    descriptionRaw === undefined || descriptionRaw.length === 0 ? undefined : descriptionRaw;
+
+  return {
+    id,
+    handle,
+    name,
+    description,
+  };
+};
+
 const mapSearchMessage = (value: unknown): SlackSearchMessage | undefined => {
   if (!isRecord(value)) {
     return undefined;
@@ -233,6 +260,7 @@ const isActivityOrSystemMessage = (value: Record<string, unknown>): boolean => {
 export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
 ): SlackWebApiClient &
+  SlackUsergroupsWebApiClient &
   SlackRepliesWebApiClient &
   SlackPostWebApiClient &
   SlackReactionsWebApiClient => {
@@ -424,6 +452,18 @@ export const createSlackWebApiClient = (
     return {
       users,
       nextCursor: readNextCursor(payload),
+    };
+  };
+
+  const listUsergroups = async (): Promise<SlackListUsergroupsResult> => {
+    const payload = await callApi("usergroups.list", new URLSearchParams());
+    const usergroupsRaw = readArray(payload, "usergroups") ?? [];
+    const usergroups = usergroupsRaw
+      .map(mapUserGroup)
+      .filter((value): value is SlackUserGroup => value !== undefined);
+
+    return {
+      usergroups,
     };
   };
 
@@ -666,6 +706,7 @@ export const createSlackWebApiClient = (
   return {
     listChannels,
     listUsers,
+    listUsergroups,
     searchMessages,
     fetchChannelHistory,
     fetchMessageReplies,
