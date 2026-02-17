@@ -166,7 +166,7 @@ Each unit spec must include:
 `todo.md` must explicitly include:
 
 - mission goal and scope
-- required `/implement` invocation text
+- required `/implement` argument payload text (agent-facing)
 - clean git completion requirement
 - commit completion requirement (commit hash must be reported in `result.md`)
 - explicit commit topology instruction (`single` or `multi`) with commit grouping rule
@@ -198,7 +198,7 @@ For each assigned worktree, create `todo.md` containing:
 1. Iteration ID + unit ID + branch name
 2. Goal and strict scope
 3. Exact target file paths
-4. Required `/implement` invocation text
+4. Required `/implement` argument payload text (agent-facing)
 5. Validation commands and pass criteria
 6. Non-goals and forbidden edits
 7. Completion protocol (`result.md` write + `todo.md` delete)
@@ -230,7 +230,11 @@ Use this exact structure (fill placeholders):
 
 ## Required /implement Invocation
 
-Run exactly this command as the worktree main agent:
+Worktree agent execution note:
+
+- Follow `.opencode/command/implement.md` as the runtime instruction set.
+- Use the following string as `$ARGUMENTS` for `/implement`.
+- This section defines invocation payload, not end-user shell command guidance.
 
 `/implement <unit-specific implementation goal>`
 
