@@ -19,8 +19,10 @@ import type {
   SlackRepliesWebApiClient,
   SlackSearchMessage,
   SlackSearchMessagesResult,
+  SlackUpdateUsergroupParams,
   SlackUser,
   SlackUserGroup,
+  SlackUsergroupsUpdateWebApiClient,
   SlackUsergroupsWebApiClient,
   SlackWebApiClient,
 } from "./types";
@@ -262,6 +264,7 @@ export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
 ): SlackWebApiClient &
   SlackUsergroupsWebApiClient &
+  SlackUsergroupsUpdateWebApiClient &
   SlackRepliesWebApiClient &
   SlackPostWebApiClient &
   SlackReactionsWebApiClient => {
@@ -485,6 +488,28 @@ export const createSlackWebApiClient = (
     }
 
     return usergroup;
+  };
+
+  const updateUsergroup = async (params: SlackUpdateUsergroupParams) => {
+    const payload = new URLSearchParams({
+      usergroup: params.id,
+      name: params.name,
+      handle: params.handle,
+    });
+    const payloadData = await callApiPost("usergroups.update", payload);
+    const updatedGroup = mapUserGroup(readRecord(payloadData, "usergroup"));
+
+    if (updatedGroup === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack API returned malformed usergroups.update payload.",
+        hint: "Verify token scopes and update fields for usergroups.update.",
+      });
+    }
+
+    return {
+      usergroup: updatedGroup,
+    };
   };
 
   const searchMessages = async (query: string): Promise<SlackSearchMessagesResult> => {
@@ -728,6 +753,7 @@ export const createSlackWebApiClient = (
     listUsers,
     listUsergroups,
     createUsergroup,
+    updateUsergroup,
     searchMessages,
     fetchChannelHistory,
     fetchMessageReplies,

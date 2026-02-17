@@ -78,6 +78,16 @@ export type SlackListUsergroupsResult = {
   usergroups: SlackUserGroup[];
 };
 
+export type SlackUpdateUsergroupParams = {
+  id: string;
+  name: string;
+  handle: string;
+};
+
+export type SlackUpdateUsergroupResult = {
+  usergroup: SlackUserGroup;
+};
+
 export type SlackCreateUsergroupParams = {
   name: string;
   handle: string;
@@ -86,6 +96,10 @@ export type SlackCreateUsergroupParams = {
 export type SlackUsergroupsWebApiClient = {
   listUsergroups: () => Promise<SlackListUsergroupsResult>;
   createUsergroup: (params: SlackCreateUsergroupParams) => Promise<SlackUserGroup>;
+};
+
+export type SlackUsergroupsUpdateWebApiClient = {
+  updateUsergroup: (params: SlackUpdateUsergroupParams) => Promise<SlackUpdateUsergroupResult>;
 };
 
 export type SlackSearchMessage = {

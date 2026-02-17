@@ -18,6 +18,7 @@ import {
 import { toolsHandler } from "./handlers/tools";
 import { usergroupsCreateHandler } from "./handlers/usergroups-create";
 import { usergroupsListHandler } from "./handlers/usergroups-list";
+import { usergroupsUpdateHandler } from "./handlers/usergroups-update";
 import { versionHandler } from "./handlers/version";
 import type { CommandStrategy } from "./types";
 
@@ -86,6 +87,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "usergroups-create",
     path: ["usergroups", "create"],
     execute: usergroupsCreateHandler,
+  },
+  {
+    id: "usergroups-update",
+    path: ["usergroups", "update"],
+    execute: usergroupsUpdateHandler,
   },
   {
     id: "messages-search",
