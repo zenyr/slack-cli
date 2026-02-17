@@ -60,12 +60,21 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - [x] `resources` - list MCP-style resource URIs (static list)
 - [x] `tools` - list MCP tool names (static list)
 
-### Commands - Usergroups (1 command)
+### Commands - Usergroups (4 commands)
 - [x] `usergroups list` - list workspace user groups
   - **Org equiv**: `usergroups_list` tool
   - **Status**: Core list path delivered
+- [x] `usergroups create` - create user group (minimal fields)
+  - **Org equiv**: `usergroups_create` tool
+  - **Status**: Core create path delivered (`name`, `handle`)
+- [x] `usergroups update` - update user group metadata (minimal fields)
+  - **Org equiv**: `usergroups_update` tool
+  - **Status**: Core metadata update path delivered (`id`, `name`, `handle`)
+- [x] `usergroups users update` - replace user group members
+  - **Org equiv**: `usergroups_users_update` tool
+  - **Status**: Core member replacement path delivered (explicit user-id list)
 
-**Main CLI Maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Entry (usergroups read)**
+**Main CLI Maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Core (usergroups create/update/users update)**
 
 ---
 
@@ -79,14 +88,13 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Base command path for listing workspace usergroups
   - Parity tracker update aligned with merged state
 
-#### 2. `usergroups create/update` - Next Smallest Boundary Unit
+#### 2. `usergroups create/update/users update` - Delivered
 - **Current state**:
   - `usergroups list` delivered
-  - `usergroups create` and `usergroups update` remain missing
-- **Boundary unit**:
-  - Add `usergroups create` core path with minimal required fields
-  - Add `usergroups update` core metadata update path
-- **Out of unit**: member replacement flow (`usergroups users update`) and `usergroups me` multi-step actions
+  - `usergroups create` core path delivered
+  - `usergroups update` core metadata path delivered
+  - `usergroups users update` core member replacement path delivered
+- **Out of unit**: `usergroups me` multi-step actions
 
 ---
 
@@ -106,9 +114,9 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `attachment_get_data`              | ❌ Missing       | P3       | Medium     |
 | `users_search`                     | ⚠️ Partial      | **P0**   | Low        |
 | `usergroups_list`                  | ✅ Implemented   | P2       | Low        |
-| `usergroups_create`                | ❌ Missing       | P2       | Medium     |
-| `usergroups_update`                | ❌ Missing       | P2       | Medium     |
-| `usergroups_users_update`          | ❌ Missing       | P2       | Medium     |
+| `usergroups_create`                | ✅ Implemented   | P2       | Medium     |
+| `usergroups_update`                | ✅ Implemented   | P2       | Medium     |
+| `usergroups_users_update`          | ✅ Implemented   | P2       | Medium     |
 | `usergroups_me`                    | ❌ Missing       | P3       | High       |
 
 **Summary**: 4 implemented, 5 partial, 5 missing
@@ -207,7 +215,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Create: name, handle, desc, default channels
   - Update: modify metadata (no member changes)
 - **Complexity**: Medium (input validation, channel ID resolution)
-- **Smallest unit**: create with minimal fields (name + handle only)
+- **Current state**: Core create/update path delivered (minimal required fields)
+- **Smallest remaining unit**: optional metadata fields (`description`, channel defaults)
 
 #### `usergroups users update` Command
 - **Org tool**: `usergroups_users_update`
@@ -215,7 +224,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - **Required features**:
   - Replace entire member list (destructive operation)
 - **Complexity**: Medium (safety guards needed)
-- **Smallest unit**: Direct member replacement with confirmation
+- **Current state**: Core member replacement delivered via `usergroups users update`
+- **Smallest remaining unit**: optional safety confirmation/guardrail policy
 
 #### `usergroups me` Command (Multi-step)
 - **Org tool**: `usergroups_me`
@@ -302,7 +312,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 
 **Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Entry (usergroups read)**
 
-**Next milestone**: 🏍️+ **Motorcycle+** (ship `usergroups create` + `usergroups update` core paths)
+**Next milestone**: 🏍️+ **Motorcycle+** (ship `usergroups me` list/join/leave path)
 
 **Future milestones**: 
 - 🏍️ **Motorcycle**: Write APIs (post, reactions) + threads
