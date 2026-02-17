@@ -12,16 +12,13 @@ const AUTH_USE_COMMAND = "auth.use";
 
 type AuthHandlerDeps = {
   getAuthLayer: () => Promise<AuthLayer>;
+  readTokenFromStdin: () => Promise<string | undefined>;
 };
 
 type AuthErrorShape = {
   code?: string;
   message?: string;
   hint?: string;
-};
-
-const defaultDeps: AuthHandlerDeps = {
-  getAuthLayer,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -47,6 +44,32 @@ const toAuthErrorShape = (value: unknown): AuthErrorShape => {
 
 const isAuthTokenType = (value: string): value is AuthTokenType => {
   return value === "xoxp" || value === "xoxb";
+};
+
+const trimToken = (value: string | undefined): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+};
+
+const readTokenFromStdin = async (): Promise<string | undefined> => {
+  if (Bun.stdin === undefined || process.stdin.isTTY) {
+    return undefined;
+  }
+
+  try {
+    return trimToken(await Bun.stdin.text());
+  } catch {
+    throw new Error("Unable to read token from stdin.");
+  }
+};
+
+const defaultDeps: AuthHandlerDeps = {
+  getAuthLayer,
+  readTokenFromStdin,
 };
 
 const mapAuthErrorToCliResult = (error: unknown, command: string): CliResult => {
@@ -91,7 +114,10 @@ const readStringOption = (options: CliOptions, key: string): string | undefined 
   return typeof value === "string" ? value : undefined;
 };
 
-const validateLoginInput = (request: CommandRequest): LoginInput | CliResult => {
+const validateLoginInput = async (
+  request: CommandRequest,
+  readTokenFromStdinFn: () => Promise<string | undefined>,
+): Promise<LoginInput | CliResult> => {
   if (request.positionals.length > 0) {
     return createError(
       "INVALID_ARGUMENT",
@@ -111,20 +137,38 @@ const validateLoginInput = (request: CommandRequest): LoginInput | CliResult => 
     );
   }
 
-  const token = readStringOption(request.options, "token");
-  if (token === undefined || token.trim().length === 0) {
+  const token = trimToken(readStringOption(request.options, "token"));
+  if (token !== undefined) {
+    return {
+      type: tokenType,
+      token,
+    };
+  }
+
+  let stdinToken: string | undefined;
+  try {
+    stdinToken = trimToken(await readTokenFromStdinFn());
+  } catch {
     return createError(
       "INVALID_ARGUMENT",
-      "auth login requires --token <token>.",
-      undefined,
+      "Unable to read token from stdin.",
+      "Use --token <token> or pipe token via stdin, for example: printf '<token>' | slack auth login --type <xoxp|xoxb>.",
       AUTH_LOGIN_COMMAND,
     );
   }
+  if (stdinToken !== undefined) {
+    return {
+      type: tokenType,
+      token: stdinToken,
+    };
+  }
 
-  return {
-    type: tokenType,
-    token,
-  };
+  return createError(
+    "INVALID_ARGUMENT",
+    "auth login requires --token <token>.",
+    "Use --token <token> or pipe token via stdin, for example: printf '<token>' | slack auth login --type <xoxp|xoxb>.",
+    AUTH_LOGIN_COMMAND,
+  );
 };
 
 const validateUseTarget = (request: CommandRequest): AuthTokenType | CliResult => {
@@ -215,7 +259,7 @@ export const createAuthLoginHandler = (depsOverrides: Partial<AuthHandlerDeps> =
   };
 
   return async (request: CommandRequest): Promise<CliResult> => {
-    const loginInput = validateLoginInput(request);
+    const loginInput = await validateLoginInput(request, deps.readTokenFromStdin);
     if (!("type" in loginInput)) {
       return loginInput;
     }

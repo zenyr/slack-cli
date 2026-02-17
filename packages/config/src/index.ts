@@ -31,8 +31,8 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "auth login",
-    args: "--type <xoxp|xoxb> --token <token> [--json]",
-    description: "Store Slack token and activate selected type",
+    args: "--type <xoxp|xoxb> [--token <token>] [--json]",
+    description: "Store Slack token (via --token or stdin) and activate selected type",
   },
   {
     name: "auth logout",

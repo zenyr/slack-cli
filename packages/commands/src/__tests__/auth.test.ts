@@ -28,7 +28,9 @@ const createRequest = (
   };
 };
 
-const createMockLayer = (): AuthLayer => {
+const createMockLayer = (
+  onLogin?: (input: { token: string; type: "xoxp" | "xoxb" }) => void,
+): AuthLayer => {
   return {
     check: async () => {
       return {
@@ -41,6 +43,7 @@ const createMockLayer = (): AuthLayer => {
       };
     },
     login: async (input) => {
+      onLogin?.(input);
       return {
         token: input.token,
         type: input.type,
@@ -73,6 +76,139 @@ describe("auth handlers", () => {
     expect(result.command).toBe("auth.login");
     expect(result.error.code).toBe("INVALID_ARGUMENT");
     expect(result.error.message).toBe("auth login requires --type <xoxp|xoxb>.");
+  });
+
+  test("reads auth token from stdin when --token is missing", async () => {
+    let loginInput: { token: string; type: "xoxp" | "xoxb" } | undefined;
+    const handler = createAuthLoginHandler({
+      getAuthLayer: async () =>
+        createMockLayer((input) => {
+          loginInput = input;
+        }),
+      readTokenFromStdin: async () => "  xoxp-stdin-123  ",
+    });
+
+    const result = await handler(createRequest(["auth", "login"], [], { type: "xoxp" }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(loginInput).toEqual({
+      type: "xoxp",
+      token: "xoxp-stdin-123",
+    });
+    expect(result.data).toEqual({
+      type: "xoxp",
+      token: "xoxp-stdin-123",
+    });
+  });
+
+  test("falls back to stdin when --token is blank", async () => {
+    const handler = createAuthLoginHandler({
+      getAuthLayer: async () =>
+        createMockLayer((input) => {
+          expect(input.token).toBe("xoxb-stdin-blank");
+          expect(input.type).toBe("xoxb");
+        }),
+      readTokenFromStdin: async () => "  xoxb-stdin-blank  ",
+    });
+
+    const result = await handler(
+      createRequest(["auth", "login"], [], { type: "xoxb", token: "   " }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+  });
+
+  test("uses --token when provided, ignores stdin", async () => {
+    let loginInput: { token: string; type: "xoxp" | "xoxb" } | undefined;
+    const handler = createAuthLoginHandler({
+      getAuthLayer: async () =>
+        createMockLayer((input) => {
+          loginInput = input;
+        }),
+      readTokenFromStdin: async () => "xoxp-stdin-ignored",
+    });
+
+    const result = await handler(
+      createRequest(["auth", "login"], [], { type: "xoxp", token: "  xoxp-cli-flag  " }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(loginInput).toEqual({
+      type: "xoxp",
+      token: "xoxp-cli-flag",
+    });
+  });
+
+  test("returns invalid argument if token is missing and no stdin token", async () => {
+    const handler = createAuthLoginHandler({
+      getAuthLayer: async () => createMockLayer(),
+      readTokenFromStdin: async () => undefined,
+    });
+
+    const result = await handler(createRequest(["auth", "login"], [], { type: "xoxb" }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.login");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe("auth login requires --token <token>.");
+    expect(result.error.hint).toContain("pipe");
+  });
+
+  test("returns invalid argument when stdin token is empty", async () => {
+    const handler = createAuthLoginHandler({
+      getAuthLayer: async () => createMockLayer(),
+      readTokenFromStdin: async () => "   ",
+    });
+
+    const result = await handler(createRequest(["auth", "login"], [], { type: "xoxb" }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.login");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe("auth login requires --token <token>.");
+    expect(result.error.hint).toContain("printf '<token>' | slack auth login");
+  });
+
+  test("returns invalid argument when stdin read fails", async () => {
+    const handler = createAuthLoginHandler({
+      getAuthLayer: async () => createMockLayer(),
+      readTokenFromStdin: async () => {
+        throw new Error("stdin read failed");
+      },
+    });
+
+    const result = await handler(createRequest(["auth", "login"], [], { type: "xoxp" }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.login");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe("Unable to read token from stdin.");
+    expect(result.error.hint).toBe(
+      "Use --token <token> or pipe token via stdin, for example: printf '<token>' | slack auth login --type <xoxp|xoxb>.",
+    );
   });
 
   test("validates auth use target argument", async () => {
