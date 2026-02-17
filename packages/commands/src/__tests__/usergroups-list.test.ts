@@ -33,6 +33,11 @@ const createMockClient = (
 ): SlackUsergroupsWebApiClient => {
   return {
     listUsergroups: async () => ({ usergroups: [] }),
+    createUsergroup: async () => ({
+      id: "S001",
+      handle: "oncall",
+      name: "On-call",
+    }),
     ...overrides,
   };
 };
