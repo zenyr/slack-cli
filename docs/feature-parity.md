@@ -26,7 +26,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - [x] `auth logout` - clear active session
 - [x] `auth use` - switch between xoxp/xoxb
 
-### Commands - Slack API (3 commands)
+### Commands - Slack API (4 commands)
 - [x] `channels list` - list workspace channels
   - **Org equiv**: `channels_list` tool
   - **Status**: Full parity for current scope (type filtering, popularity sort, cursor pagination)
@@ -46,33 +46,38 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - **Status**: Base implementation shipped (`--limit`, `--oldest`, `--latest`, `--cursor`)
   - **Gap**: Time-range expressions (`1d/1w/30d`), `#channel` resolution, activity message controls deferred
 
+- [x] `messages post` - post plain text messages
+  - **Org equiv**: `conversations_add_message` tool (core path)
+  - **Status**: Runtime wiring complete (`chat.postMessage`, markdown path, policy enforcement, integration tests)
+  - **Progress**: Markdown conversion utility + channel policy utility integrated in command execution with coverage
+  - **Gap**: Non-boundary enhancements deferred (advanced mark-read/unfurl controls)
+
 ### Utilities (4 commands)
 - [x] `help` - CLI/namespace help
 - [x] `version` - print version
 - [x] `resources` - list MCP-style resource URIs (static list)
 - [x] `tools` - list MCP tool names (static list)
 
-**Main CLI Maturity**: 🚲+ **Bicycle Extended** (auth + read APIs with major filter/pagination parity)
+**Main CLI Maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)**
 
 ---
 
 ## 🚧 In Progress Boundary
 
-### Priority 0: Complete Bicycle Boundary
+### Priority 1: Motorcycle Entry Boundary
 
-#### 1. `messages history` - Complete Remaining Parity Gaps
-- **Current state**: Base command implemented with pagination flags
-- **Remaining work**:
-  - Add time-range expressions (`1d/1w/30d/90d`)
-  - Add dynamic channel resolution (`#general` -> channel ID)
-  - Add optional activity message inclusion controls
+#### 1. `messages post` - Runtime Wiring Complete
+- **Current state**: Command path merged and fully wired in CLI runtime for markdown + policy enforcement
+- **Progress merged**:
+  - Markdown conversion utility (`messages-post/markdown.ts`) + tests
+  - Channel allow/deny policy utility (`messages-post/policy.ts`) + tests
+- **Remaining work (deferred from boundary unit)**:
+  - Keep advanced mark-read/unfurl behavior hardening outside current boundary
 
-#### 2. `messages replies` - Align and Harden Thread Replies Command
-- **Current state**: Partial (core handler + client + tests landed)
-- **Remaining work**:
-  - Align exposed CLI contract to implemented flags (remove unsupported `--sort`, `--filter-text`)
-  - Tighten `--limit` parsing semantics to reject mixed numeric strings (for parity with history strictness)
-  - Add/adjust tests for contract alignment and limit validation edge cases
+#### 2. `reactions add` - Next Smallest Boundary Unit
+- **Current state**: Not wired in CLI
+- **Boundary unit**: Add command wiring for `reactions add` (minimal handler + registry/client path + happy-path test)
+- **Out of unit**: `reactions remove`, channel policy enforcement, advanced message lookup helpers
 
 ---
 
@@ -84,7 +89,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 |----------------------------------|-----------------|----------|------------|
 | `conversations_history`            | ⚠️ Partial      | **P0**   | Medium     |
 | `conversations_replies`            | ⚠️ Partial      | **P1**   | Medium     |
-| `conversations_add_message`        | ❌ Missing       | **P1**   | High       |
+| `conversations_add_message`        | ✅ Implemented   | **P1**   | High       |
 | `conversations_search_messages`    | ⚠️ Partial      | **P0**   | Low        |
 | `channels_list`                    | ✅ Implemented   | **P0**   | Low        |
 | `reactions_add`                    | ❌ Missing       | P2       | Low        |
@@ -97,11 +102,11 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `usergroups_users_update`          | ❌ Missing       | P2       | Medium     |
 | `usergroups_me`                    | ❌ Missing       | P3       | High       |
 
-**Summary**: 2 implemented, 3 partial, 9 missing
+**Summary**: 2 implemented, 4 partial, 8 missing
 
 ---
 
-### Priority 0 (Current Iteration) - Complete Bicycle+
+### Priority 0 (Backlog Carryover) - Complete Bicycle+
 
 #### `messages history` Command
 - **Org tool**: `conversations_history`
@@ -147,8 +152,14 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Auto mark-read option (env-based)
   - Unfurling control
 - **Dependencies**: Channel resolution, markdown parser
+- **Current state**: Core plain-text post path merged (`messages post` command + handler + client tests)
+- **Delivered in merge set**:
+  - `messages post` command wiring + base `chat.postMessage` integration
+  - Request/response validation + error mapping coverage
+  - Markdown conversion utility and channel policy utility wired into runtime with dedicated tests
+- **Remaining gap**: Advanced mark-read/unfurl controls (deferred; non-boundary)
 - **Complexity**: High (blocks conversion, policy enforcement, multi-step)
-- **Smallest unit**: Basic postMessage without markdown/policy (plain text only)
+- **Smallest unit**: reactions add command wiring (next boundary)
 
 #### `reactions add/remove` Commands
 - **Org tools**: `reactions_add`, `reactions_remove`
@@ -159,7 +170,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Message identification (channel + timestamp)
 - **Dependencies**: Message lookup, channel resolution
 - **Complexity**: Low (simple API calls + policy check)
-- **Smallest unit**: reactions add without policy enforcement
+- **Smallest unit**: reactions add command wiring (minimal path, no policy enforcement)
 
 ---
 
@@ -265,18 +276,18 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 |------------------------------|----------|------------|------|
 | **Core Infrastructure**      | 7        | N/A        | N/A  |
 | **Auth Commands**            | 5        | N/A        | N/A  |
-| **Conversation Tools**       | 1        | 8          | -7   |
+| **Conversation Tools**       | 4 (partial) | 8       | -4   |
 | **Channel Tools**            | 1        | 1          | 0    |
 | **User Tools**               | 1        | 1          | 0    |
 | **Usergroup Tools**          | 0        | 5          | -5   |
 | **Utilities**                | 4        | N/A        | N/A  |
 | **MCP Resources**            | 0 (stub) | 2          | -2   |
 | **Advanced Infra**           | 0        | 5          | -5   |
-| **Total Org-Equivalent Tools** | **3** (partial) | **14** (full) | **79% gap** |
+| **Total Org-Equivalent Tools** | **6** (2 full + 4 partial) | **14** (full) | **57% gap** |
 
-**Current maturity**: 🚲+ **Bicycle Extended**
+**Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)**
 
-**Next milestone**: 🚲++ **Bicycle Complete** (finish history gaps + add replies)
+**Next milestone**: 🏍️ **Motorcycle** (start with `reactions add` command wiring)
 
 **Future milestones**: 
 - 🏍️ **Motorcycle**: Write APIs (post, reactions) + threads
@@ -313,10 +324,10 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 **Goal**: Enable write operations (post messages, reactions)
 
 **Units**:
-1. `messages post` - Basic plain text posting (no markdown yet)
-2. `messages post` - Add markdown→blocks conversion
-3. `messages post` - Add channel policy enforcement
-4. `reactions add` - Add reaction support
+1. `messages post` - Basic plain text posting (core) ✅
+2. `messages post` - Markdown utility wiring complete in runtime ✅
+3. `messages post` - Channel policy utility wiring complete in runtime ✅
+4. `reactions add` - Add reaction command wiring (next smallest boundary unit)
 5. `reactions remove` - Remove reaction support
 
 **Dependencies**: Channel resolution (can use inline API calls, cache not required yet)
