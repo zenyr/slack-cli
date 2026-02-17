@@ -1,0 +1,26 @@
+{
+  "name": "@zenyr/slack-cli",
+  "version": "0.1.0",
+  "packageManager": "bun@1.3.9",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "start": "bun --env-file=.env run --cwd=apps/cli start",
+    "slack": "bun --env-file=.env run --cwd=apps/cli start",
+    "lint": "biome check --write --unsafe .",
+    "lint:workspaces": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "tsc": "turbo run typecheck",
+    "link:slack": "bun --cwd=apps/cli link"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "latest",
+    "@types/bun": "latest",
+    "turbo": "latest",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,68 @@
+export type CliResource = {
+  uri: string;
+  title: string;
+  format: "text/csv" | "application/json";
+  description: string;
+};
+
+export type CliCommand = {
+  name: string;
+  args: string;
+  description: string;
+};
+
+export const CLI_NAME = "slack";
+
+export const COMMANDS: CliCommand[] = [
+  {
+    name: "help",
+    args: "",
+    description: "Show this help message",
+  },
+  {
+    name: "resources",
+    args: "[--json]",
+    description: "List available Slack MCP-style resources",
+  },
+  {
+    name: "tools",
+    args: "[--json]",
+    description: "List referenced MCP tools from spec",
+  },
+  {
+    name: "version",
+    args: "",
+    description: "Print CLI version",
+  },
+];
+
+export const RESOURCES: CliResource[] = [
+  {
+    uri: "slack://<workspace>/channels",
+    title: "Directory of Channels",
+    format: "text/csv",
+    description: "List channels, DMs, group DMs with basic metadata",
+  },
+  {
+    uri: "slack://<workspace>/users",
+    title: "Directory of Users",
+    format: "text/csv",
+    description: "List workspace users for lookups and context enrichment",
+  },
+];
+
+export const TOOLS = [
+  "conversations_history",
+  "conversations_replies",
+  "conversations_add_message",
+  "conversations_search_messages",
+  "channels_list",
+  "reactions_add",
+  "reactions_remove",
+  "users_search",
+  "usergroups_list",
+  "usergroups_create",
+  "usergroups_update",
+  "usergroups_users_update",
+  "usergroups_me",
+];
