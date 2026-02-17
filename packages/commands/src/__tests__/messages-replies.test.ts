@@ -115,6 +115,18 @@ describe("messages replies command", () => {
       description: "non-numeric value",
     },
     {
+      value: "10abc",
+      description: "mixed numeric suffix",
+    },
+    {
+      value: "1.5",
+      description: "decimal value",
+    },
+    {
+      value: "+2",
+      description: "explicit positive sign",
+    },
+    {
       value: "0",
       description: "zero (non-positive)",
     },

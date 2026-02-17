@@ -88,6 +88,15 @@ const parseLimitOption = (options: CliOptions): number | undefined | CliResult =
     );
   }
 
+  if (!/^[0-9]+$/.test(trimmed)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages replies --limit must be a positive integer. Received: ${trimmed}`,
+      "Use --limit with a positive integer, e.g. --limit=25.",
+      COMMAND_ID,
+    );
+  }
+
   const parsed = Number.parseInt(trimmed, 10);
   if (Number.isNaN(parsed) || parsed <= 0) {
     return createError(
