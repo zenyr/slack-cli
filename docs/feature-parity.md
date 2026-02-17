@@ -44,7 +44,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - [x] `messages history` - fetch channel history with pagination
   - **Org equiv**: `conversations_history` tool
   - **Status**: Base implementation shipped (`--limit`, `--oldest`, `--latest`, `--cursor`)
-  - **Gap**: Time-range expressions (`1d/1w/30d`), `#channel` resolution, activity message controls deferred
+  - **Progress**: `--include-activity` control delivered in command path
+  - **Gap**: Time-range expressions (`1d/1w/30d`) and `#channel` resolution deferred
 
 - [x] `messages post` - post plain text messages
   - **Org equiv**: `conversations_add_message` tool (core path)
@@ -74,10 +75,15 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - **Remaining work (deferred from boundary unit)**:
   - Keep advanced mark-read/unfurl behavior hardening outside current boundary
 
-#### 2. `reactions add` - Next Smallest Boundary Unit
-- **Current state**: Not wired in CLI
-- **Boundary unit**: Add command wiring for `reactions add` (minimal handler + registry/client path + happy-path test)
-- **Out of unit**: `reactions remove`, channel policy enforcement, advanced message lookup helpers
+#### 2. `reactions remove` + `messages post` thread support - Next Smallest Boundary Unit
+- **Current state**:
+  - `reactions add` command wiring delivered
+  - `reactions remove` handler delivered, CLI command wiring pending
+  - `messages post` core runtime wiring delivered, `thread_ts` support pending
+- **Boundary unit**:
+  - Add CLI command wiring for `reactions remove` (registry/client path + happy-path test)
+  - Add `thread_ts` contract support to `messages post` command path
+- **Out of unit**: channel policy hardening and advanced message lookup helpers
 
 ---
 
@@ -92,8 +98,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `conversations_add_message`        | ✅ Implemented   | **P1**   | High       |
 | `conversations_search_messages`    | ⚠️ Partial      | **P0**   | Low        |
 | `channels_list`                    | ✅ Implemented   | **P0**   | Low        |
-| `reactions_add`                    | ❌ Missing       | P2       | Low        |
-| `reactions_remove`                 | ❌ Missing       | P2       | Low        |
+| `reactions_add`                    | ✅ Implemented   | P2       | Low        |
+| `reactions_remove`                 | ⚠️ Partial      | P2       | Low        |
 | `attachment_get_data`              | ❌ Missing       | P3       | Medium     |
 | `users_search`                     | ⚠️ Partial      | **P0**   | Low        |
 | `usergroups_list`                  | ❌ Missing       | P2       | Low        |
@@ -102,7 +108,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `usergroups_users_update`          | ❌ Missing       | P2       | Medium     |
 | `usergroups_me`                    | ❌ Missing       | P3       | High       |
 
-**Summary**: 2 implemented, 4 partial, 8 missing
+**Summary**: 3 implemented, 5 partial, 6 missing
 
 ---
 
@@ -157,9 +163,9 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - `messages post` command wiring + base `chat.postMessage` integration
   - Request/response validation + error mapping coverage
   - Markdown conversion utility and channel policy utility wired into runtime with dedicated tests
-- **Remaining gap**: Advanced mark-read/unfurl controls (deferred; non-boundary)
+- **Remaining gap**: `thread_ts` support + advanced mark-read/unfurl controls (deferred; non-boundary)
 - **Complexity**: High (blocks conversion, policy enforcement, multi-step)
-- **Smallest unit**: reactions add command wiring (next boundary)
+- **Smallest unit**: `thread_ts` support in `messages post` contract + wiring
 
 #### `reactions add/remove` Commands
 - **Org tools**: `reactions_add`, `reactions_remove`
@@ -170,7 +176,10 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Message identification (channel + timestamp)
 - **Dependencies**: Message lookup, channel resolution
 - **Complexity**: Low (simple API calls + policy check)
-- **Smallest unit**: reactions add command wiring (minimal path, no policy enforcement)
+- **Current state**:
+  - `reactions add` command wiring delivered
+  - `reactions remove` handler delivered, command wiring pending
+- **Smallest unit**: reactions remove command wiring (minimal path, no policy enforcement)
 
 ---
 
@@ -283,11 +292,11 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | **Utilities**                | 4        | N/A        | N/A  |
 | **MCP Resources**            | 0 (stub) | 2          | -2   |
 | **Advanced Infra**           | 0        | 5          | -5   |
-| **Total Org-Equivalent Tools** | **6** (2 full + 4 partial) | **14** (full) | **57% gap** |
+| **Total Org-Equivalent Tools** | **8** (3 full + 5 partial) | **14** (full) | **43% gap** |
 
 **Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)**
 
-**Next milestone**: 🏍️ **Motorcycle** (start with `reactions add` command wiring)
+**Next milestone**: 🏍️ **Motorcycle** (ship `reactions remove` command wiring + `messages post` thread support)
 
 **Future milestones**: 
 - 🏍️ **Motorcycle**: Write APIs (post, reactions) + threads
@@ -327,8 +336,9 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 1. `messages post` - Basic plain text posting (core) ✅
 2. `messages post` - Markdown utility wiring complete in runtime ✅
 3. `messages post` - Channel policy utility wiring complete in runtime ✅
-4. `reactions add` - Add reaction command wiring (next smallest boundary unit)
-5. `reactions remove` - Remove reaction support
+4. `reactions add` - Add reaction command wiring ✅
+5. `reactions remove` - Handler delivered, command wiring pending
+6. `messages post` - `thread_ts` support (next smallest boundary unit)
 
 **Dependencies**: Channel resolution (can use inline API calls, cache not required yet)
 
