@@ -1,6 +1,7 @@
 import { helpHandler } from "./handlers/help";
 import { messagesHistoryHandler } from "./handlers/messages-history";
 import { messagesPostHandler } from "./handlers/messages-post";
+import { reactionsAddHandler } from "./handlers/reactions-add";
 import { resourcesHandler } from "./handlers/resources";
 import {
   authCheckHandler,
@@ -92,5 +93,10 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-replies",
     path: ["messages", "replies"],
     execute: messagesRepliesHandler,
+  },
+  {
+    id: "reactions-add",
+    path: ["reactions", "add"],
+    execute: reactionsAddHandler,
   },
 ];
