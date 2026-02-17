@@ -60,6 +60,11 @@ export const COMMANDS: CliCommand[] = [
     description: "List user groups",
   },
   {
+    name: "usergroups create",
+    args: "<name> <handle> [--json]",
+    description: "Create user group",
+  },
+  {
     name: "messages search",
     args: "<query> [--channel <value>] [--user <value>] [--after YYYY-MM-DD] [--before YYYY-MM-DD] [--threads] [--json]",
     description: "Search messages",

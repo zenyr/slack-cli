@@ -5,6 +5,7 @@ import type {
   SlackChannelHistoryResult,
   SlackChannelRepliesResult,
   SlackChannelType,
+  SlackCreateUsergroupParams,
   SlackListChannelsOptions,
   SlackListChannelsResult,
   SlackListUsergroupsResult,
@@ -467,6 +468,25 @@ export const createSlackWebApiClient = (
     };
   };
 
+  const createUsergroup = async (params: SlackCreateUsergroupParams): Promise<SlackUserGroup> => {
+    const payload = new URLSearchParams({
+      name: params.name,
+      handle: params.handle,
+    });
+    const payloadData = await callApiPost("usergroups.create", payload);
+    const usergroup = mapUserGroup(readRecord(payloadData, "usergroup"));
+
+    if (usergroup === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack API returned malformed usergroups.create payload.",
+        hint: "Verify token scopes and required fields for usergroups.create.",
+      });
+    }
+
+    return usergroup;
+  };
+
   const searchMessages = async (query: string): Promise<SlackSearchMessagesResult> => {
     const normalizedQuery = query.trim();
     if (normalizedQuery.length === 0) {
@@ -707,6 +727,7 @@ export const createSlackWebApiClient = (
     listChannels,
     listUsers,
     listUsergroups,
+    createUsergroup,
     searchMessages,
     fetchChannelHistory,
     fetchMessageReplies,
