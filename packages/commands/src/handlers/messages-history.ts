@@ -227,6 +227,37 @@ const readOptionalCursor = (options: CliOptions): string | undefined | CliResult
   return stringValue.trim();
 };
 
+const parseIncludeActivityOption = (options: CliOptions): boolean | CliResult => {
+  const value = options["include-activity"];
+  if (value === undefined) {
+    return false;
+  }
+
+  if (value === true) {
+    return true;
+  }
+
+  if (value === false) {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") {
+    return true;
+  }
+
+  if (normalized === "false") {
+    return false;
+  }
+
+  return createError(
+    "INVALID_ARGUMENT",
+    `messages history --include-activity expects boolean value when provided with '=...'. Received: ${value}`,
+    "Use --include-activity, --include-activity=true, or --include-activity=false.",
+    COMMAND_ID,
+  );
+};
+
 const isRawChannelId = (candidate: string): boolean => {
   return /^[CGD][A-Z0-9]+$/.test(candidate);
 };
@@ -332,7 +363,7 @@ export const createMessagesHistoryHandler = (
       return createError(
         "INVALID_ARGUMENT",
         "messages history requires <channel-id or #channel-name>. [MISSING_ARGUMENT]",
-        "Usage: slack messages history <channel-id or #channel-name> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--json]",
+        "Usage: slack messages history <channel-id or #channel-name> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--include-activity] [--json]",
         COMMAND_ID,
       );
     }
@@ -355,6 +386,11 @@ export const createMessagesHistoryHandler = (
     const cursorOrError = readOptionalCursor(request.options);
     if (isCliErrorResult(cursorOrError)) {
       return cursorOrError;
+    }
+
+    const includeActivityOrError = parseIncludeActivityOption(request.options);
+    if (isCliErrorResult(includeActivityOrError)) {
+      return includeActivityOrError;
     }
 
     try {
@@ -391,6 +427,7 @@ export const createMessagesHistoryHandler = (
         oldest: finalOldest,
         latest: latestOrError,
         cursor: cursorOrError,
+        includeActivity: includeActivityOrError,
       };
 
       const data = await client.fetchChannelHistory(query);

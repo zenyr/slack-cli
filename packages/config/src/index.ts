@@ -61,7 +61,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages history",
-    args: "<channel-id> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--json]",
+    args: "<channel-id> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--json]",
     description: "Fetch channel message history",
   },
   {
