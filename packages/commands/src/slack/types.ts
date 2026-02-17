@@ -102,6 +102,18 @@ export type SlackPostMessageResult = {
   message?: SlackMessage;
 };
 
+export type SlackReactionParams = {
+  channel: string;
+  timestamp: string;
+  name: string;
+};
+
+export type SlackReactionResult = {
+  channel: string;
+  ts: string;
+  name: string;
+};
+
 export type SlackChannelHistoryResult = {
   channel: string;
   messages: SlackMessage[];
@@ -129,6 +141,11 @@ export type SlackRepliesWebApiClient = {
 
 export type SlackPostWebApiClient = {
   postMessage: (params: SlackPostMessageParams) => Promise<SlackPostMessageResult>;
+};
+
+export type SlackReactionsWebApiClient = {
+  addReaction: (params: SlackReactionParams) => Promise<SlackReactionResult>;
+  removeReaction: (params: SlackReactionParams) => Promise<SlackReactionResult>;
 };
 
 export type SlackWebApiClient = {
