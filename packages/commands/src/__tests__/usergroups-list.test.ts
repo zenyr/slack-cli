@@ -64,6 +64,8 @@ describe("usergroups list command", () => {
                 handle: "oncall",
                 name: "On-call",
                 description: "Primary incident responders",
+                user_count: 2,
+                users: ["U001", "U002"],
               },
               {
                 id: "S002",
@@ -126,6 +128,12 @@ describe("usergroups list command", () => {
     expect(first.handle).toBe("oncall");
     expect(first.name).toBe("On-call");
     expect(first.description).toBe("Primary incident responders");
+    expect(first.userCount).toBe(2);
+    expect(Array.isArray(first.users)).toBe(true);
+    if (!Array.isArray(first.users)) {
+      return;
+    }
+    expect(first.users).toEqual(["U001", "U002"]);
     expect(second.description).toBeUndefined();
 
     expect(Array.isArray(parsed.textLines)).toBe(true);
@@ -134,7 +142,9 @@ describe("usergroups list command", () => {
     }
 
     expect(parsed.textLines[0]).toBe("Found 2 user groups.");
-    expect(parsed.textLines).toContain("- @oncall (S001) On-call - Primary incident responders");
+    expect(parsed.textLines).toContain(
+      "- @oncall (S001) On-call - Primary incident responders [members: 2] [users: U001,U002]",
+    );
     expect(parsed.textLines).toContain("- @eng (S002) Engineering");
   });
 

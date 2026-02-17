@@ -63,7 +63,9 @@ const parseBooleanOptionValue = (
 
 const toGroupLine = (group: SlackUserGroup): string => {
   const description = group.description === undefined ? "" : ` - ${group.description}`;
-  return `- @${group.handle} (${group.id}) ${group.name}${description}`;
+  const count = group.userCount === undefined ? "" : ` [members: ${group.userCount}]`;
+  const users = group.users === undefined ? "" : ` [users: ${group.users.join(",")}]`;
+  return `- @${group.handle} (${group.id}) ${group.name}${description}${count}${users}`;
 };
 
 type UsergroupsListHandlerDeps = {

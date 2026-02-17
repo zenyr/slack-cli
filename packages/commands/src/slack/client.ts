@@ -204,12 +204,19 @@ const mapUserGroup = (value: unknown): SlackUserGroup | undefined => {
   const descriptionRaw = readString(value, "description");
   const description =
     descriptionRaw === undefined || descriptionRaw.length === 0 ? undefined : descriptionRaw;
+  const usersRaw = readArray(value, "users") ?? [];
+  const users = usersRaw
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter((entry) => entry.length > 0);
+  const userCount = readNumber(value, "user_count");
 
   return {
     id,
     handle,
     name,
     description,
+    userCount,
+    users: users.length === 0 ? undefined : users,
   };
 };
 

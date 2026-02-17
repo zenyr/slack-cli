@@ -72,6 +72,8 @@ export type SlackUserGroup = {
   handle: string;
   name: string;
   description?: string;
+  userCount?: number;
+  users?: string[];
 };
 
 export type SlackListUsergroupsResult = {
