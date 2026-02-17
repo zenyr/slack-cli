@@ -66,7 +66,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages replies",
-    args: "<channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--sort=<oldest|newest>] [--filter-text=<text>] [--cursor=<cursor>] [--json]",
+    args: "<channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--json]",
     description: "Fetch thread message replies",
   },
   {
