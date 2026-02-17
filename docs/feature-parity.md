@@ -220,8 +220,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - List all user groups
   - Optional include_users/include_disabled/include_count flags
 - **Complexity**: Low (direct API wrapper)
-- **Current state**: Implemented with optional flag parity (`include_users/include_disabled/include_count`)
-- **Smallest remaining unit**: include users/count in output formatting contract when requested
+- **Current state**: Implemented with optional flag parity and response mapping (`include_users/include_disabled/include_count`)
+- **Smallest remaining unit**: output formatting polish for large user id lists
 
 #### `usergroups create/update` Commands
 - **Org tools**: `usergroups_create`, `usergroups_update`
