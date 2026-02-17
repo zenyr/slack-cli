@@ -20,6 +20,7 @@ const readNonEmptyEnv = (
 export const resolveSlackTokenFromEnv = (
   env: Record<string, string | undefined> = process.env,
 ): ResolvedSlackToken => {
+  // TODO(commands-owner): Replace env-first token lookup with @zenyr/slack-cli-auth active-session token resolver once auth package exports stable resolver API.
   const userToken = readNonEmptyEnv(env, XOXP_ENV_KEY);
   if (userToken !== undefined) {
     return {

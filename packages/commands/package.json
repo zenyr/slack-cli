@@ -12,6 +12,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@zenyr/slack-cli-auth": "workspace:*",
     "@zenyr/slack-cli-config": "workspace:*"
   }
 }

@@ -1,6 +1,15 @@
 import { helpHandler } from "./handlers/help";
 import { resourcesHandler } from "./handlers/resources";
-import { channelsListHandler, messagesSearchHandler, usersListHandler } from "./handlers/stubs";
+import {
+  authCheckHandler,
+  authLoginHandler,
+  authLogoutHandler,
+  authUseHandler,
+  authWhoamiHandler,
+  channelsListHandler,
+  messagesSearchHandler,
+  usersListHandler,
+} from "./handlers/stubs";
 import { toolsHandler } from "./handlers/tools";
 import { versionHandler } from "./handlers/version";
 import type { CommandStrategy } from "./types";
@@ -25,6 +34,31 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "tools",
     path: ["tools"],
     execute: toolsHandler,
+  },
+  {
+    id: "auth-check",
+    path: ["auth", "check"],
+    execute: authCheckHandler,
+  },
+  {
+    id: "auth-whoami",
+    path: ["auth", "whoami"],
+    execute: authWhoamiHandler,
+  },
+  {
+    id: "auth-login",
+    path: ["auth", "login"],
+    execute: authLoginHandler,
+  },
+  {
+    id: "auth-logout",
+    path: ["auth", "logout"],
+    execute: authLogoutHandler,
+  },
+  {
+    id: "auth-use",
+    path: ["auth", "use"],
+    execute: authUseHandler,
   },
   {
     id: "channels-list",

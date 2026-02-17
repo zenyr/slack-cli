@@ -20,6 +20,31 @@ export const COMMANDS: CliCommand[] = [
     description: "Show this help message",
   },
   {
+    name: "auth check",
+    args: "[--json]",
+    description: "Check current auth session status",
+  },
+  {
+    name: "auth whoami",
+    args: "[--json]",
+    description: "Show active authenticated identity",
+  },
+  {
+    name: "auth login",
+    args: "--type <xoxp|xoxb> --token <token> [--json]",
+    description: "Store Slack token and activate selected type",
+  },
+  {
+    name: "auth logout",
+    args: "[--json]",
+    description: "Clear active auth session",
+  },
+  {
+    name: "auth use",
+    args: "<xoxp|xoxb> [--json]",
+    description: "Switch active auth token type",
+  },
+  {
     name: "channels list",
     args: "[--json]",
     description: "List channels",

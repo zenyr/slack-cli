@@ -23,9 +23,13 @@
         "@zenyr/slack-cli-config": "workspace:*",
       },
     },
+    "packages/auth": {
+      "name": "@zenyr/slack-cli-auth",
+    },
     "packages/commands": {
       "name": "@zenyr/slack-cli-commands",
       "dependencies": {
+        "@zenyr/slack-cli-auth": "workspace:*",
         "@zenyr/slack-cli-config": "workspace:*",
       },
     },
@@ -55,6 +59,8 @@
     "@types/bun": ["@types/bun@1.3.9", "", { "dependencies": { "bun-types": "1.3.9" } }, "sha512-KQ571yULOdWJiMH+RIWIOZ7B2RXQGpL1YQrBtLIV3FqDcCu6FsbFUBwhdKUlCKUpS3PJDsHlJ1QKlpxoVR+xtw=="],
 
     "@types/node": ["@types/node@25.2.3", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-m0jEgYlYz+mDJZ2+F4v8D1AyQb+QzsNqRuI7xg1VQX/KlKS0qT9r1Mo16yo5F/MtifXFgaofIFsdFMox2SxIbQ=="],
+
+    "@zenyr/slack-cli-auth": ["@zenyr/slack-cli-auth@workspace:packages/auth"],
 
     "@zenyr/slack-cli-bin": ["@zenyr/slack-cli-bin@workspace:apps/cli"],
 
