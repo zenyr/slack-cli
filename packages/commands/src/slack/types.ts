@@ -67,6 +67,21 @@ export type SlackListUsersResult = {
   nextCursor?: string;
 };
 
+export type SlackUserGroup = {
+  id: string;
+  handle: string;
+  name: string;
+  description?: string;
+};
+
+export type SlackListUsergroupsResult = {
+  usergroups: SlackUserGroup[];
+};
+
+export type SlackUsergroupsWebApiClient = {
+  listUsergroups: () => Promise<SlackListUsergroupsResult>;
+};
+
 export type SlackSearchMessage = {
   channelId?: string;
   channelName?: string;
