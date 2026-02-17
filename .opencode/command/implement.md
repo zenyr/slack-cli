@@ -76,6 +76,24 @@ Failing → delegate targeted fixes → delegate re-verify. Proceed only when gr
 
 Git agent handles staging/msg/execution autonomously. Reports `git status --short --branch`. Hook/formatter drift → delegate stabilize + re-commit.
 
+When running from worktree `todo.md` contract, commit timing is strict:
+- verification must pass first
+- commit must complete next
+- only after commit, write final `result.md`
+- delete `todo.md` last
+
+If explicit human commit approval is required by current task contract and not yet granted, do not commit; keep `todo.md` present and report blocker in `result.md`.
+
+### 6.1 Todo Terminal Signal Protocol (strict)
+
+`todo.md` deletion is a one-way terminal signal for orchestrator pickup.
+
+Delete `todo.md` only at terminal moment:
+1. success terminal: verification passed, commit done, final `result.md` written.
+2. abandon terminal: unit proven non-completable now, final `result.md` includes explicit abandonment + blocker evidence.
+
+Paraphrase rule: if still implementing, validating, fixing, or deciding, keep `todo.md`.
+
 ### 7. Delegation quality feedback
 
 Review `delegation_feedback` from all iteration subagents:
@@ -123,4 +141,6 @@ No push/amend/hook-bypass unless explicitly requested. Grouped commits by logica
 - Typecheck + tests pass.
 - Git tree stable.
 - Commits logically structured.
+- If `todo.md` protocol applies: strict sequence preserved (`verify -> commit -> result.md -> todo.md delete`).
+- `todo.md` removed only at success terminal or abandon terminal.
 - Deferrals documented: actionable `TODO:` w/ owner scope, next action, removal condition.

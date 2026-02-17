@@ -143,11 +143,17 @@ For each assigned sibling worktree:
 - Branch naming must be deterministic and iteration-scoped.
 - Recommended pattern:
   - `feat/parity-i{iteration}-{unit-key}-wt{n}`
-- Record branch name in root `plan.md`.
+- Record branch names in transient orchestration note under `.opencode/plans/` only.
+- Never create repository-root `plan.md` during `/plan` execution.
 
 ## Delegation Contract
 
 For each assigned worktree unit, instruct that worktree agent to execute via `implement` command (not ad-hoc coding prompt).
+
+Visibility assumption (strict, concise):
+
+- Worktree agents are effectively blind outside their own worktree context; treat available guidance as only assigned `todo.md` + explicitly referenced in-repo docs.
+- Therefore main orchestrator must preload all required parity context, contracts, and constraints into `todo.md` (do not assume hidden/shared context).
 
 Each unit spec must include:
 
@@ -164,6 +170,11 @@ Each unit spec must include:
 - clean git completion requirement
 - commit completion requirement (commit hash must be reported in `result.md`)
 - explicit commit topology instruction (`single` or `multi`) with commit grouping rule
+- strict execution order requirement (must be followed exactly):
+  1. verification pass
+  2. git commit complete
+  3. `result.md` finalized
+  4. `todo.md` delete
 - completion signal protocol:
   - create/update `result.md`
   - delete `todo.md`
@@ -172,11 +183,11 @@ Each unit spec must include:
 Worktree-agent completion contract:
 
 - finish implementation
-- finish local verification
-- complete commit for finalized changes (only with explicit human approval for that worktree)
+- finish local verification first
+- complete commit for finalized changes next (only with explicit human approval for that worktree)
 - keep git state clean for its own finalized changes after commit
-- write concise `result.md`
-- remove `todo.md`
+- write concise `result.md` after commit
+- remove `todo.md` last
 
 ## Output Format
 
@@ -195,7 +206,8 @@ For each assigned worktree, create `todo.md` containing:
 
 Optional supporting artifact:
 
-- Root `plan.md` may be updated for orchestration visibility, but it is secondary.
+- Use transient note file under `.opencode/plans/` for orchestration visibility (for example `.opencode/plans/parity-i2.md`).
+- Root-level `plan.md` is forbidden as a runtime artifact.
 
 ## `todo.md` Canonical Example
 
@@ -283,25 +295,38 @@ If this section is absent, zero failures are allowed.
 
 ## Completion Protocol (required)
 
+Execute in strict order only:
+
 1. Run required verification commands and ensure all pass.
 2. Complete git commit for finalized changes (single logical commit unless unit explicitly requires multi-commit).
    - If explicit human commit approval is missing, keep `todo.md` present and report blocker in `result.md`.
 3. Create `result.md` at worktree root with:
+   - completion_state block:
+     - `status: done`
+     - `phase: sealed`
+     - `ready_for_pickup: true`
    - implemented changes
    - verification evidence (commands + brief outcomes)
    - commit hash(es)
    - known limitations/TODOs
 4. Delete this `todo.md`.
 
-Never delete `todo.md` before both commit completion and `result.md` update.
+Never reorder completion sequence.
+Never write final `result.md` before commit completion.
+Never delete `todo.md` before commit completion and `result.md` sealed completion_state update.
 
-`todo.md` deletion is the completion signal consumed by main orchestrator.
+CRITICAL (terminal signal rule): deleting `todo.md` is a one-way terminal signal consumed by main orchestrator.
+Delete `todo.md` only in exactly one of these terminal moments:
+1. success terminal: all required work finished, verification passed, commit done, final `result.md` written.
+2. abandon terminal: unit is proven not completable now, final `result.md` documents explicit abandonment + blocker evidence.
+Paraphrase: if you are still working, still validating, still fixing, or still deciding, keep `todo.md`.
 
 ## If Blocked
 
 - Keep `todo.md` present.
 - Append blocker details to `result.md` with concrete ask.
 - If blocked only by missing commit approval, explicitly state approval request in `result.md` and do not delete `todo.md`.
+- Only when the unit is explicitly abandoned as non-completable now, write terminal abandonment report in `result.md` and then delete `todo.md`.
 - Do not claim completion.
 ```
 
@@ -311,11 +336,16 @@ Main agent must run iterative monitor loop per assigned worktree:
 
 1. Spawn one monitor process from main context with `notifyOnExit=true`.
 2. Monitor process checks assigned worktree `todo.md` files and exits immediately when any file disappears.
-3. On exit notification, treat disappeared `todo.md` worktree(s) as candidate completion.
-4. Read candidate worktree `result.md`.
+3. On exit notification, treat disappeared `todo.md` worktree(s) as candidate completion only.
+4. Run stabilization gate before validation:
+   - read `result.md` twice with short delay; content must be stable
+   - `completion_state` must exist as one of:
+     - success terminal: `status: done`, `phase: sealed`, `ready_for_pickup: true`
+     - abandon terminal: `status: abandoned`, `phase: terminal`, `ready_for_pickup: false`
+   - `git -C <worktree> status --short --branch` must satisfy unit clean-state rule
 5. Delegate verification of claimed outcome to `haiku` or `spark`.
-6. If verification passes and commit evidence is present in `result.md`, accept unit and remove it from pending set.
-7. If verification fails, write updated `todo.md` with precise gap-fix instructions and keep unit pending.
+6. If stabilization + verification pass, accept unit and remove it from pending set.
+7. If either fails, write updated `todo.md` with precise gap-fix instructions and keep unit pending.
 8. Relaunch monitor process for remaining pending worktrees; repeat until pending set is empty.
 
 Implementation note (recommended shell shape):
@@ -323,7 +353,14 @@ Implementation note (recommended shell shape):
 - `while all pending todo.md exist; do sleep <interval>; done; echo completion; exit 0`
 - This converts polling into event-like orchestration via process exit + `notifyOnExit`.
 
-Never accept completion without independent verification.
+Never accept completion from `todo.md` deletion alone.
+Never accept completion without stabilization gate + independent verification.
+
+## Runtime Artifact Hygiene (strict)
+
+- During active orchestration (while any assigned worktree still has `todo.md`), do not create or update repository-root `plan.md`.
+- If plan snapshot is needed, write only to `.opencode/plans/` (already ignored) and treat as transient.
+- Keep all runtime orchestration artifacts uncommitted.
 
 ## Merge Readiness Validation Rule
 
