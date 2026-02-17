@@ -28,7 +28,7 @@ export const isSlackClientError = (error: unknown): error is SlackClientError =>
   }
 
   const code = readString(error, "code");
-  return code?.startsWith("SLACK_");
+  return code !== undefined && code.startsWith("SLACK_");
 };
 
 export const isRecord = (value: unknown): value is Record<string, unknown> => {
