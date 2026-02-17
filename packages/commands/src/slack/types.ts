@@ -94,6 +94,7 @@ export type SlackMessage = {
 export type SlackPostMessageParams = {
   channel: string;
   text: string;
+  threadTs?: string;
 };
 
 export type SlackPostMessageResult = {

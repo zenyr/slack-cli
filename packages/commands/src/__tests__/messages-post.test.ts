@@ -85,6 +85,74 @@ describe("messages post command", () => {
     expect(parsed.error.message).toContain("non-empty <text>");
   });
 
+  test("returns invalid argument when --thread-ts is provided without value", async () => {
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      "C123",
+      "hello",
+      "--thread-ts",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toContain("--thread-ts requires a value");
+    expect(parsed.error.hint).toContain("--thread-ts=<ts>");
+  });
+
+  test("returns invalid argument when --thread-ts is blank", async () => {
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      "C123",
+      "hello",
+      "--thread-ts=",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toContain("value cannot be empty");
+  });
+
+  test("returns invalid argument when --thread-ts has invalid timestamp format", async () => {
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      "C123",
+      "hello",
+      "--thread-ts=not-a-ts",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toContain("seconds.fraction");
+    expect(parsed.error.message).toContain("not-a-ts");
+  });
+
   test("posts plain text and returns posted metadata with --json", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
@@ -102,6 +170,7 @@ describe("messages post command", () => {
         const params = new URLSearchParams(body);
         expect(params.get("channel")).toBe("C123");
         expect(params.get("text")).toBe("hello from cli");
+        expect(params.get("thread_ts")).toBeNull();
 
         return new Response(
           JSON.stringify({
@@ -158,6 +227,61 @@ describe("messages post command", () => {
     }
 
     expect(parsed.data.message.text).toBe("hello from cli");
+  });
+
+  test("forwards --thread-ts to chat.postMessage payload", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = String(init?.body);
+        const params = new URLSearchParams(body);
+        expect(params.get("channel")).toBe("C123");
+        expect(params.get("text")).toBe("hello from cli");
+        expect(params.get("thread_ts")).toBe("1700000000.000001");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            ts: "1700000002.000100",
+            message: {
+              type: "message",
+              user: "U001",
+              text: "hello from cli",
+              ts: "1700000002.000100",
+              thread_ts: "1700000000.000001",
+            },
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      "C123",
+      "hello",
+      "from",
+      "cli",
+      "--thread-ts=1700000000.000001",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !isRecord(parsed.data.message)) {
+      return;
+    }
+
+    expect(parsed.data.message.threadTs).toBe("1700000000.000001");
   });
 
   test("enforces post channel policy before attempting post", async () => {
@@ -345,5 +469,53 @@ describe("postMessage client path", () => {
     expect(result.channel).toBe("C777");
     expect(result.ts).toBe("1700000001.000001");
     expect(isRecord(result.message)).toBe(true);
+  });
+
+  test("sends thread_ts when postMessage called with threadTs", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = String(init?.body);
+        const params = new URLSearchParams(body);
+        expect(params.get("channel")).toBe("C777");
+        expect(params.get("text")).toBe("deployed");
+        expect(params.get("thread_ts")).toBe("1700000000.999999");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C777",
+            ts: "1700000001.000001",
+            message: {
+              type: "message",
+              text: "deployed",
+              ts: "1700000001.000001",
+              thread_ts: "1700000000.999999",
+            },
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+    const result = await client.postMessage({
+      channel: "C777",
+      text: "deployed",
+      threadTs: "1700000000.999999",
+    });
+
+    expect(result.ts).toBe("1700000001.000001");
+    expect(isRecord(result.message)).toBe(true);
+    if (!isRecord(result.message)) {
+      return;
+    }
+
+    expect(result.message.threadTs).toBe("1700000000.999999");
   });
 });
