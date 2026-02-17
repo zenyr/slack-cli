@@ -1,7 +1,7 @@
 import { CLI_NAME } from "@zenyr/slack-cli-config";
 
 import { createError } from "./errors";
-import type { CliContext, CliResult, CommandDefinition, CommandRequest, ParsedArgv } from "./types";
+import type { CliContext, CliResult, CommandRequest, CommandStrategy, ParsedArgv } from "./types";
 
 const isPrefix = (path: string[], tokens: string[]): boolean => {
   if (path.length > tokens.length) {
@@ -19,9 +19,9 @@ const isPrefix = (path: string[], tokens: string[]): boolean => {
 
 const matchCommand = (
   tokens: string[],
-  registry: CommandDefinition[],
-): CommandDefinition | undefined => {
-  let bestMatch: CommandDefinition | undefined;
+  registry: CommandStrategy[],
+): CommandStrategy | undefined => {
+  let bestMatch: CommandStrategy | undefined;
 
   for (const definition of registry) {
     if (!isPrefix(definition.path, tokens)) {
@@ -39,15 +39,15 @@ const matchCommand = (
 export const routeCli = async (
   parsed: ParsedArgv,
   context: CliContext,
-  registry: CommandDefinition[],
+  registry: CommandStrategy[],
 ): Promise<CliResult> => {
   if (parsed.flags.help || parsed.tokens.length === 0) {
-    const helpCommand = registry.find((definition) => definition.path[0] === "help");
+    const helpCommand = registry.find((strategy) => strategy.id === "help");
     if (helpCommand === undefined) {
       return createError("INTERNAL_ERROR", "help command is not registered");
     }
 
-    return await helpCommand.handler({
+    return await helpCommand.execute({
       commandPath: ["help"],
       positionals: [],
       options: parsed.options,
@@ -57,13 +57,13 @@ export const routeCli = async (
   }
 
   if (parsed.flags.version) {
-    const versionCommand = registry.find((definition) => definition.path[0] === "version");
+    const versionCommand = registry.find((strategy) => strategy.id === "version");
 
     if (versionCommand === undefined) {
       return createError("INTERNAL_ERROR", "version command is not registered");
     }
 
-    return await versionCommand.handler({
+    return await versionCommand.execute({
       commandPath: ["version"],
       positionals: [],
       options: parsed.options,
@@ -96,5 +96,5 @@ export const routeCli = async (
     context,
   };
 
-  return await matchedCommand.handler(request);
+  return await matchedCommand.execute(request);
 };

@@ -3,35 +3,42 @@ import { resourcesHandler } from "./handlers/resources";
 import { channelsListHandler, messagesSearchHandler, usersListHandler } from "./handlers/stubs";
 import { toolsHandler } from "./handlers/tools";
 import { versionHandler } from "./handlers/version";
-import type { CommandDefinition } from "./types";
+import type { CommandStrategy } from "./types";
 
-export const COMMAND_REGISTRY: CommandDefinition[] = [
+export const COMMAND_REGISTRY: CommandStrategy[] = [
   {
+    id: "help",
     path: ["help"],
-    handler: helpHandler,
+    execute: helpHandler,
   },
   {
+    id: "version",
     path: ["version"],
-    handler: versionHandler,
+    execute: versionHandler,
   },
   {
+    id: "resources",
     path: ["resources"],
-    handler: resourcesHandler,
+    execute: resourcesHandler,
   },
   {
+    id: "tools",
     path: ["tools"],
-    handler: toolsHandler,
+    execute: toolsHandler,
   },
   {
+    id: "channels-list",
     path: ["channels", "list"],
-    handler: channelsListHandler,
+    execute: channelsListHandler,
   },
   {
+    id: "users-list",
     path: ["users", "list"],
-    handler: usersListHandler,
+    execute: usersListHandler,
   },
   {
+    id: "messages-search",
     path: ["messages", "search"],
-    handler: messagesSearchHandler,
+    execute: messagesSearchHandler,
   },
 ];

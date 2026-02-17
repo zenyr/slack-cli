@@ -57,11 +57,12 @@ export type CommandRequest = {
 
 export type MaybePromise<T> = T | Promise<T>;
 
-export type CommandHandler = (request: CommandRequest) => MaybePromise<CliResult>;
+export type CommandStrategyExecutor = (request: CommandRequest) => MaybePromise<CliResult>;
 
-export type CommandDefinition = {
+export type CommandStrategy = {
+  id: string;
   path: string[];
-  handler: CommandHandler;
+  execute: CommandStrategyExecutor;
 };
 
 export type CliIo = {
