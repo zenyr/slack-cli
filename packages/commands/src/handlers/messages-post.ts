@@ -1,4 +1,6 @@
 import { createError } from "../errors";
+import { convertMarkdownToSlackMrkdwn } from "../messages-post/markdown";
+import { evaluatePostChannelPolicy } from "../messages-post/policy";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
 import type { ResolvedSlackToken, SlackPostWebApiClient } from "../slack/types";
@@ -74,6 +76,8 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       );
     }
 
+    const channelId = rawChannel.trim();
+
     const text = request.positionals.slice(1).join(" ");
     if (text.trim().length === 0) {
       return createError(
@@ -84,10 +88,22 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       );
     }
 
+    const postPolicy = evaluatePostChannelPolicy(channelId, deps.env);
+    if (postPolicy.allowed === false) {
+      return createError(
+        "INVALID_ARGUMENT",
+        `messages post blocked by channel policy: ${postPolicy.reason}. [POST_CHANNEL_POLICY]`,
+        "Review SLACK_MCP_POST_CHANNEL_ALLOWLIST and SLACK_MCP_POST_CHANNEL_DENYLIST.",
+        COMMAND_ID,
+      );
+    }
+
+    const mrkdwnText = convertMarkdownToSlackMrkdwn(text);
+
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
-      const data = await client.postMessage({ channel: rawChannel, text });
+      const data = await client.postMessage({ channel: channelId, text: mrkdwnText });
 
       return {
         ok: true,

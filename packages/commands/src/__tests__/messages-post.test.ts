@@ -160,6 +160,100 @@ describe("messages post command", () => {
     expect(parsed.data.message.text).toBe("hello from cli");
   });
 
+  test("enforces post channel policy before attempting post", async () => {
+    let tokenResolved = false;
+    let postAttempted = false;
+
+    const handler = createMessagesPostHandler({
+      env: {
+        SLACK_MCP_POST_CHANNEL_DENYLIST: "C999",
+      },
+      resolveToken: () => {
+        tokenResolved = true;
+        return { token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" };
+      },
+      createClient: () => ({
+        postMessage: async () => {
+          postAttempted = true;
+          return {
+            channel: "C999",
+            ts: "1700000002.000100",
+            message: {
+              type: "message",
+              text: "should not post",
+              ts: "1700000002.000100",
+            },
+          };
+        },
+      }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "post"],
+      positionals: ["C999", "hello"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("POST_CHANNEL_POLICY");
+    expect(result.error.message).toContain("channel denied by SLACK_MCP_POST_CHANNEL_DENYLIST");
+    expect(tokenResolved).toBe(false);
+    expect(postAttempted).toBe(false);
+  });
+
+  test("converts markdown text before calling chat.postMessage", async () => {
+    let postedText = "";
+
+    const handler = createMessagesPostHandler({
+      env: {},
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+      createClient: () => ({
+        postMessage: async ({ text }) => {
+          postedText = text;
+          return {
+            channel: "C123",
+            ts: "1700000002.000100",
+            message: {
+              type: "message",
+              text,
+              ts: "1700000002.000100",
+            },
+          };
+        },
+      }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "post"],
+      positionals: ["C123", "Read", "**docs**", "at", "[guide](https://example.com/guide)"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(postedText).toBe("Read *docs* at <https://example.com/guide|guide>");
+  });
+
   test("maps SLACK_API_ERROR to invalid argument with marker", async () => {
     const handler = createMessagesPostHandler({
       env: {},
