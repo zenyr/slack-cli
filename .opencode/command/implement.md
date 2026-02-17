@@ -1,78 +1,126 @@
 ---
-description: Implement a requested feature through dependency-aware parallel delegation with wave-based stabilization and commit loops
+description: Implement feature via fine-grained orchestration, lightweight agent delegation, cross-validation, and iteration-based stabilization
 argument-hint: [implementation-goal]
 ---
 
 ## Task
 
-Implement `$ARGUMENTS` end-to-end by splitting work into dependency-aware waves, delegating aggressively in parallel where safe, and keeping git state stable between waves.
+Implement `$ARGUMENTS` end-to-end. If empty, infer from conversation context.
 
-If `$ARGUMENTS` is empty, infer the implementation goal from current conversation context.
+## Orchestrator Identity
 
-## Operating Model
+You = pure coordinator. Think, design, delegate, adapt. Never touch files/git directly.
 
-Use this execution loop repeatedly until implementation is complete:
+**MUST delegate:** file R/W/edit → subagents, commands (typecheck/test/lint/build) → subagents, git ops → git agent, codebase search → explore agent.
 
-1. **Plan the next wave**
-   - Break pending work into independent tasks by dependency and risk.
-   - Mark which tasks are parallelizable vs blocked by prerequisites.
-   - Prefer small, composable units with clear ownership boundaries.
+**MUST NOT:** call Bash/Read/Write/Edit/Grep/Glob directly (except TodoWrite). No direct git. No direct file reads post-research.
 
-2. **Delegate in parallel**
-   - Launch multiple subagents for independent tasks in one wave.
-   - Give each subagent a strict scope (files, behavior, tests, constraints).
-   - Require each subagent to run relevant verification for its scope.
+**Exception — initial research:** before first iteration, use explore agents liberally for codebase understanding. Thorough upfront recon prevents bad plans. Once first iteration starts → pure delegation mode.
 
-3. **Integrate and stabilize wave output**
-   - Resolve overlaps/conflicts from parallel edits.
-   - Keep implementation minimal-impact and style-consistent.
-   - Add explicit actionable `TODO:` markers for intentional deferrals.
+## Core Loop (per iteration)
 
-4. **Wave gate: prove stable git state**
-   - Delegate verification of:
-     - `git status --short`
-     - repo-standard typecheck
-     - repo-standard tests
-   - If failing/dirty unexpectedly, delegate minimal fixes and re-run checks.
-   - Continue only when the wave is stable and understood.
+### 1. Plan — orchestrator owns all design
 
-5. **Commit via git delegation**
-   - Delegate commit creation to git specialist agent.
-   - Use logical intent-based commit units (single or multi as appropriate).
-   - Require concise English commit messages focused on intent/impact.
-   - After commit, re-check `git status --short --branch`.
-   - If hooks/formatters introduce drift after commit, handle in a follow-up stabilization mini-wave and commit again.
+- Break work into smallest independent units.
+- Each unit spec must contain: exact file paths, fn signatures/type shapes/behavioral contract, expected I/O or test assertions, constraints (no `!`, no `as`, const fn exprs).
+- Unit size: completable by haiku/spark in one shot, zero arch decisions.
+- Design decisions resolved here, never by subagent.
 
-6. **Repeat waves**
-   - Continue wave loop until feature is fully implemented and verified.
+### 2. Delegate — right-size agent
 
-## Requirements
+| Agent       | Scope                                                           |
+|-------------|-----------------------------------------------------------------|
+| **haiku**   | ≤3-4 files. Mechanical transforms, tests, utils, straightforward impl. **Default.** |
+| **spark**   | ≤5-7 files. Cross-module local reasoning, spec fully defined.   |
+| **general** | Broad codebase reasoning / cross-module orchestration unresolvable by orchestrator. **Last resort.** |
+| **explore** | Read-only recon. Planning + mid-iteration investigation only.   |
+| **git**     | Commit delegation only.                                         |
 
-- Prefer parallel delegation by default; serialize only when dependencies require it.
-- Between every wave, verify repo health before proceeding.
-- Never leave unresolved conflicts or unknown dirty state.
-- Keep production code constraints enforced (repo policy):
-  - no non-null assertions unless explicitly allowed
-  - no type assertions unless explicitly allowed
-  - const function expressions preferred
-- For deferred work, leave actionable `TODO:` comments including:
-  - owner scope
-  - next action
-  - removal condition
+**Rules:**
+- Parallel launch for independent tasks within iteration.
+- Each prompt: exact scope, file paths, expected behavior, verification cmd.
+- Subagent runs own verification before returning.
+- Vague prompt ("implement X feature") → STOP, break down further or design yourself.
+
+**Subagent report requirement:**
+Each subagent ends report with `delegation_feedback`:
+- `context_sufficient: yes | no(what was missing)`
+- `wasted_effort: none | description`
+Terse metadata for orchestrator, not prose.
+
+### 3. Cross-validate — different agent reviews
+
+Spawn **separate agent** (different type from implementer):
+- Satisfies spec from step 1?
+- Design-level issues? (not style — biome handles style)
+- Edge cases missed? Contract violations? Integration gaps?
+- Scope: **abstract correctness** only.
+- Verdict: `pass` | `fail(reasons)`.
+
+**Pairing:** haiku/spark implementer → spark/haiku reviewer (cross-type). general implementer → spark reviewer. Reviewer prompt includes: original spec, impl diff summary, review criteria.
+
+### 4. Mutual refinement — converge
+
+On `fail`:
+1. Orchestrator triages failure reasons.
+2. Spawn implementer w/ **specific fix instructions** (not "fix the issues").
+3. Re-run cross-validation.
+4. Max 3 rounds per unit. Still failing → orchestrator re-designs, restart unit.
+
+### 5. Iteration gate (delegated)
+
+Delegate to subagent: `git status --short`, typecheck, tests.
+Failing → delegate targeted fixes → delegate re-verify. Proceed only when green.
+
+### 6. Commit — git delegation
+
+Git agent handles staging/msg/execution autonomously. Reports `git status --short --branch`. Hook/formatter drift → delegate stabilize + re-commit.
+
+### 7. Delegation quality feedback
+
+Review `delegation_feedback` from all iteration subagents:
+- Multiple `context_sufficient: no` w/ similar gaps → under-researched. Explore agent fills gap before next iteration.
+- `wasted_effort` on recon orchestrator could have provided → include that context type in future prompts.
+- **Be critical, not compliant.** Subagents may over-request for convenience. Only adjust on real orchestrator blind spots.
+- One-off miss = noise. Same gap ×2 = signal.
+
+### 8. Adaptive replan → next iteration
+
+Review iteration reports. Evaluate remaining plan validity.
+
+**After every subagent report:**
+1. **Assumption invalidated?** File missing, API shape differs, missed dependency → explore + adjust.
+2. **New work revealed?** Edge case, integration point → add unit.
+3. **Planned work unnecessary?** Lib already handles, units overlap → drop/merge.
+
+**Replan scale:**
+- Small (reorder, ±1-2 units): inline update, continue.
+- Medium (new dep, 3+ units affected): pause iteration, replan remaining, resume.
+- Large (fundamental assumption wrong): explore recon, redesign from current state forward. Keep completed work unless harmful.
+
+**Never:** ignore unexpected reports + press original plan. Re-plan from scratch for minor adjust. Let failed assumption cascade across iterations.
+
+## Agent Selection Heuristic
+
+```
+Fully specifiable to exact code shape?
+├─ Yes → ≤4 files, mostly mechanical?
+│        ├─ Yes → haiku
+│        └─ No (5-7 files / cross-module) → spark
+└─ No → Resolvable via explore first?
+         ├─ Yes → explore → re-enter tree
+         └─ No → general (document why)
+```
 
 ## Commit Policy
 
-- Do not push unless explicitly requested.
-- Do not amend unless explicitly requested.
-- Do not bypass hooks unless explicitly requested.
-- Prefer grouped commits by logical intent unit.
+No push/amend/hook-bypass unless explicitly requested. Grouped commits by logical intent unit.
 
 ## Definition of Done
 
-All of the following must hold:
-
-- Implementation goal is delivered.
-- Typecheck and tests pass.
-- Git working tree is stable (clean unless user requested otherwise).
-- Commits are logically structured and readable.
-- Any intentional deferrals are documented with actionable `TODO:` markers.
+- Impl goal delivered.
+- Every unit passed cross-validation.
+- Typecheck + tests pass.
+- Git tree stable.
+- Commits logically structured.
+- Deferrals documented: actionable `TODO:` w/ owner scope, next action, removal condition.
