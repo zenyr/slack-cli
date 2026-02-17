@@ -55,75 +55,14 @@ const readStringOption = (options: CliOptions, key: string): string | undefined 
   return typeof value === "string" ? value : undefined;
 };
 
-const parseTimeRangeToken = (token: string): { oldest: string } | CliResult => {
-  const match = token.match(/^(\d+)([dw])$/);
-  if (match === null || match.length < 3) {
-    return createError(
-      "INVALID_ARGUMENT",
-      `messages history --limit time-range token invalid: ${token}. [INVALID_RANGE_TOKEN]`,
-      "Use numeric value (e.g. --limit=25) or range token: 1d, 1w, 30d, 90d.",
-      COMMAND_ID,
-    );
-  }
-
-  const matchValue = match[1];
-  const matchUnit = match[2];
-  if (matchValue === undefined || matchUnit === undefined) {
-    return createError(
-      "INVALID_ARGUMENT",
-      `messages history --limit time-range token invalid: ${token}. [INVALID_RANGE_TOKEN]`,
-      "Use numeric value (e.g. --limit=25) or range token: 1d, 1w, 30d, 90d.",
-      COMMAND_ID,
-    );
-  }
-
-  const value = Number.parseInt(matchValue, 10);
-  const unit = matchUnit;
-
-  // Validate allowed tokens
-  if (unit === "d" && value !== 1 && value !== 30 && value !== 90) {
-    return createError(
-      "INVALID_ARGUMENT",
-      `messages history --limit time-range token invalid: ${token}. [INVALID_RANGE_TOKEN]`,
-      "Use numeric value (e.g. --limit=25) or range token: 1d, 1w, 30d, 90d.",
-      COMMAND_ID,
-    );
-  }
-
-  if (unit === "w" && value !== 1) {
-    return createError(
-      "INVALID_ARGUMENT",
-      `messages history --limit time-range token invalid: ${token}. [INVALID_RANGE_TOKEN]`,
-      "Use numeric value (e.g. --limit=25) or range token: 1d, 1w, 30d, 90d.",
-      COMMAND_ID,
-    );
-  }
-
-  const secondsPerUnit: Record<string, number> = {
-    d: 86400,
-    w: 604800,
-  };
-
-  const secondsValue = secondsPerUnit[unit];
-  if (secondsValue === undefined) {
-    return createError(
-      "INVALID_ARGUMENT",
-      `messages history --limit time-range token invalid: ${token}. [INVALID_RANGE_TOKEN]`,
-      "Use numeric value (e.g. --limit=25) or range token: 1d, 1w, 30d, 90d.",
-      COMMAND_ID,
-    );
-  }
-
-  const seconds = secondsValue * value;
-  const now = Math.floor(Date.now() / 1000);
-  const oldest = Math.floor(now - seconds).toString();
-
-  return { oldest };
+const TIME_EXPRESSION_TO_SECONDS: Record<string, number> = {
+  "1d": 86400,
+  "1w": 604800,
+  "30d": 2592000,
+  "90d": 7776000,
 };
 
-type LimitParseResult = number | { oldest: string } | undefined;
-
-const parseLimitOption = (options: CliOptions): LimitParseResult | CliResult => {
+const parseLimitOption = (options: CliOptions): number | undefined | CliResult => {
   const value = options.limit;
 
   if (value === undefined) {
@@ -134,7 +73,7 @@ const parseLimitOption = (options: CliOptions): LimitParseResult | CliResult => 
     return createError(
       "INVALID_ARGUMENT",
       "messages history --limit requires a value. [MISSING_ARGUMENT]",
-      "Provide an integer: --limit=<n>, or range token: 1d, 1w, 30d, 90d.",
+      "Provide an integer: --limit=<n>.",
       COMMAND_ID,
     );
   }
@@ -148,8 +87,8 @@ const parseLimitOption = (options: CliOptions): LimitParseResult | CliResult => 
   if (trimmed.length === 0) {
     return createError(
       "INVALID_ARGUMENT",
-      "messages history --limit value cannot be empty. [INVALID_RANGE_TOKEN]",
-      "Provide an integer: --limit=<n>, or range token: 1d, 1w, 30d, 90d.",
+      "messages history --limit value cannot be empty. [MISSING_ARGUMENT]",
+      "Provide an integer: --limit=<n>.",
       COMMAND_ID,
     );
   }
@@ -164,13 +103,17 @@ const parseLimitOption = (options: CliOptions): LimitParseResult | CliResult => 
     return createError(
       "INVALID_ARGUMENT",
       `messages history --limit must be a positive integer. Received: ${trimmed}`,
-      "Use --limit with a positive integer, e.g. --limit=25, or range token: 1d, 1w, 30d, 90d.",
+      "Use --limit with a positive integer, e.g. --limit=25.",
       COMMAND_ID,
     );
   }
 
-  // Not numeric, try time-range token
-  return parseTimeRangeToken(trimmed);
+  return createError(
+    "INVALID_ARGUMENT",
+    `messages history --limit must be a positive integer. Received: ${trimmed}`,
+    "Use --limit with a positive integer, e.g. --limit=25.",
+    COMMAND_ID,
+  );
 };
 
 const readRangeOption = (options: CliOptions, key: string): string | undefined | CliResult => {
@@ -197,7 +140,24 @@ const readRangeOption = (options: CliOptions, key: string): string | undefined |
     );
   }
 
-  return value.trim();
+  const trimmed = value.trim();
+
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const seconds = TIME_EXPRESSION_TO_SECONDS[trimmed];
+  if (seconds === undefined) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages history --${key} value invalid: ${trimmed}. [INVALID_TIME_EXPRESSION]`,
+      `Pass --${key}=<seconds.fraction> or one of: 1d, 1w, 30d, 90d.`,
+      COMMAND_ID,
+    );
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  return Math.floor(now - seconds).toString();
 };
 
 const isCliErrorResult = (value: unknown): value is CliResult => {
@@ -403,22 +363,12 @@ export const createMessagesHistoryHandler = (
         return channelIdOrError;
       }
 
-      // Process limit to determine final limit and oldest values
+      // Process limit
       let finalLimit = 100;
-      let finalOldest = oldestOrError;
+      const finalOldest = oldestOrError;
 
       if (typeof limitOrError === "number") {
         finalLimit = limitOrError;
-      } else if (
-        limitOrError !== undefined &&
-        typeof limitOrError === "object" &&
-        "oldest" in limitOrError
-      ) {
-        // If limit is time-range token, use computed oldest unless explicit --oldest provided
-        if (oldestOrError === undefined) {
-          finalOldest = limitOrError.oldest;
-        }
-        // Keep default limit when using time-range token
       }
 
       const query = {
