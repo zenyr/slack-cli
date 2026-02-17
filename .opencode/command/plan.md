@@ -13,6 +13,8 @@ Execution model:
 - This file is the slash-command prompt template loaded automatically by `/plan`.
 - Treat its content as runtime instruction set.
 - Do not edit this command file during normal `/plan` execution.
+- In this spec, `plan.md` command file means `.opencode/command/plan.md` only.
+- Never create or update repository-root `plan.md` as part of `/plan` runtime artifacts.
 
 Primary objective: migrate org worktree MCP server capabilities into main Slack CLI with logical, progressive delivery cadence:
 `unicycle -> bicycle -> motorcycle -> car`.
@@ -207,7 +209,7 @@ For each assigned worktree, create `todo.md` containing:
 Optional supporting artifact:
 
 - Use transient note file under `.opencode/plans/` for orchestration visibility (for example `.opencode/plans/parity-i2.md`).
-- Root-level `plan.md` is forbidden as a runtime artifact.
+- Repository-root `plan.md` is forbidden. Only `.opencode/command/plan.md` is the command definition file.
 
 ## `todo.md` Canonical Example
 
