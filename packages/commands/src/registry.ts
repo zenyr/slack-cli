@@ -19,6 +19,8 @@ import { toolsHandler } from "./handlers/tools";
 import { usergroupsCreateHandler } from "./handlers/usergroups-create";
 import { usergroupsListHandler } from "./handlers/usergroups-list";
 import { usergroupsMeHandler } from "./handlers/usergroups-me";
+import { usergroupsMeJoinHandler } from "./handlers/usergroups-me-join";
+import { usergroupsMeLeaveHandler } from "./handlers/usergroups-me-leave";
 import { usergroupsUpdateHandler } from "./handlers/usergroups-update";
 import { usergroupsUsersUpdateHandler } from "./handlers/usergroups-users-update";
 import { versionHandler } from "./handlers/version";
@@ -94,6 +96,16 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "usergroups-me-list",
     path: ["usergroups", "me", "list"],
     execute: usergroupsMeHandler,
+  },
+  {
+    id: "usergroups-me-join",
+    path: ["usergroups", "me", "join"],
+    execute: usergroupsMeJoinHandler,
+  },
+  {
+    id: "usergroups-me-leave",
+    path: ["usergroups", "me", "leave"],
+    execute: usergroupsMeLeaveHandler,
   },
   {
     id: "usergroups-update",

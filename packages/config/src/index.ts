@@ -70,6 +70,16 @@ export const COMMANDS: CliCommand[] = [
     description: "List current user memberships in user groups",
   },
   {
+    name: "usergroups me join",
+    args: "<usergroup-id> [--json]",
+    description: "Join current user to a user group",
+  },
+  {
+    name: "usergroups me leave",
+    args: "<usergroup-id> [--json]",
+    description: "Remove current user from a user group",
+  },
+  {
     name: "usergroups update",
     args: "<usergroup-id> <name> <handle> [--json]",
     description: "Update user group metadata",
