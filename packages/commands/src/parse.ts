@@ -15,14 +15,21 @@ const isGlobalJsonFlag = (token: string): boolean => {
 const parseOptionToken = (
   token: string,
   nextToken: string | undefined,
-): { consumedNext: boolean; key: string; value: string | boolean } => {
+): { consumedNext: boolean; key: string; value: string | boolean } | null => {
   const withoutPrefix = token.slice(2);
   const eqIndex = withoutPrefix.indexOf("=");
 
   if (eqIndex >= 0) {
     const key = withoutPrefix.slice(0, eqIndex);
+    if (key.length === 0) {
+      return null;
+    }
     const value = withoutPrefix.slice(eqIndex + 1);
     return { consumedNext: false, key, value };
+  }
+
+  if (withoutPrefix.length === 0) {
+    return null;
   }
 
   if (nextToken && !nextToken.startsWith("-")) {
@@ -86,6 +93,10 @@ export const parseArgv = (argv: string[]): ParsedArgv => {
     if (token.startsWith("--") && token.length > 2) {
       const nextToken = argv[index + 1];
       const parsedOption = parseOptionToken(token, nextToken);
+      if (parsedOption === null) {
+        tokens.push(token);
+        continue;
+      }
       options[parsedOption.key] = parsedOption.value;
       if (parsedOption.consumedNext) {
         index += 1;
