@@ -11,6 +11,7 @@
   "scripts": {
     "start": "bun --env-file=.env run --cwd=apps/cli start",
     "slack": "bun --env-file=.env run --cwd=apps/cli start",
+    "test": "turbo run test",
     "lint": "biome check --write --unsafe .",
     "lint:workspaces": "turbo run lint",
     "typecheck": "turbo run typecheck",

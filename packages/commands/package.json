@@ -8,7 +8,8 @@
   },
   "scripts": {
     "lint": "biome check --write --unsafe .",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test"
   },
   "dependencies": {
     "@zenyr/slack-cli-config": "workspace:*"

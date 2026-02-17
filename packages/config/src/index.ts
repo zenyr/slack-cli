@@ -20,6 +20,21 @@ export const COMMANDS: CliCommand[] = [
     description: "Show this help message",
   },
   {
+    name: "channels list",
+    args: "[--json] [--workspace <id>]",
+    description: "Stub: list channels (not implemented yet)",
+  },
+  {
+    name: "users list",
+    args: "[--json] [--workspace <id>]",
+    description: "Stub: list users (not implemented yet)",
+  },
+  {
+    name: "messages search",
+    args: "<query> [--json] [--workspace <id>]",
+    description: "Stub: search messages (not implemented yet)",
+  },
+  {
     name: "resources",
     args: "[--json]",
     description: "List available Slack MCP-style resources",
