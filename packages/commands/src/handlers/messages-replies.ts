@@ -1,6 +1,7 @@
 import { createError } from "../errors";
-import type { ResolvedSlackToken, SlackMessage, SlackWebApiClient } from "../slack";
+import type { ResolvedSlackToken, SlackMessage } from "../slack";
 import { createSlackWebApiClient, isSlackClientError, resolveSlackToken } from "../slack";
+import type { SlackRepliesWebApiClient } from "../slack/types";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.replies";
@@ -11,7 +12,7 @@ type CreateClientOptions = {
 };
 
 type MessagesRepliesHandlerDeps = {
-  createClient: (options?: CreateClientOptions) => SlackWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackRepliesWebApiClient;
   resolveToken: (
     env?: Record<string, string | undefined>,
   ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
@@ -154,83 +155,6 @@ const readOptionalCursor = (options: CliOptions): string | undefined | CliResult
   return stringValue.trim();
 };
 
-const parseSortOption = (options: CliOptions): "oldest" | "newest" | undefined | CliResult => {
-  const value = options.sort;
-
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === true) {
-    return createError(
-      "INVALID_ARGUMENT",
-      "messages replies --sort requires a value. [MISSING_ARGUMENT]",
-      "Use --sort=<oldest|newest>.",
-      COMMAND_ID,
-    );
-  }
-
-  const raw = readStringOption(options, "sort");
-  if (raw === undefined) {
-    return undefined;
-  }
-
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) {
-    return createError(
-      "INVALID_ARGUMENT",
-      "messages replies --sort value cannot be empty. [MISSING_ARGUMENT]",
-      "Use --sort=<oldest|newest>.",
-      COMMAND_ID,
-    );
-  }
-
-  if (trimmed !== "oldest" && trimmed !== "newest") {
-    return createError(
-      "INVALID_ARGUMENT",
-      `messages replies --sort must be 'oldest' or 'newest'. Received: ${trimmed}`,
-      "Use --sort=oldest or --sort=newest.",
-      COMMAND_ID,
-    );
-  }
-
-  return trimmed;
-};
-
-const parseFilterTextOption = (options: CliOptions): string | undefined | CliResult => {
-  const value = options["filter-text"];
-
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === true) {
-    return createError(
-      "INVALID_ARGUMENT",
-      "messages replies --filter-text requires a value. [MISSING_ARGUMENT]",
-      "Pass --filter-text=<text>.",
-      COMMAND_ID,
-    );
-  }
-
-  const raw = readStringOption(options, "filter-text");
-  if (raw === undefined) {
-    return undefined;
-  }
-
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) {
-    return createError(
-      "INVALID_ARGUMENT",
-      "messages replies --filter-text value cannot be empty. [MISSING_ARGUMENT]",
-      "Pass --filter-text=<text>.",
-      COMMAND_ID,
-    );
-  }
-
-  return trimmed;
-};
-
 const mapSlackClientError = (error: unknown): CliResult => {
   if (!isSlackClientError(error)) {
     return createError(
@@ -311,16 +235,6 @@ export const createMessagesRepliesHandler = (
       return cursorOrError;
     }
 
-    const sortOrError = parseSortOption(request.options);
-    if (isCliErrorResult(sortOrError)) {
-      return sortOrError;
-    }
-
-    const filterTextOrError = parseFilterTextOption(request.options);
-    if (isCliErrorResult(filterTextOrError)) {
-      return filterTextOrError;
-    }
-
     const limit = limitOrError === undefined ? 100 : limitOrError;
 
     try {
@@ -338,35 +252,19 @@ export const createMessagesRepliesHandler = (
 
       const data = await client.fetchMessageReplies(query);
 
-      let messages = data.messages;
-
-      // Apply case-insensitive text filter if provided
-      if (filterTextOrError !== undefined) {
-        const filterLower = filterTextOrError.toLowerCase();
-        messages = messages.filter((message) => message.text.toLowerCase().includes(filterLower));
-      }
-
-      // Apply sort if provided
-      if (sortOrError !== undefined) {
-        const messagesCopy = [...messages];
-        messagesCopy.sort((a, b) => {
-          const tsA = Number.parseFloat(a.ts);
-          const tsB = Number.parseFloat(b.ts);
-          return sortOrError === "oldest" ? tsA - tsB : tsB - tsA;
-        });
-        messages = messagesCopy;
-      }
-
       return {
         ok: true,
         command: COMMAND_ID,
         data: {
-          messages,
+          messages: data.messages,
           next_cursor: data.nextCursor,
           channel: data.channel,
           thread_ts: threadTs,
         },
-        textLines: buildTextLines(channel, threadTs, { messages, nextCursor: data.nextCursor }),
+        textLines: buildTextLines(channel, threadTs, {
+          messages: data.messages,
+          nextCursor: data.nextCursor,
+        }),
       };
     } catch (error) {
       return mapSlackClientError(error);

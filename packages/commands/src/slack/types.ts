@@ -97,10 +97,23 @@ export type SlackChannelHistoryResult = {
   nextCursor?: string;
 };
 
+export type SlackMessageRepliesParams = {
+  channel: string;
+  ts: string;
+  limit?: number;
+  oldest?: string;
+  latest?: string;
+  cursor?: string;
+};
+
 export type SlackChannelRepliesResult = {
   channel: string;
   messages: SlackMessage[];
   nextCursor?: string;
+};
+
+export type SlackRepliesWebApiClient = {
+  fetchMessageReplies: (params: SlackMessageRepliesParams) => Promise<SlackChannelRepliesResult>;
 };
 
 export type SlackWebApiClient = {
@@ -114,12 +127,4 @@ export type SlackWebApiClient = {
     latest?: string;
     cursor?: string;
   }) => Promise<SlackChannelHistoryResult>;
-  fetchMessageReplies: (params: {
-    channel: string;
-    ts: string;
-    limit?: number;
-    oldest?: string;
-    latest?: string;
-    cursor?: string;
-  }) => Promise<SlackChannelRepliesResult>;
 };

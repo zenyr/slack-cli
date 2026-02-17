@@ -201,10 +201,6 @@ describe("messages history command", () => {
             details: "channel_not_found",
           });
         },
-        fetchMessageReplies: async () => ({
-          channel: "",
-          messages: [],
-        }),
       }),
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
     });
@@ -248,10 +244,6 @@ describe("messages history command", () => {
             hint: "Use a valid token with required scopes in SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
           });
         },
-        fetchMessageReplies: async () => ({
-          channel: "",
-          messages: [],
-        }),
       }),
       resolveToken: () => ({ token: "xoxp-bad", source: "SLACK_MCP_XOXP_TOKEN" }),
     });

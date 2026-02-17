@@ -9,6 +9,7 @@ import type {
   SlackListChannelsResult,
   SlackListUsersResult,
   SlackMessage,
+  SlackRepliesWebApiClient,
   SlackSearchMessage,
   SlackSearchMessagesResult,
   SlackUser,
@@ -211,7 +212,7 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
 
 export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
-): SlackWebApiClient => {
+): SlackWebApiClient & SlackRepliesWebApiClient => {
   const fetchImpl = options.fetchImpl ?? fetch;
   const baseUrl = options.baseUrl ?? DEFAULT_SLACK_API_BASE_URL;
   const explicitToken = options.token;

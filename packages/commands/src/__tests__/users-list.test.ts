@@ -181,10 +181,6 @@ describe("users list command", () => {
           channel: "",
           messages: [],
         }),
-        fetchMessageReplies: async () => ({
-          channel: "",
-          messages: [],
-        }),
       }),
     });
 
@@ -260,10 +256,6 @@ describe("users list command", () => {
           channel: "",
           messages: [],
         }),
-        fetchMessageReplies: async () => ({
-          channel: "",
-          messages: [],
-        }),
       }),
     });
 
@@ -317,10 +309,6 @@ describe("users list command", () => {
           messages: [],
         }),
         fetchChannelHistory: async () => ({
-          channel: "",
-          messages: [],
-        }),
-        fetchMessageReplies: async () => ({
           channel: "",
           messages: [],
         }),

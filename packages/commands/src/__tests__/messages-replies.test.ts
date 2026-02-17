@@ -82,14 +82,6 @@ describe("messages replies command", () => {
       option: "cursor",
       args: ["messages", "replies", "C123", "1700000000.000000", "--cursor", "--json"],
     },
-    {
-      option: "sort",
-      args: ["messages", "replies", "C123", "1700000000.000000", "--sort", "--json"],
-    },
-    {
-      option: "filter-text",
-      args: ["messages", "replies", "C123", "1700000000.000000", "--filter-text", "--json"],
-    },
   ];
 
   missingValueOptionsTestCases.forEach(({ option, args }) => {
@@ -169,343 +161,7 @@ describe("messages replies command", () => {
     });
   });
 
-  test("returns error when --sort has invalid value", async () => {
-    const result = await runCliWithBuffer([
-      "messages",
-      "replies",
-      "C123",
-      "1700000000.000000",
-      "--sort=invalid",
-      "--json",
-    ]);
-
-    expect(result.exitCode).toBe(2);
-    expect(result.stderr.length).toBe(0);
-
-    const parsed = parseJsonOutput(result.stdout);
-    expect(isRecord(parsed)).toBe(true);
-    if (!isRecord(parsed)) {
-      return;
-    }
-
-    expect(parsed.ok).toBe(false);
-    expect(isRecord(parsed.error)).toBe(true);
-    if (!isRecord(parsed.error)) {
-      return;
-    }
-
-    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
-    expect(parsed.error.message).toContain("oldest");
-    expect(parsed.error.message).toContain("newest");
-    expect(parsed.error.message).toContain("invalid");
-  });
-
-  test("applies sort=oldest ascending order by ts", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
-
-    const mockedFetch: typeof fetch = Object.assign(
-      async () => {
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            messages: [
-              {
-                type: "message",
-                user: "U001",
-                text: "third reply",
-                ts: "1700000003.000100",
-              },
-              {
-                type: "message",
-                user: "U002",
-                text: "first reply",
-                ts: "1700000001.000100",
-              },
-              {
-                type: "message",
-                user: "U003",
-                text: "second reply",
-                ts: "1700000002.000100",
-              },
-            ],
-            response_metadata: {
-              next_cursor: "",
-            },
-          }),
-          { status: 200 },
-        );
-      },
-      {
-        preconnect: originalFetch.preconnect,
-      },
-    );
-    globalThis.fetch = mockedFetch;
-
-    const result = await runCliWithBuffer([
-      "messages",
-      "replies",
-      "C123",
-      "1700000000.000000",
-      "--sort=oldest",
-      "--json",
-    ]);
-
-    expect(result.exitCode).toBe(0);
-
-    const parsed = parseJsonOutput(result.stdout);
-    expect(isRecord(parsed)).toBe(true);
-    if (!isRecord(parsed)) {
-      return;
-    }
-
-    expect(parsed.ok).toBe(true);
-    expect(isRecord(parsed.data)).toBe(true);
-    if (!isRecord(parsed.data)) {
-      return;
-    }
-
-    const messages = parsed.data.messages;
-    expect(Array.isArray(messages)).toBe(true);
-    if (!Array.isArray(messages)) {
-      return;
-    }
-
-    expect(messages.length).toBe(3);
-    expect(messages[0].ts).toBe("1700000001.000100");
-    expect(messages[1].ts).toBe("1700000002.000100");
-    expect(messages[2].ts).toBe("1700000003.000100");
-  });
-
-  test("applies sort=newest descending order by ts", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
-
-    const mockedFetch: typeof fetch = Object.assign(
-      async () => {
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            messages: [
-              {
-                type: "message",
-                user: "U001",
-                text: "first reply",
-                ts: "1700000001.000100",
-              },
-              {
-                type: "message",
-                user: "U002",
-                text: "third reply",
-                ts: "1700000003.000100",
-              },
-              {
-                type: "message",
-                user: "U003",
-                text: "second reply",
-                ts: "1700000002.000100",
-              },
-            ],
-            response_metadata: {
-              next_cursor: "",
-            },
-          }),
-          { status: 200 },
-        );
-      },
-      {
-        preconnect: originalFetch.preconnect,
-      },
-    );
-    globalThis.fetch = mockedFetch;
-
-    const result = await runCliWithBuffer([
-      "messages",
-      "replies",
-      "C123",
-      "1700000000.000000",
-      "--sort=newest",
-      "--json",
-    ]);
-
-    expect(result.exitCode).toBe(0);
-
-    const parsed = parseJsonOutput(result.stdout);
-    expect(isRecord(parsed)).toBe(true);
-    if (!isRecord(parsed)) {
-      return;
-    }
-
-    expect(parsed.ok).toBe(true);
-    expect(isRecord(parsed.data)).toBe(true);
-    if (!isRecord(parsed.data)) {
-      return;
-    }
-
-    const messages = parsed.data.messages;
-    expect(Array.isArray(messages)).toBe(true);
-    if (!Array.isArray(messages)) {
-      return;
-    }
-
-    expect(messages.length).toBe(3);
-    expect(messages[0].ts).toBe("1700000003.000100");
-    expect(messages[1].ts).toBe("1700000002.000100");
-    expect(messages[2].ts).toBe("1700000001.000100");
-  });
-
-  test("applies filter-text case-insensitive match", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
-
-    const mockedFetch: typeof fetch = Object.assign(
-      async () => {
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            messages: [
-              {
-                type: "message",
-                user: "U001",
-                text: "Bug fix needed",
-                ts: "1700000001.000100",
-              },
-              {
-                type: "message",
-                user: "U002",
-                text: "Feature request approved",
-                ts: "1700000002.000100",
-              },
-              {
-                type: "message",
-                user: "U003",
-                text: "BUG: Critical issue",
-                ts: "1700000003.000100",
-              },
-            ],
-            response_metadata: {
-              next_cursor: "",
-            },
-          }),
-          { status: 200 },
-        );
-      },
-      {
-        preconnect: originalFetch.preconnect,
-      },
-    );
-    globalThis.fetch = mockedFetch;
-
-    const result = await runCliWithBuffer([
-      "messages",
-      "replies",
-      "C123",
-      "1700000000.000000",
-      "--filter-text=bug",
-      "--json",
-    ]);
-
-    expect(result.exitCode).toBe(0);
-
-    const parsed = parseJsonOutput(result.stdout);
-    expect(isRecord(parsed)).toBe(true);
-    if (!isRecord(parsed)) {
-      return;
-    }
-
-    expect(parsed.ok).toBe(true);
-    expect(isRecord(parsed.data)).toBe(true);
-    if (!isRecord(parsed.data)) {
-      return;
-    }
-
-    const messages = parsed.data.messages;
-    expect(Array.isArray(messages)).toBe(true);
-    if (!Array.isArray(messages)) {
-      return;
-    }
-
-    expect(messages.length).toBe(2);
-    expect(messages[0].text).toBe("Bug fix needed");
-    expect(messages[1].text).toBe("BUG: Critical issue");
-  });
-
-  test("combines filter-text and sort=oldest", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
-
-    const mockedFetch: typeof fetch = Object.assign(
-      async () => {
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            messages: [
-              {
-                type: "message",
-                user: "U001",
-                text: "third BUG report",
-                ts: "1700000003.000100",
-              },
-              {
-                type: "message",
-                user: "U002",
-                text: "Feature approved",
-                ts: "1700000002.000100",
-              },
-              {
-                type: "message",
-                user: "U003",
-                text: "first bug found",
-                ts: "1700000001.000100",
-              },
-            ],
-            response_metadata: {
-              next_cursor: "",
-            },
-          }),
-          { status: 200 },
-        );
-      },
-      {
-        preconnect: originalFetch.preconnect,
-      },
-    );
-    globalThis.fetch = mockedFetch;
-
-    const result = await runCliWithBuffer([
-      "messages",
-      "replies",
-      "C123",
-      "1700000000.000000",
-      "--filter-text=bug",
-      "--sort=oldest",
-      "--json",
-    ]);
-
-    expect(result.exitCode).toBe(0);
-
-    const parsed = parseJsonOutput(result.stdout);
-    expect(isRecord(parsed)).toBe(true);
-    if (!isRecord(parsed)) {
-      return;
-    }
-
-    expect(parsed.ok).toBe(true);
-    expect(isRecord(parsed.data)).toBe(true);
-    if (!isRecord(parsed.data)) {
-      return;
-    }
-
-    const messages = parsed.data.messages;
-    expect(Array.isArray(messages)).toBe(true);
-    if (!Array.isArray(messages)) {
-      return;
-    }
-
-    expect(messages.length).toBe(2);
-    expect(messages[0].text).toBe("first bug found");
-    expect(messages[0].ts).toBe("1700000001.000100");
-    expect(messages[1].text).toBe("third BUG report");
-    expect(messages[1].ts).toBe("1700000003.000100");
-  });
-
-  test("success response includes expected data fields with filter/sort", async () => {
+  test("success response includes expected data fields", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
     const mockedFetch: typeof fetch = Object.assign(
@@ -539,8 +195,6 @@ describe("messages replies command", () => {
       "replies",
       "C456",
       "1700000000.000000",
-      "--sort=newest",
-      "--filter-text=world",
       "--json",
     ]);
 
@@ -831,14 +485,19 @@ describe("fetchMessageReplies client path", () => {
     globalThis.fetch = mockedFetch;
 
     const client = createSlackWebApiClient();
-    const result = await client.fetchMessageReplies({
+    // Runtime narrowing check: verify client has fetchMessageReplies before calling (test only)
+    if (!("fetchMessageReplies" in (client as Record<string, unknown>))) {
+      throw new Error("Client does not have fetchMessageReplies method");
+    }
+    type ClientWithReplies = { fetchMessageReplies: (params: unknown) => Promise<unknown> };
+    const result = (await (client as unknown as ClientWithReplies).fetchMessageReplies({
       channel: "C456",
       ts: "1700000000.000001",
       limit: 2,
       oldest: "100",
       latest: "200",
       cursor: "page-1",
-    });
+    })) as unknown as { channel: string; nextCursor?: string; messages: unknown[] };
 
     expect(result.channel).toBe("C456");
     expect(result.nextCursor).toBe("page-2");

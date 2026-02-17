@@ -272,10 +272,6 @@ describe("messages search command", () => {
           channel: "",
           messages: [],
         }),
-        fetchMessageReplies: async () => ({
-          channel: "",
-          messages: [],
-        }),
       }),
     });
 
