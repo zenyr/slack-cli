@@ -45,7 +45,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - **Org equiv**: `conversations_history` tool
   - **Status**: Base implementation shipped (`--limit`, `--oldest`, `--latest`, `--cursor`)
   - **Progress**: `--include-activity` control delivered in command path
-  - **Gap**: Time-range expressions (`1d/1w/30d`) and `#channel` resolution deferred
+  - **Progress**: Time-range expressions (`1d/1w/30d/90d`) delivered
+  - **Gap**: `#channel` resolution deferred
 
 - [x] `messages post` - post plain text messages
   - **Org equiv**: `conversations_add_message` tool (core path)
@@ -59,31 +60,33 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - [x] `resources` - list MCP-style resource URIs (static list)
 - [x] `tools` - list MCP tool names (static list)
 
-**Main CLI Maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)**
+### Commands - Usergroups (1 command)
+- [x] `usergroups list` - list workspace user groups
+  - **Org equiv**: `usergroups_list` tool
+  - **Status**: Core list path delivered
+
+**Main CLI Maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Entry (usergroups read)**
 
 ---
 
 ## 🚧 In Progress Boundary
 
-### Priority 1: Motorcycle Entry Boundary
+### Priority 1: Motorcycle+ Entry Boundary
 
-#### 1. `messages post` - Runtime Wiring Complete
-- **Current state**: Command path merged and fully wired in CLI runtime for markdown + policy enforcement
+#### 1. `usergroups list` - Delivered
+- **Current state**: Command wiring and core API path merged for `usergroups.list`
 - **Progress merged**:
-  - Markdown conversion utility (`messages-post/markdown.ts`) + tests
-  - Channel allow/deny policy utility (`messages-post/policy.ts`) + tests
-- **Remaining work (deferred from boundary unit)**:
-  - Keep advanced mark-read/unfurl behavior hardening outside current boundary
+  - Base command path for listing workspace usergroups
+  - Parity tracker update aligned with merged state
 
-#### 2. `reactions remove` + `messages post` thread support - Next Smallest Boundary Unit
+#### 2. `usergroups create/update` - Next Smallest Boundary Unit
 - **Current state**:
-  - `reactions add` command wiring delivered
-  - `reactions remove` handler delivered, CLI command wiring pending
-  - `messages post` core runtime wiring delivered, `thread_ts` support pending
+  - `usergroups list` delivered
+  - `usergroups create` and `usergroups update` remain missing
 - **Boundary unit**:
-  - Add CLI command wiring for `reactions remove` (registry/client path + happy-path test)
-  - Add `thread_ts` contract support to `messages post` command path
-- **Out of unit**: channel policy hardening and advanced message lookup helpers
+  - Add `usergroups create` core path with minimal required fields
+  - Add `usergroups update` core metadata update path
+- **Out of unit**: member replacement flow (`usergroups users update`) and `usergroups me` multi-step actions
 
 ---
 
@@ -102,13 +105,13 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `reactions_remove`                 | ⚠️ Partial      | P2       | Low        |
 | `attachment_get_data`              | ❌ Missing       | P3       | Medium     |
 | `users_search`                     | ⚠️ Partial      | **P0**   | Low        |
-| `usergroups_list`                  | ❌ Missing       | P2       | Low        |
+| `usergroups_list`                  | ✅ Implemented   | P2       | Low        |
 | `usergroups_create`                | ❌ Missing       | P2       | Medium     |
 | `usergroups_update`                | ❌ Missing       | P2       | Medium     |
 | `usergroups_users_update`          | ❌ Missing       | P2       | Medium     |
 | `usergroups_me`                    | ❌ Missing       | P3       | High       |
 
-**Summary**: 3 implemented, 5 partial, 6 missing
+**Summary**: 4 implemented, 5 partial, 5 missing
 
 ---
 
@@ -128,8 +131,9 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - **Delivered in merge set**:
   - Slack history types + `conversations.history` client call
   - `messages history` handler with cursor/limit/oldest/latest
+  - Time-expression parsing support (`1d/1w/30d/90d`)
   - command wiring + dedicated tests
-- **Next smallest unit**: Add time expression parser + `#channel` resolution
+- **Next smallest unit**: Add `#channel` resolution
 
 #### `messages replies` Command
 - **Org tool**: `conversations_replies`
@@ -138,7 +142,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Fetch thread messages by channel_id + thread_ts
   - Cursor-based pagination
 - **Current state**: Base command implemented with cursor pagination and test coverage
-- **Remaining gap**: CLI contract/docs mismatch + strict input-validation alignment
+- **Progress merged**: `thread_ts` positional validation hardening delivered (`seconds.fraction` contract)
+- **Remaining gap**: final CLI/docs contract alignment sweep
 - **Dependencies**: message history foundation complete
 - **Complexity**: Low-Medium (contract hardening + validation)
 - **Smallest unit**: Contract alignment + limit parsing strictness + targeted tests
@@ -192,7 +197,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - List all user groups
   - Optional include_users/include_disabled/include_count flags
 - **Complexity**: Low (direct API wrapper)
-- **Smallest unit**: Basic list without optional flags
+- **Current state**: Implemented (core list path)
+- **Smallest unit**: Optional flags parity (`include_users/include_disabled/include_count`)
 
 #### `usergroups create/update` Commands
 - **Org tools**: `usergroups_create`, `usergroups_update`
@@ -288,15 +294,15 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | **Conversation Tools**       | 4 (partial) | 8       | -4   |
 | **Channel Tools**            | 1        | 1          | 0    |
 | **User Tools**               | 1        | 1          | 0    |
-| **Usergroup Tools**          | 0        | 5          | -5   |
+| **Usergroup Tools**          | 1        | 5          | -4   |
 | **Utilities**                | 4        | N/A        | N/A  |
 | **MCP Resources**            | 0 (stub) | 2          | -2   |
 | **Advanced Infra**           | 0        | 5          | -5   |
-| **Total Org-Equivalent Tools** | **8** (3 full + 5 partial) | **14** (full) | **43% gap** |
+| **Total Org-Equivalent Tools** | **9** (4 full + 5 partial) | **14** (full) | **36% gap** |
 
-**Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)**
+**Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Entry (usergroups read)**
 
-**Next milestone**: 🏍️ **Motorcycle** (ship `reactions remove` command wiring + `messages post` thread support)
+**Next milestone**: 🏍️+ **Motorcycle+** (ship `usergroups create` + `usergroups update` core paths)
 
 **Future milestones**: 
 - 🏍️ **Motorcycle**: Write APIs (post, reactions) + threads
@@ -338,7 +344,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 3. `messages post` - Channel policy utility wiring complete in runtime ✅
 4. `reactions add` - Add reaction command wiring ✅
 5. `reactions remove` - Handler delivered, command wiring pending
-6. `messages post` - `thread_ts` support (next smallest boundary unit)
+6. `messages post` - `thread_ts` support (deferred follow-up unit)
 
 **Dependencies**: Channel resolution (can use inline API calls, cache not required yet)
 
@@ -349,7 +355,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 **Goal**: Add usergroup management commands
 
 **Units**:
-1. `usergroups list` - Read-only listing
+1. `usergroups list` - Read-only listing ✅
 2. `usergroups create` - Create with minimal fields
 3. `usergroups update` - Update metadata
 4. `usergroups users update` - Replace members
