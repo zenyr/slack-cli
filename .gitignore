@@ -36,3 +36,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # opencode (per-worktree, not shared)
 opencode.jsonc
+.opencode/plans/
+AGENTS.local.md

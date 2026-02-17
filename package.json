@@ -15,11 +15,13 @@
     "lint:workspaces": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "tsc": "turbo run typecheck",
-    "link:slack": "bun --cwd=apps/cli link"
+    "link:slack": "bun --cwd=apps/cli link",
+    "postinstall": "lefthook install"
   },
   "devDependencies": {
     "@biomejs/biome": "latest",
     "@types/bun": "latest",
+    "lefthook": "^2.1.1",
     "turbo": "latest",
     "typescript": "^5"
   }
