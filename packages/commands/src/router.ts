@@ -47,9 +47,14 @@ export const routeCli = async (
       return createError("INTERNAL_ERROR", "help command is not registered");
     }
 
+    const helpPositionals =
+      parsed.tokens.length > 0
+        ? [...parsed.tokens, ...parsed.positionalsFromDoubleDash]
+        : parsed.positionalsFromDoubleDash;
+
     return await helpCommand.execute({
       commandPath: ["help"],
-      positionals: [],
+      positionals: helpPositionals,
       options: parsed.options,
       flags: parsed.flags,
       context,
