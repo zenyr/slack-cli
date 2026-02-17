@@ -7,6 +7,8 @@
     "slack": "./src/main.ts"
   },
   "scripts": {
+    "link": "bun link",
+    "unlink": "bun unlink",
     "start": "bun run ./src/main.ts",
     "lint": "biome check --write --unsafe .",
     "typecheck": "tsc --noEmit -p tsconfig.json"

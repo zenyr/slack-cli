@@ -9,6 +9,8 @@
     "packages/*"
   ],
   "scripts": {
+    "link": "bun run --cwd=apps/cli link",
+    "unlink": "bun run --cwd=apps/cli unlink",
     "start": "bun --env-file=.env run --cwd=apps/cli start",
     "slack": "bun --env-file=.env run --cwd=apps/cli start",
     "test": "turbo run test",
@@ -16,7 +18,6 @@
     "lint:workspaces": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "tsc": "turbo run typecheck",
-    "link:slack": "bun --cwd=apps/cli link",
     "postinstall": "lefthook install"
   },
   "devDependencies": {

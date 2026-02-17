@@ -12,9 +12,11 @@ bun start -- --help
 ## Global CLI Link
 
 ```bash
-bun run link:slack
+bun run link
 slack --help
 ```
+
+`link` uses Bun native linking via workspace script.
 
 ## Layout
 
