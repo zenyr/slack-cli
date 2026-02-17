@@ -53,3 +53,9 @@
 - APPLY: function declaration style.
   - MUST use `const` function expressions / arrow functions.
   - AVOID function statements (`function foo() {}`) unless explicitly requested.
+
+## Implementation Workflow Preference
+
+- APPLY: intentional split points.
+  - SHOULD leave explicit `TODO:` markers when intentionally deferring non-blocking implementation details.
+  - MUST keep `TODO:` actionable (owner scope, next action, condition to remove).

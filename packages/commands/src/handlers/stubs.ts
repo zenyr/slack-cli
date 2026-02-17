@@ -6,6 +6,7 @@ const commandLabel = (path: string[]): string => {
 };
 
 const createStubResult = (request: CommandRequest, summary: string): CliResult => {
+  // TODO(commands-owner): Replace stub errors with Slack API-backed handlers in next integration phase; remove when each command returns real success payloads from live API data.
   const command = commandLabel(request.commandPath);
   const detail = `${summary} command is not implemented yet.`;
 
