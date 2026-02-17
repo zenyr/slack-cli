@@ -1,5 +1,10 @@
 import { createError } from "../errors";
-import type { SlackChannel, SlackClientError, SlackListChannelsResult } from "../slack";
+import type {
+  SlackChannel,
+  SlackClientError,
+  SlackListChannelsResult,
+  SlackWebApiClient,
+} from "../slack";
 import { createSlackWebApiClient, isSlackClientError } from "../slack";
 import type { CliResult, CommandRequest } from "../types";
 
@@ -65,18 +70,35 @@ const mapSlackErrorToCliResult = (error: unknown): CliResult => {
   );
 };
 
-export const channelsListHandler = async (_request: CommandRequest): Promise<CliResult> => {
-  try {
-    const client = createSlackWebApiClient();
-    const result = await client.listChannels();
-
-    return {
-      ok: true,
-      command: COMMAND_ID,
-      data: result,
-      textLines: buildTextLines(result),
-    };
-  } catch (error) {
-    return mapSlackErrorToCliResult(error);
-  }
+type ChannelsListHandlerDeps = {
+  createClient: () => SlackWebApiClient;
 };
+
+const defaultChannelsListDeps: ChannelsListHandlerDeps = {
+  createClient: createSlackWebApiClient,
+};
+
+export const createChannelsListHandler = (depsOverrides: Partial<ChannelsListHandlerDeps> = {}) => {
+  const deps: ChannelsListHandlerDeps = {
+    ...defaultChannelsListDeps,
+    ...depsOverrides,
+  };
+
+  return async (_request: CommandRequest): Promise<CliResult> => {
+    try {
+      const client = deps.createClient();
+      const result = await client.listChannels();
+
+      return {
+        ok: true,
+        command: COMMAND_ID,
+        data: result,
+        textLines: buildTextLines(result),
+      };
+    } catch (error) {
+      return mapSlackErrorToCliResult(error);
+    }
+  };
+};
+
+export const channelsListHandler = createChannelsListHandler();

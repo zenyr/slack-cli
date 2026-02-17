@@ -1,5 +1,6 @@
-import { resolveSlackTokenFromEnv } from "./token";
+import { resolveSlackToken, resolveSlackTokenFromEnv } from "./token";
 import type {
+  ResolvedSlackToken,
   SlackChannel,
   SlackListChannelsResult,
   SlackListUsersResult,
@@ -59,6 +60,18 @@ const buildApiUrl = (baseUrl: string, method: string, params: URLSearchParams): 
   const url = new URL(`${normalizedBase}/${method}`);
   url.search = params.toString();
   return url;
+};
+
+const resolveTokenTypeFromValue = (token: string): "xoxp" | "xoxb" | undefined => {
+  if (token.startsWith("xoxp")) {
+    return "xoxp";
+  }
+
+  if (token.startsWith("xoxb")) {
+    return "xoxb";
+  }
+
+  return undefined;
 };
 
 const ensureSuccessPayload = (payload: unknown): Record<string, unknown> => {
@@ -173,19 +186,51 @@ const mapSearchMessage = (value: unknown): SlackSearchMessage | undefined => {
 export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
 ): SlackWebApiClient => {
-  const resolvedToken = options.token ?? resolveSlackTokenFromEnv(options.env).token;
   const fetchImpl = options.fetchImpl ?? fetch;
   const baseUrl = options.baseUrl ?? DEFAULT_SLACK_API_BASE_URL;
+  const explicitToken = options.token;
+  const env = options.env ?? process.env;
+
+  const tokenResolver: () => Promise<ResolvedSlackToken> =
+    explicitToken === undefined
+      ? async () => {
+          // Try env resolution first (xoxp > xoxb) for backward compat + reliable error messages
+          try {
+            return resolveSlackTokenFromEnv(env);
+          } catch {
+            // Env resolution failed; fall back to auth service (store, etc.)
+            return resolveSlackToken(env);
+          }
+        }
+      : () => {
+          const tokenType = resolveTokenTypeFromValue(explicitToken);
+          const source = tokenType === "xoxb" ? "SLACK_MCP_XOXB_TOKEN" : "SLACK_MCP_XOXP_TOKEN";
+          return Promise.resolve({
+            token: explicitToken,
+            source,
+            tokenType,
+          });
+        };
+
+  let resolvedToken: Promise<ResolvedSlackToken> | null = null;
+  const getResolvedToken = async (): Promise<ResolvedSlackToken> => {
+    if (resolvedToken === null) {
+      resolvedToken = tokenResolver();
+    }
+
+    return await resolvedToken;
+  };
 
   const callApi = async (
     method: string,
     params: URLSearchParams,
   ): Promise<Record<string, unknown>> => {
+    const token = (await getResolvedToken()).token;
     const url = buildApiUrl(baseUrl, method, params);
     const response = await fetchImpl(url, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${resolvedToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 

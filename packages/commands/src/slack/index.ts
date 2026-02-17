@@ -1,5 +1,5 @@
 export { createSlackWebApiClient } from "./client";
-export { resolveSlackTokenFromEnv } from "./token";
+export { resolveSlackToken, resolveSlackTokenFromEnv } from "./token";
 export type {
   ResolvedSlackToken,
   SlackChannel,
@@ -10,6 +10,7 @@ export type {
   SlackSearchMessage,
   SlackSearchMessagesResult,
   SlackTokenSource,
+  SlackTokenType,
   SlackUser,
   SlackWebApiClient,
 } from "./types";

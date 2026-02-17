@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
 import { isRecord, parseJsonOutput, runCliWithBuffer } from "./test-utils";
+import { createUsersListHandler } from "../handlers/users-list";
+import { createSlackClientError } from "../slack";
 
 describe("users list command", () => {
   test("returns users list result for users list --json", async () => {
@@ -109,43 +111,36 @@ describe("users list command", () => {
   });
 
   test("returns invalid argument when Slack token is missing", async () => {
-    const originalUserToken = process.env.SLACK_MCP_XOXP_TOKEN;
-    const originalBotToken = process.env.SLACK_MCP_XOXB_TOKEN;
+    const handler = createUsersListHandler({
+      createClient: () => {
+        throw createSlackClientError({
+          code: "SLACK_CONFIG_ERROR",
+          message: "Slack token is not configured.",
+          hint: "Set SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN in environment.",
+        });
+      },
+    });
 
-    delete process.env.SLACK_MCP_XOXP_TOKEN;
-    delete process.env.SLACK_MCP_XOXB_TOKEN;
+    const result = await handler({
+      commandPath: ["users", "list"],
+      positionals: [],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
 
-    const result = await runCliWithBuffer(["users", "list", "--json"]);
-
-    if (originalUserToken === undefined) {
-      delete process.env.SLACK_MCP_XOXP_TOKEN;
-    } else {
-      process.env.SLACK_MCP_XOXP_TOKEN = originalUserToken;
-    }
-
-    if (originalBotToken === undefined) {
-      delete process.env.SLACK_MCP_XOXB_TOKEN;
-    } else {
-      process.env.SLACK_MCP_XOXB_TOKEN = originalBotToken;
-    }
-
-    expect(result.exitCode).toBe(2);
-    expect(result.stderr.length).toBe(0);
-
-    const parsed = parseJsonOutput(result.stdout);
-    expect(isRecord(parsed)).toBe(true);
-    if (!isRecord(parsed)) {
+    expect(result.ok).toBe(false);
+    if (result.ok) {
       return;
     }
 
-    expect(parsed.ok).toBe(false);
-    expect(parsed.command).toBe("users.list");
-    expect(isRecord(parsed.error)).toBe(true);
-    if (!isRecord(parsed.error)) {
-      return;
-    }
-
-    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
-    expect(parsed.error.message).toBe("Slack token is not configured.");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe("Slack token is not configured.");
   });
 });

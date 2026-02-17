@@ -1,6 +1,6 @@
 import { createError } from "../errors";
 import type { ResolvedSlackToken, SlackWebApiClient } from "../slack";
-import { createSlackWebApiClient, isSlackClientError, resolveSlackTokenFromEnv } from "../slack";
+import { createSlackWebApiClient, isSlackClientError, resolveSlackToken } from "../slack";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.search";
@@ -12,13 +12,15 @@ type CreateClientOptions = {
 
 type MessagesSearchHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackWebApiClient;
-  resolveToken: (env?: Record<string, string | undefined>) => ResolvedSlackToken;
+  resolveToken: (
+    env?: Record<string, string | undefined>,
+  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
   env: Record<string, string | undefined>;
 };
 
 const defaultDeps: MessagesSearchHandlerDeps = {
   createClient: createSlackWebApiClient,
-  resolveToken: resolveSlackTokenFromEnv,
+  resolveToken: resolveSlackToken,
   env: process.env,
 };
 
@@ -71,8 +73,12 @@ export const createMessagesSearchHandler = (
     }
 
     try {
-      const resolvedToken = deps.resolveToken(deps.env);
-      if (resolvedToken.source === "SLACK_MCP_XOXB_TOKEN") {
+      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      if (
+        resolvedToken.tokenType === "xoxb" ||
+        resolvedToken.source === "SLACK_MCP_XOXB_TOKEN" ||
+        resolvedToken.source === "env:SLACK_MCP_XOXB_TOKEN"
+      ) {
         return createError(
           "INVALID_ARGUMENT",
           "messages search requires user token (xoxp).",

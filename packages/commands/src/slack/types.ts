@@ -1,8 +1,17 @@
-export type SlackTokenSource = "SLACK_MCP_XOXP_TOKEN" | "SLACK_MCP_XOXB_TOKEN";
+export type SlackTokenSource =
+  | "SLACK_MCP_XOXP_TOKEN"
+  | "SLACK_MCP_XOXB_TOKEN"
+  | "env:SLACK_MCP_XOXP_TOKEN"
+  | "env:SLACK_MCP_XOXB_TOKEN"
+  | "store:active"
+  | "store:fallback";
+
+export type SlackTokenType = "xoxp" | "xoxb";
 
 export type ResolvedSlackToken = {
   token: string;
   source: SlackTokenSource;
+  tokenType?: SlackTokenType;
 };
 
 export type SlackClientErrorCode =

@@ -1,5 +1,5 @@
 import { createError } from "../errors";
-import type { SlackClientError, SlackUser } from "../slack";
+import type { SlackClientError, SlackUser, SlackWebApiClient } from "../slack";
 import { createSlackWebApiClient, isSlackClientError } from "../slack";
 import type { CliResult, CommandRequest } from "../types";
 
@@ -41,45 +41,62 @@ const toUserLine = (user: SlackUser): string => {
   return `- ${identity} (${user.id})${suffix}`;
 };
 
-export const usersListHandler = async (request: CommandRequest): Promise<CliResult> => {
-  const command = commandLabel(request.commandPath);
-
-  try {
-    const client = createSlackWebApiClient();
-    const result = await client.listUsers();
-    const lines: string[] = [`Found ${result.users.length} users.`, ""];
-
-    for (const user of result.users) {
-      lines.push(toUserLine(user));
-    }
-
-    if (result.nextCursor !== undefined) {
-      // TODO(commands-owner): Add cursor/page flags for users list and remove when handlers support explicit pagination controls.
-      lines.push("");
-      lines.push(`Next cursor available: ${result.nextCursor}`);
-    }
-
-    return {
-      ok: true,
-      command: "users.list",
-      message: `Listed ${result.users.length} users`,
-      data: {
-        users: result.users,
-        count: result.users.length,
-        nextCursor: result.nextCursor,
-      },
-      textLines: lines,
-    };
-  } catch (error) {
-    if (isSlackClientError(error)) {
-      return mapSlackErrorToCliResult(error, command);
-    }
-
-    return createError(
-      "INTERNAL_ERROR",
-      "Unexpected users.list failure",
-      "Try again with --json for structured output.",
-      command,
-    );
-  }
+type UsersListHandlerDeps = {
+  createClient: () => SlackWebApiClient;
 };
+
+const defaultUsersListDeps: UsersListHandlerDeps = {
+  createClient: createSlackWebApiClient,
+};
+
+export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDeps> = {}) => {
+  const deps: UsersListHandlerDeps = {
+    ...defaultUsersListDeps,
+    ...depsOverrides,
+  };
+
+  return async (request: CommandRequest): Promise<CliResult> => {
+    const command = commandLabel(request.commandPath);
+
+    try {
+      const client = deps.createClient();
+      const result = await client.listUsers();
+      const lines: string[] = [`Found ${result.users.length} users.`, ""];
+
+      for (const user of result.users) {
+        lines.push(toUserLine(user));
+      }
+
+      if (result.nextCursor !== undefined) {
+        // TODO(commands-owner): Add cursor/page flags for users list and remove when handlers support explicit pagination controls.
+        lines.push("");
+        lines.push(`Next cursor available: ${result.nextCursor}`);
+      }
+
+      return {
+        ok: true,
+        command: "users.list",
+        message: `Listed ${result.users.length} users`,
+        data: {
+          users: result.users,
+          count: result.users.length,
+          nextCursor: result.nextCursor,
+        },
+        textLines: lines,
+      };
+    } catch (error) {
+      if (isSlackClientError(error)) {
+        return mapSlackErrorToCliResult(error, command);
+      }
+
+      return createError(
+        "INTERNAL_ERROR",
+        "Unexpected users.list failure",
+        "Try again with --json for structured output.",
+        command,
+      );
+    }
+  };
+};
+
+export const usersListHandler = createUsersListHandler();

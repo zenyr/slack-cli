@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { isRecord, parseJsonOutput, runCliWithBuffer } from "./test-utils";
+import { createChannelsListHandler } from "../handlers/channels-list";
+import { createSlackClientError } from "../slack";
 
 const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
 const XOXB_ENV_KEY = "SLACK_MCP_XOXB_TOKEN";
@@ -96,38 +98,36 @@ describe("channels list command", () => {
     delete process.env[XOXP_ENV_KEY];
     delete process.env[XOXB_ENV_KEY];
 
-    let fetchCalled = false;
-    const mockedFetch: typeof fetch = Object.assign(
-      async () => {
-        fetchCalled = true;
-        return new Response(JSON.stringify({ ok: true, channels: [] }), { status: 200 });
+    const handler = createChannelsListHandler({
+      createClient: () => {
+        throw createSlackClientError({
+          code: "SLACK_CONFIG_ERROR",
+          message: "Slack token is not configured.",
+          hint: "Set SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN in environment.",
+        });
       },
-      {
-        preconnect: originalFetch.preconnect,
+    });
+
+    const result = await handler({
+      commandPath: ["channels", "list"],
+      positionals: [],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
       },
-    );
-    globalThis.fetch = mockedFetch;
+      context: {
+        version: "1.2.3",
+      },
+    });
 
-    const result = await runCliWithBuffer(["channels", "list", "--json"]);
-
-    expect(result.exitCode).toBe(2);
-    expect(fetchCalled).toBe(false);
-    expect(result.stderr.length).toBe(0);
-
-    const parsed = parseJsonOutput(result.stdout);
-    expect(isRecord(parsed)).toBe(true);
-    if (!isRecord(parsed)) {
+    expect(result.ok).toBe(false);
+    if (result.ok) {
       return;
     }
 
-    expect(parsed.ok).toBe(false);
-    expect(parsed.command).toBe("channels.list");
-    expect(isRecord(parsed.error)).toBe(true);
-    if (!isRecord(parsed.error)) {
-      return;
-    }
-
-    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
-    expect(parsed.error.message).toBe("Slack token is not configured.");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe("Slack token is not configured.");
   });
 });
