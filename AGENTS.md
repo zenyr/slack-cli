@@ -41,3 +41,15 @@
   - DELEGATION INPUT: caller sends only intent unit(s), topology (`single|multi|combined-exception`), include/exclude.
   - DELEGATION OWNER: git agent owns `status/log/diff`, staging plan, commit execution, msg draft.
   - SAFETY DEFAULT: no push/amend/force/hook-bypass unless explicitly requested.
+
+## Code Style Preferences
+
+- APPLY: implementation design.
+  - SHOULD favor Strategy Pattern when it improves extensibility and keeps branching minimal.
+- APPLY: TypeScript safety.
+  - NEVER use non-null assertion (`!`) in production code.
+  - NEVER use type assertion (`as`) in production code.
+  - EXCEPTION: test code may use minimal assertion casts when unavoidable.
+- APPLY: function declaration style.
+  - MUST use `const` function expressions / arrow functions.
+  - AVOID function statements (`function foo() {}`) unless explicitly requested.
