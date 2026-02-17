@@ -108,6 +108,113 @@ describe("messages search command", () => {
     expect(parsed.data.total).toBe(1);
   });
 
+  test("builds query with all message filters in stable order", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    delete process.env[XOXB_ENV_KEY];
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const requestUrl = input instanceof URL ? input.toString() : String(input);
+        expect(requestUrl).toContain("/search.messages");
+
+        const request = new URL(requestUrl, "https://slack.com");
+        expect(request.searchParams.get("query")).toBe(
+          "deploy done in:ops from:alice after:2026-01-03 before:2026-02-10 is:thread",
+        );
+
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer xoxp-test-token");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            messages: {
+              total: 3,
+              matches: [],
+            },
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "search",
+      "deploy",
+      "done",
+      "--before",
+      "2026-02-10",
+      "--channel",
+      "ops",
+      "--threads",
+      "--user",
+      "alice",
+      "--after",
+      "2026-01-03",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr.length).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(true);
+    expect(isRecord(parsed.data)).toBe(true);
+    if (!isRecord(parsed.data)) {
+      return;
+    }
+
+    expect(parsed.data.query).toBe(
+      "deploy done in:ops from:alice after:2026-01-03 before:2026-02-10 is:thread",
+    );
+    expect(Array.isArray(parsed.textLines)).toBe(true);
+    if (!Array.isArray(parsed.textLines)) {
+      return;
+    }
+
+    expect(parsed.textLines).toContain(
+      "Applied filters: in:ops, from:alice, after:2026-01-03, before:2026-02-10, is:thread",
+    );
+  });
+
+  test("returns invalid argument for malformed --after date", async () => {
+    const result = await runCliWithBuffer([
+      "messages",
+      "search",
+      "deploy",
+      "--after",
+      "2026-02-30",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr.length).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(false);
+    if (isRecord(parsed.error) === false) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.hint).toContain("YYYY-MM-DD");
+  });
+
   test("returns invalid argument for bot token", async () => {
     const handler = createMessagesSearchHandler({
       env: {},

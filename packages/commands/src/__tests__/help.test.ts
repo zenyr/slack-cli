@@ -48,6 +48,24 @@ describe("help command", () => {
     expect(result.stderr.length).toBe(0);
   });
 
+  test("messages namespace help includes search filters", async () => {
+    const result = await runCliWithBuffer(["messages", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.some((line) => line.includes("search <query> [--channel"))).toBe(true);
+    expect(result.stdout.some((line) => line.includes("--after YYYY-MM-DD"))).toBe(true);
+    expect(result.stdout.some((line) => line.includes("--threads"))).toBe(true);
+    expect(result.stderr.length).toBe(0);
+  });
+
+  test("users namespace help shows optional query syntax", async () => {
+    const result = await runCliWithBuffer(["users", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.some((line) => line.includes("list [<query>] [--json]"))).toBe(true);
+    expect(result.stderr.length).toBe(0);
+  });
+
   test("unknown namespace returns error", async () => {
     const result = await runCliWithBuffer(["nope", "--help"]);
 
