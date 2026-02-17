@@ -3,10 +3,12 @@ export { resolveSlackToken, resolveSlackTokenFromEnv } from "./token";
 export type {
   ResolvedSlackToken,
   SlackChannel,
+  SlackChannelHistoryResult,
   SlackClientError,
   SlackClientErrorCode,
   SlackListChannelsResult,
   SlackListUsersResult,
+  SlackMessage,
   SlackSearchMessage,
   SlackSearchMessagesResult,
   SlackTokenSource,

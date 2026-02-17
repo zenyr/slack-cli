@@ -161,6 +161,10 @@ describe("messages search command", () => {
             hint: "Use a valid token.",
           });
         },
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+        }),
       }),
     });
 

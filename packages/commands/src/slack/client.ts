@@ -2,8 +2,10 @@ import { resolveSlackToken, resolveSlackTokenFromEnv } from "./token";
 import type {
   ResolvedSlackToken,
   SlackChannel,
+  SlackChannelHistoryResult,
   SlackListChannelsResult,
   SlackListUsersResult,
+  SlackMessage,
   SlackSearchMessage,
   SlackSearchMessagesResult,
   SlackUser,
@@ -183,6 +185,26 @@ const mapSearchMessage = (value: unknown): SlackSearchMessage | undefined => {
   };
 };
 
+const mapMessage = (value: unknown): SlackMessage | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const ts = readString(value, "ts");
+  const text = readString(value, "text");
+  if (ts === undefined || text === undefined) {
+    return undefined;
+  }
+
+  return {
+    type: readString(value, "type") ?? "message",
+    user: readString(value, "user"),
+    text,
+    ts,
+    threadTs: readString(value, "thread_ts"),
+  };
+};
+
 export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
 ): SlackWebApiClient => {
@@ -342,9 +364,44 @@ export const createSlackWebApiClient = (
     };
   };
 
+  const fetchChannelHistory = async (params: {
+    channel: string;
+    limit?: number;
+    oldest?: string;
+    latest?: string;
+    cursor?: string;
+  }): Promise<SlackChannelHistoryResult> => {
+    const payload = new URLSearchParams({ channel: params.channel });
+    if (params.limit !== undefined) {
+      payload.set("limit", String(params.limit));
+    }
+    if (params.oldest !== undefined) {
+      payload.set("oldest", params.oldest);
+    }
+    if (params.latest !== undefined) {
+      payload.set("latest", params.latest);
+    }
+    if (params.cursor !== undefined) {
+      payload.set("cursor", params.cursor);
+    }
+
+    const payloadData = await callApi("conversations.history", payload);
+    const messagesRaw = readArray(payloadData, "messages") ?? [];
+    const messages = messagesRaw
+      .map(mapMessage)
+      .filter((value): value is SlackMessage => value !== undefined);
+
+    return {
+      channel: params.channel,
+      messages,
+      nextCursor: readNextCursor(payloadData),
+    };
+  };
+
   return {
     listChannels,
     listUsers,
     searchMessages,
+    fetchChannelHistory,
   };
 };

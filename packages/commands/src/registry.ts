@@ -1,4 +1,5 @@
 import { helpHandler } from "./handlers/help";
+import { messagesHistoryHandler } from "./handlers/messages-history";
 import { resourcesHandler } from "./handlers/resources";
 import {
   authCheckHandler,
@@ -74,5 +75,10 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-search",
     path: ["messages", "search"],
     execute: messagesSearchHandler,
+  },
+  {
+    id: "messages-history",
+    path: ["messages", "history"],
+    execute: messagesHistoryHandler,
   },
 ];
