@@ -229,7 +229,7 @@ export const createAuthLoginHandler = (depsOverrides: Partial<AuthHandlerDeps> =
         command: AUTH_LOGIN_COMMAND,
         message: "Auth login succeeded",
         data,
-        textLines: ["Token stored. Active token type: " + loginInput.type + "."],
+        textLines: [`Token stored. Active token type: ${loginInput.type}.`],
       };
     } catch (error) {
       return mapAuthErrorToCliResult(error, AUTH_LOGIN_COMMAND);
