@@ -75,6 +75,25 @@ describe("help command", () => {
     expect(result.stderr.length).toBe(0);
   });
 
+  test("usergroups namespace help shows extended list and users update syntax", async () => {
+    const result = await runCliWithBuffer(["usergroups", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(
+      result.stdout.some((line) =>
+        line.includes(
+          "list [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      result.stdout.some((line) =>
+        line.includes("users update <usergroup-id> <user-id> [user-id ...] --yes [--json]"),
+      ),
+    ).toBe(true);
+    expect(result.stderr.length).toBe(0);
+  });
+
   test("unknown namespace returns error", async () => {
     const result = await runCliWithBuffer(["nope", "--help"]);
 

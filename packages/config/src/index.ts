@@ -56,7 +56,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "usergroups list",
-    args: "[--json]",
+    args: "[--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
     description: "List user groups",
   },
   {
@@ -65,13 +65,18 @@ export const COMMANDS: CliCommand[] = [
     description: "Create user group",
   },
   {
+    name: "usergroups me list",
+    args: "[--json]",
+    description: "List current user memberships in user groups",
+  },
+  {
     name: "usergroups update",
     args: "<usergroup-id> <name> <handle> [--json]",
     description: "Update user group metadata",
   },
   {
     name: "usergroups users update",
-    args: "<usergroup-id> <user-id> [user-id ...] [--json]",
+    args: "<usergroup-id> <user-id> [user-id ...] --yes [--json]",
     description: "Replace user group members",
   },
   {

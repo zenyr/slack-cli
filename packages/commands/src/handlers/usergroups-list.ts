@@ -18,6 +18,49 @@ const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   }
 };
 
+const parseBooleanOptionValue = (
+  optionName: string,
+  value: string | boolean | undefined,
+): { value?: boolean; error?: CliResult } => {
+  if (value === undefined) {
+    return {};
+  }
+
+  if (typeof value === "boolean") {
+    return { value };
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "true" ||
+    normalized === "1" ||
+    normalized === "yes" ||
+    normalized === "y" ||
+    normalized === "on"
+  ) {
+    return { value: true };
+  }
+
+  if (
+    normalized === "false" ||
+    normalized === "0" ||
+    normalized === "no" ||
+    normalized === "n" ||
+    normalized === "off"
+  ) {
+    return { value: false };
+  }
+
+  return {
+    error: createError(
+      "INVALID_ARGUMENT",
+      `Invalid --${optionName} value: ${value}.`,
+      `Use boolean value for --${optionName}: true|false|1|0|yes|no.`,
+      COMMAND_ID,
+    ),
+  };
+};
+
 const toGroupLine = (group: SlackUserGroup): string => {
   const description = group.description === undefined ? "" : ` - ${group.description}`;
   return `- @${group.handle} (${group.id}) ${group.name}${description}`;
@@ -44,14 +87,42 @@ export const createUsergroupsListHandler = (
       return createError(
         "INVALID_ARGUMENT",
         "usergroups list does not accept positional arguments.",
-        "Use: slack usergroups list [--json]",
+        "Use: slack usergroups list [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
         COMMAND_ID,
       );
     }
 
+    const includeUsersParsed = parseBooleanOptionValue(
+      "include-users",
+      request.options["include-users"],
+    );
+    if (includeUsersParsed.error !== undefined) {
+      return includeUsersParsed.error;
+    }
+
+    const includeDisabledParsed = parseBooleanOptionValue(
+      "include-disabled",
+      request.options["include-disabled"],
+    );
+    if (includeDisabledParsed.error !== undefined) {
+      return includeDisabledParsed.error;
+    }
+
+    const includeCountParsed = parseBooleanOptionValue(
+      "include-count",
+      request.options["include-count"],
+    );
+    if (includeCountParsed.error !== undefined) {
+      return includeCountParsed.error;
+    }
+
     try {
       const client = deps.createClient();
-      const result = await client.listUsergroups();
+      const result = await client.listUsergroups({
+        includeUsers: includeUsersParsed.value,
+        includeDisabled: includeDisabledParsed.value,
+        includeCount: includeCountParsed.value,
+      });
 
       const textLines: string[] = [`Found ${result.usergroups.length} user groups.`, ""];
       for (const group of result.usergroups) {

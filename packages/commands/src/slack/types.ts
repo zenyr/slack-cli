@@ -78,6 +78,12 @@ export type SlackListUsergroupsResult = {
   usergroups: SlackUserGroup[];
 };
 
+export type SlackListUsergroupsOptions = {
+  includeUsers?: boolean;
+  includeDisabled?: boolean;
+  includeCount?: boolean;
+};
+
 export type SlackUpdateUsergroupParams = {
   id: string;
   name: string;
@@ -103,8 +109,21 @@ export type SlackCreateUsergroupParams = {
   handle: string;
 };
 
+export type SlackUsergroupUsersListParams = {
+  usergroupId: string;
+};
+
+export type SlackUsergroupUsersListResult = {
+  usergroupId: string;
+  userIds: string[];
+};
+
+export type SlackAuthIdentityResult = {
+  userId: string;
+};
+
 export type SlackUsergroupsWebApiClient = {
-  listUsergroups: () => Promise<SlackListUsergroupsResult>;
+  listUsergroups: (options?: SlackListUsergroupsOptions) => Promise<SlackListUsergroupsResult>;
   createUsergroup: (params: SlackCreateUsergroupParams) => Promise<SlackUserGroup>;
 };
 
@@ -114,6 +133,20 @@ export type SlackUsergroupsUpdateWebApiClient = {
     params: SlackUsergroupsUsersUpdateParams,
   ) => Promise<SlackUsergroupsUsersUpdateResult>;
 };
+
+export type SlackAuthWebApiClient = {
+  getCurrentUserId: () => Promise<string>;
+};
+
+export type SlackUsergroupsUsersListWebApiClient = {
+  listUsergroupUsers: (
+    params: SlackUsergroupUsersListParams,
+  ) => Promise<SlackUsergroupUsersListResult>;
+};
+
+export type SlackUsergroupsMeWebApiClient = SlackAuthWebApiClient &
+  SlackUsergroupsUsersListWebApiClient &
+  Pick<SlackUsergroupsWebApiClient, "listUsergroups">;
 
 export type SlackSearchMessage = {
   channelId?: string;

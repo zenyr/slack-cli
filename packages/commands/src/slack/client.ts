@@ -1,6 +1,7 @@
 import { resolveSlackToken, resolveSlackTokenFromEnv } from "./token";
 import type {
   ResolvedSlackToken,
+  SlackAuthWebApiClient,
   SlackChannel,
   SlackChannelHistoryResult,
   SlackChannelRepliesResult,
@@ -8,6 +9,7 @@ import type {
   SlackCreateUsergroupParams,
   SlackListChannelsOptions,
   SlackListChannelsResult,
+  SlackListUsergroupsOptions,
   SlackListUsergroupsResult,
   SlackListUsersResult,
   SlackMessage,
@@ -23,8 +25,11 @@ import type {
   SlackUser,
   SlackUserGroup,
   SlackUsergroupsUpdateWebApiClient,
+  SlackUsergroupsUsersListWebApiClient,
   SlackUsergroupsUsersUpdateParams,
   SlackUsergroupsWebApiClient,
+  SlackUsergroupUsersListParams,
+  SlackUsergroupUsersListResult,
   SlackWebApiClient,
 } from "./types";
 import {
@@ -265,6 +270,8 @@ export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
 ): SlackWebApiClient &
   SlackUsergroupsWebApiClient &
+  SlackAuthWebApiClient &
+  SlackUsergroupsUsersListWebApiClient &
   SlackUsergroupsUpdateWebApiClient &
   SlackRepliesWebApiClient &
   SlackPostWebApiClient &
@@ -460,8 +467,21 @@ export const createSlackWebApiClient = (
     };
   };
 
-  const listUsergroups = async (): Promise<SlackListUsergroupsResult> => {
-    const payload = await callApi("usergroups.list", new URLSearchParams());
+  const listUsergroups = async (
+    options: SlackListUsergroupsOptions = {},
+  ): Promise<SlackListUsergroupsResult> => {
+    const params = new URLSearchParams();
+    if (options.includeUsers !== undefined) {
+      params.set("include_users", options.includeUsers ? "true" : "false");
+    }
+    if (options.includeDisabled !== undefined) {
+      params.set("include_disabled", options.includeDisabled ? "true" : "false");
+    }
+    if (options.includeCount !== undefined) {
+      params.set("include_count", options.includeCount ? "true" : "false");
+    }
+
+    const payload = await callApi("usergroups.list", params);
     const usergroupsRaw = readArray(payload, "usergroups") ?? [];
     const usergroups = usergroupsRaw
       .map(mapUserGroup)
@@ -469,6 +489,47 @@ export const createSlackWebApiClient = (
 
     return {
       usergroups,
+    };
+  };
+
+  const getCurrentUserId = async (): Promise<string> => {
+    const payload = await callApi("auth.test", new URLSearchParams());
+    const userId = readString(payload, "user_id");
+    if (userId === undefined || userId.length === 0) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack API returned malformed auth.test payload.",
+        hint: "Verify token scopes and auth identity for auth.test.",
+      });
+    }
+
+    return userId;
+  };
+
+  const listUsergroupUsers = async (
+    params: SlackUsergroupUsersListParams,
+  ): Promise<SlackUsergroupUsersListResult> => {
+    const usergroupId = params.usergroupId.trim();
+    if (usergroupId.length === 0) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: "Usergroup id is empty.",
+        hint: "Provide non-empty usergroup id for usergroups.users.list.",
+      });
+    }
+
+    const payload = await callApi(
+      "usergroups.users.list",
+      new URLSearchParams({ usergroup: usergroupId }),
+    );
+    const usersRaw = readArray(payload, "users") ?? [];
+    const userIds = usersRaw
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .filter((value) => value.length > 0);
+
+    return {
+      usergroupId,
+      userIds,
     };
   };
 
@@ -803,6 +864,8 @@ export const createSlackWebApiClient = (
     listChannels,
     listUsers,
     listUsergroups,
+    getCurrentUserId,
+    listUsergroupUsers,
     createUsergroup,
     updateUsergroup,
     updateUsergroupUsers,

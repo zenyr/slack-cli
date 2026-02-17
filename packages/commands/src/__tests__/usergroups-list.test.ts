@@ -138,6 +138,73 @@ describe("usergroups list command", () => {
     expect(parsed.textLines).toContain("- @eng (S002) Engineering");
   });
 
+  test("forwards include flags to usergroups.list query", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    delete process.env[XOXB_ENV_KEY];
+
+    const mockFetch: typeof fetch = Object.assign(
+      async (input: string | URL | Request) => {
+        const requestUrl = input instanceof URL ? input.toString() : String(input);
+        const parsedUrl = new URL(requestUrl);
+
+        expect(parsedUrl.pathname).toContain("/usergroups.list");
+        expect(parsedUrl.searchParams.get("include_users")).toBe("true");
+        expect(parsedUrl.searchParams.get("include_disabled")).toBe("false");
+        expect(parsedUrl.searchParams.get("include_count")).toBe("true");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            usergroups: [],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockFetch;
+
+    const result = await runCliWithBuffer([
+      "usergroups",
+      "list",
+      "--include-users",
+      "--include-disabled=false",
+      "--include-count=1",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr.length).toBe(0);
+  });
+
+  test("returns invalid argument for invalid include-users boolean", async () => {
+    const result = await runCliWithBuffer([
+      "usergroups",
+      "list",
+      "--include-users=maybe",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toBe("Invalid --include-users value: maybe.");
+    expect(parsed.error.hint).toBe("Use boolean value for --include-users: true|false|1|0|yes|no.");
+  });
+
   test("maps Slack auth errors to invalid argument", async () => {
     const handler = createUsergroupsListHandler({
       createClient: () => {

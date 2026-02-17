@@ -66,7 +66,7 @@ describe("usergroups users update command", () => {
 
     const lines = parsed.textLines.filter((line): line is string => typeof line === "string");
     const updateLine = lines.find((line) =>
-      line.includes("users update <usergroup-id> <user-id> [user-id ...] [--json]"),
+      line.includes("users update <usergroup-id> <user-id> [user-id ...] --yes [--json]"),
     );
     expect(updateLine).toBeDefined();
   });
@@ -117,6 +117,7 @@ describe("usergroups users update command", () => {
       "S001",
       "U001",
       "U002",
+      "--yes",
       "--json",
     ]);
 
@@ -163,8 +164,29 @@ describe("usergroups users update command", () => {
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toContain("MISSING_ARGUMENT");
     expect(parsed.error.hint).toBe(
-      "Usage: slack usergroups users update <usergroup-id> <user-id> [user-id ...] [--json]",
+      "Usage: slack usergroups users update <usergroup-id> <user-id> [user-id ...] --yes [--json]",
     );
+  });
+
+  test("requires --yes for destructive member replacement", async () => {
+    const result = await runCliWithBuffer([
+      "usergroups",
+      "users",
+      "update",
+      "S001",
+      "U001",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toContain("requires --yes confirmation");
   });
 
   test("maps Slack auth errors to invalid argument", async () => {
@@ -184,7 +206,7 @@ describe("usergroups users update command", () => {
     const result = await handler({
       commandPath: ["usergroups", "users", "update"],
       positionals: ["S001", "U001"],
-      options: {},
+      options: { yes: true },
       flags: {
         json: true,
         help: false,

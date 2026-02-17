@@ -39,6 +39,10 @@ const createMockClient = (
         name: "Engineering Core",
       },
     }),
+    updateUsergroupUsers: async () => ({
+      usergroupId: "S001",
+      userIds: ["U001"],
+    }),
     ...overrides,
   };
 };

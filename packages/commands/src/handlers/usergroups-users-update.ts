@@ -6,7 +6,26 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "usergroups.users.update";
 const USAGE_HINT =
-  "Usage: slack usergroups users update <usergroup-id> <user-id> [user-id ...] [--json]";
+  "Usage: slack usergroups users update <usergroup-id> <user-id> [user-id ...] --yes [--json]";
+
+const isTruthyOption = (value: string | boolean | undefined): boolean => {
+  if (value === true) {
+    return true;
+  }
+
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized === "true" ||
+    normalized === "1" ||
+    normalized === "yes" ||
+    normalized === "y" ||
+    normalized === "on"
+  );
+};
 
 const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   switch (error.code) {
@@ -63,6 +82,15 @@ export const createUsergroupsUsersUpdateHandler = (
       return createError(
         "INVALID_ARGUMENT",
         "usergroups users update requires non-empty <user-id> values. [MISSING_ARGUMENT]",
+        USAGE_HINT,
+        COMMAND_ID,
+      );
+    }
+
+    if (isTruthyOption(request.options.yes) === false) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "usergroups users update is destructive and requires --yes confirmation.",
         USAGE_HINT,
         COMMAND_ID,
       );
