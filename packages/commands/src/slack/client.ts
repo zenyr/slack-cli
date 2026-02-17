@@ -23,6 +23,7 @@ import type {
   SlackUser,
   SlackUserGroup,
   SlackUsergroupsUpdateWebApiClient,
+  SlackUsergroupsUsersUpdateParams,
   SlackUsergroupsWebApiClient,
   SlackWebApiClient,
 } from "./types";
@@ -512,6 +513,56 @@ export const createSlackWebApiClient = (
     };
   };
 
+  const normalizeUsergroupUsersUpdateParams = (
+    params: SlackUsergroupsUsersUpdateParams,
+  ): SlackUsergroupsUsersUpdateParams => {
+    const usergroupId = params.usergroupId.trim();
+    if (usergroupId.length === 0) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: "Usergroup id is empty.",
+        hint: "Provide non-empty usergroup id for usergroups.users.update.",
+      });
+    }
+
+    const userIds = params.userIds.map((value) => value.trim()).filter((value) => value.length > 0);
+
+    if (userIds.length === 0) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: "User ids are empty.",
+        hint: "Provide at least one user id for usergroups.users.update.",
+      });
+    }
+
+    return {
+      usergroupId,
+      userIds,
+    };
+  };
+
+  const updateUsergroupUsers = async (params: SlackUsergroupsUsersUpdateParams) => {
+    const normalized = normalizeUsergroupUsersUpdateParams(params);
+    const payload = new URLSearchParams({
+      usergroup: normalized.usergroupId,
+      users: normalized.userIds.join(","),
+    });
+    const payloadData = await callApiPost("usergroups.users.update", payload);
+    const usersValue = readString(payloadData, "users");
+    const userIds =
+      usersValue === undefined
+        ? normalized.userIds
+        : usersValue
+            .split(",")
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0);
+
+    return {
+      usergroupId: normalized.usergroupId,
+      userIds,
+    };
+  };
+
   const searchMessages = async (query: string): Promise<SlackSearchMessagesResult> => {
     const normalizedQuery = query.trim();
     if (normalizedQuery.length === 0) {
@@ -754,6 +805,7 @@ export const createSlackWebApiClient = (
     listUsergroups,
     createUsergroup,
     updateUsergroup,
+    updateUsergroupUsers,
     searchMessages,
     fetchChannelHistory,
     fetchMessageReplies,
