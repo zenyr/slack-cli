@@ -38,3 +38,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 opencode.jsonc
 .opencode/plans/
 AGENTS.local.md
+
+# orchestration signaling artifacts
+/todo.md
+/result.md
