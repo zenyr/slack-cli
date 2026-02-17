@@ -37,6 +37,15 @@ export type SlackChannel = {
   memberCount?: number;
 };
 
+export type SlackChannelType = "public" | "private" | "im" | "mpim";
+
+export type SlackChannelsSort = "name" | "popularity";
+
+export type SlackListChannelsOptions = {
+  types: SlackChannelType[];
+  limit: number;
+};
+
 export type SlackListChannelsResult = {
   channels: SlackChannel[];
   nextCursor?: string;
@@ -88,7 +97,7 @@ export type SlackChannelHistoryResult = {
 };
 
 export type SlackWebApiClient = {
-  listChannels: () => Promise<SlackListChannelsResult>;
+  listChannels: (options: SlackListChannelsOptions) => Promise<SlackListChannelsResult>;
   listUsers: () => Promise<SlackListUsersResult>;
   searchMessages: (query: string) => Promise<SlackSearchMessagesResult>;
   fetchChannelHistory: (params: {
