@@ -73,8 +73,29 @@ export type SlackSearchMessagesResult = {
   messages: SlackSearchMessage[];
 };
 
+export type SlackMessage = {
+  type: string;
+  user?: string;
+  text: string;
+  ts: string;
+  threadTs?: string;
+};
+
+export type SlackChannelHistoryResult = {
+  channel: string;
+  messages: SlackMessage[];
+  nextCursor?: string;
+};
+
 export type SlackWebApiClient = {
   listChannels: () => Promise<SlackListChannelsResult>;
   listUsers: () => Promise<SlackListUsersResult>;
   searchMessages: (query: string) => Promise<SlackSearchMessagesResult>;
+  fetchChannelHistory: (params: {
+    channel: string;
+    limit?: number;
+    oldest?: string;
+    latest?: string;
+    cursor?: string;
+  }) => Promise<SlackChannelHistoryResult>;
 };

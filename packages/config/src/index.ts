@@ -60,6 +60,11 @@ export const COMMANDS: CliCommand[] = [
     description: "Search messages",
   },
   {
+    name: "messages history",
+    args: "<channel-id> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--json]",
+    description: "Fetch channel message history",
+  },
+  {
     name: "resources",
     args: "[--json]",
     description: "List available Slack MCP-style resources",
