@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { isRecord, parseJsonOutput, runCliWithBuffer } from "./test-utils";
 import { createReactionsRemoveHandler } from "../handlers/reactions-remove";
 import { createSlackClientError } from "../slack";
 
@@ -20,6 +21,54 @@ const createRequest = (positionals: string[]) => {
 };
 
 describe("reactions remove handler", () => {
+  test("routes reactions remove command and returns INVALID_ARGUMENT for missing channel", async () => {
+    const result = await runCliWithBuffer(["reactions", "remove", "--json"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr.length).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(false);
+    if (!isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toContain("MISSING_ARGUMENT");
+    expect(parsed.error.message).toContain("<channel-id>");
+  });
+
+  test("help metadata exposes reactions remove args only", async () => {
+    const result = await runCliWithBuffer(["help", "reactions", "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(true);
+    expect(Array.isArray(parsed.textLines)).toBe(true);
+    if (!Array.isArray(parsed.textLines)) {
+      return;
+    }
+
+    const lines = parsed.textLines.filter((line): line is string => typeof line === "string");
+    const removeLine = lines.find((line) =>
+      line.includes("remove <channel-id> <timestamp> <emoji-name> [--json]"),
+    );
+    expect(removeLine).toBeDefined();
+    expect(removeLine).not.toContain("--channel");
+    expect(removeLine).not.toContain("--timestamp");
+    expect(removeLine).not.toContain("--name");
+  });
+
   test("returns INVALID_ARGUMENT with usage hint when channel is missing", async () => {
     const handler = createReactionsRemoveHandler();
 

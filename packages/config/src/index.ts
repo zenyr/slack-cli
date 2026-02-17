@@ -80,6 +80,11 @@ export const COMMANDS: CliCommand[] = [
     description: "Add reaction emoji to message",
   },
   {
+    name: "reactions remove",
+    args: "<channel-id> <timestamp> <emoji-name> [--json]",
+    description: "Remove reaction emoji from message",
+  },
+  {
     name: "resources",
     args: "[--json]",
     description: "List available Slack MCP-style resources",
