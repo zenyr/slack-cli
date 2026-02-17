@@ -177,6 +177,10 @@ describe("users list command", () => {
           total: 0,
           messages: [],
         }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+        }),
       }),
     });
 
@@ -248,6 +252,10 @@ describe("users list command", () => {
           total: 0,
           messages: [],
         }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+        }),
       }),
     });
 
@@ -298,6 +306,10 @@ describe("users list command", () => {
         searchMessages: async () => ({
           query: "",
           total: 0,
+          messages: [],
+        }),
+        fetchChannelHistory: async () => ({
+          channel: "",
           messages: [],
         }),
       }),

@@ -46,7 +46,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "channels list",
-    args: "[--json]",
+    args: "[--type <public|private|im|mpim>] [--sort <name|popularity>] [--limit <n>] [--cursor <cursor>] [--json]",
     description: "List channels",
   },
   {
