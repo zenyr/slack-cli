@@ -308,8 +308,8 @@ describe("messages history command", () => {
   });
 });
 
-describe("--limit time-range tokens", () => {
-  test("--limit=1d computes oldest and passes to history call", async () => {
+describe("--oldest/--latest time expressions", () => {
+  test("--oldest=1d computes relative unix seconds and passes to history call", async () => {
     const handler = createMessagesHistoryHandler({
       env: {},
       createClient: () => {
@@ -341,7 +341,7 @@ describe("--limit time-range tokens", () => {
     const result = await handler({
       commandPath: ["messages", "history"],
       positionals: ["C123"],
-      options: { limit: "1d" },
+      options: { oldest: "1d" },
       flags: {
         json: true,
         help: false,
@@ -355,12 +355,12 @@ describe("--limit time-range tokens", () => {
     expect(result.ok).toBe(true);
   });
 
-  test("--limit=1w computes oldest and passes to history call", async () => {
+  test("--latest=1w computes relative unix seconds and passes to history call", async () => {
     const handler = createMessagesHistoryHandler({
       env: {},
       createClient: () => {
         const now = Math.floor(Date.now() / 1000);
-        const expectedOldest = Math.floor(now - 604800).toString();
+        const expectedLatest = Math.floor(now - 604800).toString();
 
         return {
           listChannels: async () => ({ channels: [] }),
@@ -368,8 +368,8 @@ describe("--limit time-range tokens", () => {
           searchMessages: async () => ({ query: "", total: 0, messages: [] }),
           fetchChannelHistory: async (params) => {
             expect(params.channel).toBe("C456");
-            expect(params.oldest).toBe(expectedOldest);
-            expect(params.latest).toBeUndefined();
+            expect(params.oldest).toBeUndefined();
+            expect(params.latest).toBe(expectedLatest);
             return {
               channel: "C456",
               messages: [],
@@ -384,7 +384,7 @@ describe("--limit time-range tokens", () => {
     const result = await handler({
       commandPath: ["messages", "history"],
       positionals: ["C456"],
-      options: { limit: "1w" },
+      options: { latest: "1w" },
       flags: {
         json: true,
         help: false,
@@ -398,7 +398,50 @@ describe("--limit time-range tokens", () => {
     expect(result.ok).toBe(true);
   });
 
-  test("invalid token (2d) returns INVALID_ARGUMENT with guidance", async () => {
+  test("accepts 30d and 90d expressions for oldest/latest", async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => {
+        const now = Math.floor(Date.now() / 1000);
+        const expectedOldest = Math.floor(now - 2592000).toString();
+        const expectedLatest = Math.floor(now - 7776000).toString();
+
+        return {
+          listChannels: async () => ({ channels: [] }),
+          listUsers: async () => ({ users: [] }),
+          searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+          fetchChannelHistory: async (params) => {
+            expect(params.oldest).toBe(expectedOldest);
+            expect(params.latest).toBe(expectedLatest);
+            return {
+              channel: "C123",
+              messages: [],
+              nextCursor: undefined,
+            };
+          },
+        };
+      },
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["C123"],
+      options: { oldest: "30d", latest: "90d" },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  test("invalid expression (2d) returns INVALID_ARGUMENT with guidance", async () => {
     const handler = createMessagesHistoryHandler({
       env: {},
       createClient: () => ({
@@ -413,7 +456,7 @@ describe("--limit time-range tokens", () => {
     const result = await handler({
       commandPath: ["messages", "history"],
       positionals: ["C123"],
-      options: { limit: "2d" },
+      options: { oldest: "2d" },
       flags: {
         json: true,
         help: false,
@@ -430,11 +473,11 @@ describe("--limit time-range tokens", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("INVALID_RANGE_TOKEN");
+    expect(result.error.message).toContain("INVALID_TIME_EXPRESSION");
     expect(result.error.hint).toContain("1d, 1w, 30d, 90d");
   });
 
-  test("explicit --oldest wins over --limit time-range token", async () => {
+  test("numeric timestamp for --latest remains unchanged", async () => {
     const handler = createMessagesHistoryHandler({
       env: {},
       createClient: () => ({
@@ -442,7 +485,7 @@ describe("--limit time-range tokens", () => {
         listUsers: async () => ({ users: [] }),
         searchMessages: async () => ({ query: "", total: 0, messages: [] }),
         fetchChannelHistory: async (params) => {
-          expect(params.oldest).toBe("500");
+          expect(params.latest).toBe("1700000000.123456");
           return {
             channel: "C123",
             messages: [],
@@ -456,7 +499,7 @@ describe("--limit time-range tokens", () => {
     const result = await handler({
       commandPath: ["messages", "history"],
       positionals: ["C123"],
-      options: { limit: "1d", oldest: "500" },
+      options: { latest: "1700000000.123456" },
       flags: {
         json: true,
         help: false,
@@ -641,7 +684,7 @@ describe("channel identifier resolution", () => {
     expect(result.error.message).toContain("Channel name cannot be empty");
   });
 
-  test('--limit with empty string value (--limit="") returns INVALID_RANGE_TOKEN marker', async () => {
+  test('--limit with empty string value (--limit="") returns MISSING_ARGUMENT marker', async () => {
     const handler = createMessagesHistoryHandler({
       env: {},
       createClient: () => ({
@@ -677,11 +720,11 @@ describe("channel identifier resolution", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("INVALID_RANGE_TOKEN");
+    expect(result.error.message).toContain("MISSING_ARGUMENT");
     expect(result.error.message).toContain("cannot be empty");
   });
 
-  test('--limit with whitespace-only value (--limit="  ") returns INVALID_RANGE_TOKEN marker', async () => {
+  test('--limit with whitespace-only value (--limit="  ") returns MISSING_ARGUMENT marker', async () => {
     const handler = createMessagesHistoryHandler({
       env: {},
       createClient: () => ({
@@ -717,7 +760,7 @@ describe("channel identifier resolution", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("INVALID_RANGE_TOKEN");
+    expect(result.error.message).toContain("MISSING_ARGUMENT");
   });
 });
 
