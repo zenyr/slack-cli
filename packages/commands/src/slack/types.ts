@@ -158,5 +158,6 @@ export type SlackWebApiClient = {
     oldest?: string;
     latest?: string;
     cursor?: string;
+    includeActivity?: boolean;
   }) => Promise<SlackChannelHistoryResult>;
 };

@@ -270,6 +270,42 @@ describe("messages history command", () => {
     expect(result.error.code).toBe("INVALID_ARGUMENT");
     expect(result.error.message).toContain("AUTH_ERROR");
   });
+
+  test("passes includeActivity=true to client when --include-activity is present", async () => {
+    const handler = createMessagesHistoryHandler({
+      env: {},
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        fetchChannelHistory: async (params) => {
+          expect(params.includeActivity).toBe(true);
+          return {
+            channel: "C123",
+            messages: [],
+            nextCursor: undefined,
+          };
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "history"],
+      positionals: ["C123"],
+      options: { "include-activity": true },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+  });
 });
 
 describe("--limit time-range tokens", () => {
@@ -759,6 +795,125 @@ describe("fetchChannelHistory client path", () => {
         user: "U100",
         text: "build started",
         ts: "1700000001.000001",
+        threadTs: undefined,
+      },
+    ]);
+  });
+
+  test("filters activity/system messages by default", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [
+              {
+                type: "message",
+                user: "U100",
+                text: "normal message",
+                ts: "1700000001.000001",
+              },
+              {
+                type: "message",
+                subtype: "channel_join",
+                text: "joined #general",
+                ts: "1700000002.000002",
+              },
+              {
+                type: "bot_message",
+                text: "workflow update",
+                ts: "1700000003.000003",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+    const result = await client.fetchChannelHistory({
+      channel: "C456",
+    });
+
+    expect(result.messages).toEqual([
+      {
+        type: "message",
+        user: "U100",
+        text: "normal message",
+        ts: "1700000001.000001",
+        threadTs: undefined,
+      },
+    ]);
+  });
+
+  test("includes activity/system messages when includeActivity=true", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [
+              {
+                type: "message",
+                user: "U100",
+                text: "normal message",
+                ts: "1700000001.000001",
+              },
+              {
+                type: "message",
+                subtype: "channel_join",
+                text: "joined #general",
+                ts: "1700000002.000002",
+              },
+              {
+                type: "bot_message",
+                text: "workflow update",
+                ts: "1700000003.000003",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+    const result = await client.fetchChannelHistory({
+      channel: "C456",
+      includeActivity: true,
+    });
+
+    expect(result.messages).toEqual([
+      {
+        type: "message",
+        user: "U100",
+        text: "normal message",
+        ts: "1700000001.000001",
+        threadTs: undefined,
+      },
+      {
+        type: "message",
+        user: undefined,
+        text: "joined #general",
+        ts: "1700000002.000002",
+        threadTs: undefined,
+      },
+      {
+        type: "bot_message",
+        user: undefined,
+        text: "workflow update",
+        ts: "1700000003.000003",
         threadTs: undefined,
       },
     ]);

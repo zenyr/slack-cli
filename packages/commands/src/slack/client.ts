@@ -220,6 +220,16 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
   };
 };
 
+const isActivityOrSystemMessage = (value: Record<string, unknown>): boolean => {
+  const type = readString(value, "type");
+  if (type !== undefined && type !== "message") {
+    return true;
+  }
+
+  const subtype = readString(value, "subtype");
+  return subtype !== undefined && subtype.length > 0;
+};
+
 export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
 ): SlackWebApiClient &
@@ -455,6 +465,7 @@ export const createSlackWebApiClient = (
     oldest?: string;
     latest?: string;
     cursor?: string;
+    includeActivity?: boolean;
   }): Promise<SlackChannelHistoryResult> => {
     const payload = new URLSearchParams({ channel: params.channel });
     if (params.limit !== undefined) {
@@ -472,7 +483,15 @@ export const createSlackWebApiClient = (
 
     const payloadData = await callApi("conversations.history", payload);
     const messagesRaw = readArray(payloadData, "messages") ?? [];
-    const messages = messagesRaw
+    const filteredMessagesRaw = params.includeActivity
+      ? messagesRaw
+      : messagesRaw.filter((value) => {
+          if (!isRecord(value)) {
+            return true;
+          }
+          return !isActivityOrSystemMessage(value);
+        });
+    const messages = filteredMessagesRaw
       .map(mapMessage)
       .filter((value): value is SlackMessage => value !== undefined);
 
