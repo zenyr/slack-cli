@@ -2,6 +2,8 @@ import { resolveSlackToken, resolveSlackTokenFromEnv } from "./token";
 import type {
   ResolvedSlackToken,
   SlackChannel,
+  SlackChannelType,
+  SlackListChannelsOptions,
   SlackListChannelsResult,
   SlackListUsersResult,
   SlackSearchMessage,
@@ -276,11 +278,22 @@ export const createSlackWebApiClient = (
     return ensureSuccessPayload(parsedBody);
   };
 
-  const listChannels = async (): Promise<SlackListChannelsResult> => {
+  const listChannels = async (
+    options: SlackListChannelsOptions,
+  ): Promise<SlackListChannelsResult> => {
+    const typeMap: Record<SlackChannelType, string> = {
+      public: "public_channel",
+      private: "private_channel",
+      im: "im",
+      mpim: "mpim",
+    };
+
+    const mappedTypes = options.types.map((t) => typeMap[t]).join(",");
+
     const params = new URLSearchParams({
-      limit: "200",
+      limit: String(options.limit),
       exclude_archived: "true",
-      types: "public_channel,private_channel",
+      types: mappedTypes,
     });
     const payload = await callApi("conversations.list", params);
     const channelsRaw = readArray(payload, "channels") ?? [];
