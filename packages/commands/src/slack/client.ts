@@ -540,11 +540,15 @@ export const createSlackWebApiClient = (
   const postMessage = async (params: {
     channel: string;
     text: string;
+    threadTs?: string;
   }): Promise<SlackPostMessageResult> => {
     const payload = new URLSearchParams({
       channel: params.channel,
       text: params.text,
     });
+    if (params.threadTs !== undefined) {
+      payload.set("thread_ts", params.threadTs);
+    }
     const payloadData = await callApiPost("chat.postMessage", payload);
     const channel = readString(payloadData, "channel") ?? params.channel;
     const ts = readString(payloadData, "ts");

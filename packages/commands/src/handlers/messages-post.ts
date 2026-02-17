@@ -5,9 +5,10 @@ import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
 import type { ResolvedSlackToken, SlackPostWebApiClient } from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
-import type { CliResult, CommandRequest } from "../types";
+import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post";
+const USAGE_HINT = "Usage: slack messages post <channel-id> <text> [--thread-ts=<ts>] [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -59,6 +60,60 @@ const mapSlackClientError = (error: unknown): CliResult => {
   }
 };
 
+const isCliErrorResult = (value: string | undefined | CliResult): value is CliResult => {
+  return typeof value === "object" && value !== null && "ok" in value;
+};
+
+const isValidSlackTimestamp = (value: string): boolean => {
+  return /^\d+\.\d+$/.test(value);
+};
+
+const readThreadTsOption = (options: CliOptions): string | undefined | CliResult => {
+  const rawThreadTs = options["thread-ts"];
+  if (rawThreadTs === undefined) {
+    return undefined;
+  }
+
+  if (rawThreadTs === true) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "messages post --thread-ts requires a value. [MISSING_ARGUMENT]",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  if (typeof rawThreadTs !== "string") {
+    return createError(
+      "INVALID_ARGUMENT",
+      "messages post --thread-ts requires a string timestamp value.",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  const threadTs = rawThreadTs.trim();
+  if (threadTs.length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "messages post --thread-ts value cannot be empty. [MISSING_ARGUMENT]",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  if (!isValidSlackTimestamp(threadTs)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages post --thread-ts must match Slack timestamp format seconds.fraction. Received: ${threadTs}`,
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  return threadTs;
+};
+
 export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHandlerDeps> = {}) => {
   const deps: MessagesPostHandlerDeps = {
     ...defaultDeps,
@@ -71,7 +126,7 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       return createError(
         "INVALID_ARGUMENT",
         "messages post requires <channel-id>. [MISSING_ARGUMENT]",
-        "Usage: slack messages post <channel-id> <text> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -83,9 +138,14 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       return createError(
         "INVALID_ARGUMENT",
         "messages post requires non-empty <text>. [MISSING_ARGUMENT]",
-        "Usage: slack messages post <channel-id> <text> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
+    }
+
+    const threadTsOrError = readThreadTsOption(request.options);
+    if (isCliErrorResult(threadTsOrError)) {
+      return threadTsOrError;
     }
 
     const postPolicy = evaluatePostChannelPolicy(channelId, deps.env);
@@ -103,7 +163,11 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
-      const data = await client.postMessage({ channel: channelId, text: mrkdwnText });
+      const data = await client.postMessage({
+        channel: channelId,
+        text: mrkdwnText,
+        threadTs: threadTsOrError,
+      });
 
       return {
         ok: true,
