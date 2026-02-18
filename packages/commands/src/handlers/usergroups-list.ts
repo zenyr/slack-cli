@@ -5,6 +5,7 @@ import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "usergroups.list";
+const MAX_RENDERED_USER_IDS = 5;
 
 const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   switch (error.code) {
@@ -61,10 +62,20 @@ const parseBooleanOptionValue = (
   };
 };
 
+const formatUsersForTextLine = (users: readonly string[]): string => {
+  if (users.length <= MAX_RENDERED_USER_IDS) {
+    return users.join(",");
+  }
+
+  const renderedUsers = users.slice(0, MAX_RENDERED_USER_IDS).join(",");
+  const remainingUsersCount = users.length - MAX_RENDERED_USER_IDS;
+  return `${renderedUsers}, +${remainingUsersCount} more`;
+};
+
 const toGroupLine = (group: SlackUserGroup): string => {
   const description = group.description === undefined ? "" : ` - ${group.description}`;
   const count = group.userCount === undefined ? "" : ` [members: ${group.userCount}]`;
-  const users = group.users === undefined ? "" : ` [users: ${group.users.join(",")}]`;
+  const users = group.users === undefined ? "" : ` [users: ${formatUsersForTextLine(group.users)}]`;
   return `- @${group.handle} (${group.id}) ${group.name}${description}${count}${users}`;
 };
 

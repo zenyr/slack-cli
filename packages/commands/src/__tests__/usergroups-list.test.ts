@@ -344,4 +344,47 @@ describe("usergroups list command", () => {
     expect(result.error.code).toBe("INVALID_ARGUMENT");
     expect(result.error.message).toContain("does not accept positional arguments");
   });
+
+  test("renders bounded users list in text output", async () => {
+    const handler = createUsergroupsListHandler({
+      createClient: () =>
+        createMockClient({
+          listUsergroups: async () => ({
+            usergroups: [
+              {
+                id: "S003",
+                handle: "ops",
+                name: "Operations",
+                users: ["U001", "U002", "U003", "U004", "U005", "U006", "U007"],
+              },
+            ],
+          }),
+        }),
+    });
+
+    const result = await handler({
+      commandPath: ["usergroups", "list"],
+      positionals: [],
+      options: {
+        "include-users": true,
+      },
+      flags: {
+        json: false,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.textLines).toContain(
+      "- @ops (S003) Operations [users: U001,U002,U003,U004,U005, +2 more]",
+    );
+  });
 });
