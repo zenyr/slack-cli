@@ -1,3 +1,4 @@
+import { attachmentGetHandler } from "./handlers/attachment-get";
 import { helpHandler } from "./handlers/help";
 import { messagesHistoryHandler } from "./handlers/messages-history";
 import { messagesPostHandler } from "./handlers/messages-post";
@@ -81,6 +82,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "users-list",
     path: ["users", "list"],
     execute: usersListHandler,
+  },
+  {
+    id: "attachment-get",
+    path: ["attachment", "get"],
+    execute: attachmentGetHandler,
   },
   {
     id: "usergroups-list",
