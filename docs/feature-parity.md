@@ -33,7 +33,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   
 - [x] `users list` - list workspace users  
   - **Org equiv**: Partial coverage of `users_search` tool
-  - **Status**: Query/search semantics implemented (name/real_name/display_name/email)
+  - **Status**: Query/search semantics + explicit pagination controls implemented (`--cursor`, `--limit`)
   - **Gap**: Edge API integration for Slack Connect users (xoxc/xoxd) deferred
   
 - [x] `messages search` - search messages workspace-wide
@@ -343,7 +343,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 
 **Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Complete (usergroups management + me actions)**
 
-**Next milestone**: 🏍️ **Motorcycle** write-path completion (`messages post --thread-ts`) + users search parity polish
+**Next milestone**: 🏍️ **Motorcycle** write-path completion (`messages post --thread-ts`) + users search Edge API parity
 
 **Future milestones**: 
 - 🏍️ **Motorcycle**: Write APIs (post, reactions) + threads
