@@ -209,6 +209,9 @@ export type SlackPostMessageParams = {
   channel: string;
   text: string;
   threadTs?: string;
+  unfurlLinks?: boolean;
+  unfurlMedia?: boolean;
+  replyBroadcast?: boolean;
 };
 
 export type SlackPostMessageResult = {

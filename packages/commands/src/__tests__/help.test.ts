@@ -54,7 +54,9 @@ describe("help command", () => {
     expect(result.exitCode).toBe(0);
     expect(
       result.stdout.some((line) =>
-        line.includes("post <channel-id> <text> [--thread-ts=<ts>] [--json]"),
+        line.includes(
+          "post <channel-id> <text> [--thread-ts=<ts>] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+        ),
       ),
     ).toBe(true);
     expect(result.stdout.some((line) => line.includes("search <query> [--channel"))).toBe(true);
