@@ -28,7 +28,7 @@ const parseCursorOption = (
   if (value === true) {
     return createError(
       "INVALID_ARGUMENT",
-      "users list --cursor requires a value. [MISSING_ARGUMENT]",
+      `${command} --cursor requires a value. [MISSING_ARGUMENT]`,
       "Pass --cursor=<cursor>.",
       command,
     );
@@ -38,7 +38,7 @@ const parseCursorOption = (
   if (raw === undefined) {
     return createError(
       "INVALID_ARGUMENT",
-      "users list --cursor requires a value. [MISSING_ARGUMENT]",
+      `${command} --cursor requires a value. [MISSING_ARGUMENT]`,
       "Pass --cursor=<cursor>.",
       command,
     );
@@ -48,7 +48,7 @@ const parseCursorOption = (
   if (trimmed.length === 0) {
     return createError(
       "INVALID_ARGUMENT",
-      "users list --cursor value cannot be empty. [MISSING_ARGUMENT]",
+      `${command} --cursor value cannot be empty. [MISSING_ARGUMENT]`,
       "Pass --cursor=<cursor>.",
       command,
     );
@@ -66,7 +66,7 @@ const parseLimitOption = (options: CliOptions, command: string): number | undefi
   if (value === true) {
     return createError(
       "INVALID_ARGUMENT",
-      "users list --limit requires a value. [MISSING_ARGUMENT]",
+      `${command} --limit requires a value. [MISSING_ARGUMENT]`,
       "Provide an integer: --limit=<n>.",
       command,
     );
@@ -76,7 +76,7 @@ const parseLimitOption = (options: CliOptions, command: string): number | undefi
   if (raw === undefined) {
     return createError(
       "INVALID_ARGUMENT",
-      "users list --limit requires a value. [MISSING_ARGUMENT]",
+      `${command} --limit requires a value. [MISSING_ARGUMENT]`,
       "Provide an integer: --limit=<n>.",
       command,
     );
@@ -86,7 +86,7 @@ const parseLimitOption = (options: CliOptions, command: string): number | undefi
   if (trimmed.length === 0) {
     return createError(
       "INVALID_ARGUMENT",
-      "users list --limit value cannot be empty. [MISSING_ARGUMENT]",
+      `${command} --limit value cannot be empty. [MISSING_ARGUMENT]`,
       "Provide an integer: --limit=<n>.",
       command,
     );
@@ -95,7 +95,7 @@ const parseLimitOption = (options: CliOptions, command: string): number | undefi
   if (!/^[1-9]\d*$/.test(trimmed)) {
     return createError(
       "INVALID_ARGUMENT",
-      `users list --limit must be a positive integer. Received: ${trimmed}`,
+      `${command} --limit must be a positive integer. Received: ${trimmed}`,
       "Use --limit with a positive integer, e.g. --limit=25.",
       command,
     );
