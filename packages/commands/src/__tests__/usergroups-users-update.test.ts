@@ -189,40 +189,102 @@ describe("usergroups users update command", () => {
     expect(parsed.error.message).toContain("requires --yes confirmation");
   });
 
-  test("maps Slack auth errors to invalid argument", async () => {
-    const handler = createUsergroupsUsersUpdateHandler({
-      createClient: () =>
-        createMockClient({
-          updateUsergroupUsers: async () => {
-            throw createSlackClientError({
-              code: "SLACK_AUTH_ERROR",
-              message: "Slack authentication failed: invalid_auth.",
-              hint: "Use valid Slack token.",
-            });
-          },
-        }),
-    });
-
-    const result = await handler({
-      commandPath: ["usergroups", "users", "update"],
-      positionals: ["S001", "U001"],
-      options: { yes: true },
-      flags: {
-        json: true,
-        help: false,
-        version: false,
+  const deterministicSlackErrorCases: Array<{
+    title: string;
+    clientErrorArgs: Parameters<typeof createSlackClientError>[0];
+    expectedCliCode: "INVALID_ARGUMENT" | "INTERNAL_ERROR";
+  }> = [
+    {
+      title: "maps SLACK_CONFIG_ERROR to INVALID_ARGUMENT without marker/detail suffix",
+      clientErrorArgs: {
+        code: "SLACK_CONFIG_ERROR",
+        message: "Invalid workspace configuration.",
+        hint: "Check workspace setup.",
+        details: "config-detail-must-not-appear",
       },
-      context: {
-        version: "1.2.3",
+      expectedCliCode: "INVALID_ARGUMENT",
+    },
+    {
+      title: "maps SLACK_AUTH_ERROR to INVALID_ARGUMENT without marker/detail suffix",
+      clientErrorArgs: {
+        code: "SLACK_AUTH_ERROR",
+        message: "Token expired or revoked.",
+        hint: "Refresh your token with `slack auth login`.",
+        details: "auth-detail-must-not-appear",
       },
+      expectedCliCode: "INVALID_ARGUMENT",
+    },
+    {
+      title: "maps SLACK_API_ERROR to INVALID_ARGUMENT without marker/detail suffix",
+      clientErrorArgs: {
+        code: "SLACK_API_ERROR",
+        message: "Invalid usergroup or users not found.",
+        hint: "Verify usergroup ID and user IDs exist.",
+        details: "api-detail-must-not-appear",
+      },
+      expectedCliCode: "INVALID_ARGUMENT",
+    },
+    {
+      title: "maps SLACK_HTTP_ERROR to INTERNAL_ERROR without marker/detail suffix",
+      clientErrorArgs: {
+        code: "SLACK_HTTP_ERROR",
+        message: "Network connection failed.",
+        hint: "Check internet connection and Slack API endpoint.",
+        details: "http-detail-must-not-appear",
+      },
+      expectedCliCode: "INTERNAL_ERROR",
+    },
+    {
+      title: "maps SLACK_RESPONSE_ERROR to INTERNAL_ERROR without marker/detail suffix",
+      clientErrorArgs: {
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Failed to parse Slack API response.",
+        hint: "Slack API may be in maintenance mode.",
+        details: "response-detail-must-not-appear",
+      },
+      expectedCliCode: "INTERNAL_ERROR",
+    },
+  ];
+
+  deterministicSlackErrorCases.forEach(({ title, clientErrorArgs, expectedCliCode }) => {
+    test(title, async () => {
+      const handler = createUsergroupsUsersUpdateHandler({
+        createClient: () =>
+          createMockClient({
+            updateUsergroupUsers: async () => {
+              throw createSlackClientError(clientErrorArgs);
+            },
+          }),
+      });
+
+      const result = await handler({
+        commandPath: ["usergroups", "users", "update"],
+        positionals: ["S001", "U001", "U002"],
+        options: { yes: true },
+        flags: {
+          json: true,
+          help: false,
+          version: false,
+        },
+        context: {
+          version: "1.2.3",
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) {
+        return;
+      }
+
+      expect(result.command).toBe("usergroups.users.update");
+      expect(result.error.code).toBe(expectedCliCode);
+      expect(result.error.message).toBe(clientErrorArgs.message);
+      expect(result.error.hint).toBe(clientErrorArgs.hint);
+      expect(result.error.message).not.toContain("[AUTH_ERROR]");
+      expect(result.error.message).not.toContain("[SLACK_API_ERROR]");
+      if (clientErrorArgs.details !== undefined) {
+        expect(result.error.message).not.toContain(clientErrorArgs.details);
+      }
     });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
-    }
-
-    expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toBe("Slack authentication failed: invalid_auth.");
   });
 });
