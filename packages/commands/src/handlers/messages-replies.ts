@@ -147,7 +147,17 @@ const readRangeOption = (options: CliOptions, key: string): string | undefined |
     );
   }
 
-  return value.trim();
+  const trimmed = value.trim();
+  if (!isValidSlackTimestamp(trimmed)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages replies --${key} must match Slack timestamp format seconds.fraction. Received: ${trimmed}`,
+      `Pass --${key}=<seconds.fraction>.`,
+      COMMAND_ID,
+    );
+  }
+
+  return trimmed;
 };
 
 const isCliErrorResult = (value: number | string | undefined | CliResult): value is CliResult => {
