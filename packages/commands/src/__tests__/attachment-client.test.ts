@@ -201,4 +201,67 @@ describe("attachment client path", () => {
       code: "SLACK_CONFIG_ERROR",
     });
   });
+
+  test("fetchFileBinary downloads private URL and maps base64 payload", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const requestUrl = input instanceof URL ? input.toString() : String(input);
+        expect(requestUrl).toBe("https://files.slack.test/F123");
+        expect(init?.method).toBe("GET");
+
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer xoxp-test-token");
+
+        return new Response(new Uint8Array([0, 255, 127]), {
+          status: 200,
+          headers: {
+            "content-type": "application/octet-stream",
+          },
+        });
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+    const result = await client.fetchFileBinary("https://files.slack.test/F123", 1024);
+
+    expect(result).toEqual({
+      contentBase64: "AP9/",
+      byteLength: 3,
+      contentType: "application/octet-stream",
+      encoding: "base64",
+    });
+  });
+
+  test("fetchFileBinary rejects payload larger than max bytes", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () => {
+        return new Response(new Uint8Array([1, 2, 3, 4, 5, 6]), {
+          status: 200,
+          headers: {
+            "content-type": "application/octet-stream",
+          },
+        });
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+
+    await expect(client.fetchFileBinary("https://files.slack.test/F123", 5)).rejects.toMatchObject({
+      code: "SLACK_CONFIG_ERROR",
+    });
+  });
 });
