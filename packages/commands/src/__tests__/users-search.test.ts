@@ -261,4 +261,48 @@ describe("users search command", () => {
     expect(parsed.data.count).toBe(0);
     expect(parsed.data.nextCursor).toBe("cursor-5");
   });
+
+  test("reports users search label when --cursor is missing value", async () => {
+    const result = await runCliWithBuffer(["users", "search", "--cursor", "--json"]);
+
+    expect(result.exitCode).toBe(2);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok !== false || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toBe("users search --cursor requires a value. [MISSING_ARGUMENT]");
+    expect(parsed.error.hint).toBe("Pass --cursor=<cursor>.");
+  });
+
+  test("reports users search label when --limit is invalid", async () => {
+    const result = await runCliWithBuffer(["users", "search", "--limit=0", "--json"]);
+
+    expect(result.exitCode).toBe(2);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok !== false || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toBe(
+      "users search --limit must be a positive integer. Received: 0",
+    );
+    expect(parsed.error.hint).toBe("Use --limit with a positive integer, e.g. --limit=25.");
+  });
 });
