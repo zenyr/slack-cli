@@ -114,6 +114,8 @@ export type SlackUsergroupsUsersUpdateResult = {
 export type SlackCreateUsergroupParams = {
   name: string;
   handle: string;
+  description?: string;
+  channels?: string[];
 };
 
 export type SlackUsergroupUsersListParams = {

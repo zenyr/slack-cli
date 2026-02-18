@@ -614,6 +614,12 @@ export const createSlackWebApiClient = (
       name: params.name,
       handle: params.handle,
     });
+    if (params.description !== undefined) {
+      payload.set("description", params.description);
+    }
+    if (params.channels !== undefined && params.channels.length > 0) {
+      payload.set("channels", params.channels.join(","));
+    }
     const payloadData = await callApiPost("usergroups.create", payload);
     const usergroup = mapUserGroup(readRecord(payloadData, "usergroup"));
 

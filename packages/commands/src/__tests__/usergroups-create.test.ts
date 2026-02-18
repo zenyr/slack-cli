@@ -61,7 +61,11 @@ describe("usergroups create command", () => {
     }
 
     const lines = parsed.textLines.filter((line): line is string => typeof line === "string");
-    const createLine = lines.find((line) => line.includes("create <name> <handle> [--json]"));
+    const createLine = lines.find((line) =>
+      line.includes(
+        "create <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+      ),
+    );
     expect(createLine).toBeDefined();
     expect(createLine).not.toContain("--name");
     expect(createLine).not.toContain("--handle");
@@ -85,6 +89,8 @@ describe("usergroups create command", () => {
         const params = new URLSearchParams(body);
         expect(params.get("name")).toBe("On-call");
         expect(params.get("handle")).toBe("oncall");
+        expect(params.get("description")).toBeNull();
+        expect(params.get("channels")).toBeNull();
 
         return new Response(
           JSON.stringify({
@@ -141,6 +147,71 @@ describe("usergroups create command", () => {
     expect(parsed.data.usergroup.description).toBe("Primary incident responders");
   });
 
+  test("forwards optional metadata to usergroups.create payload", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    delete process.env[XOXB_ENV_KEY];
+
+    const mockFetch: typeof fetch = Object.assign(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const requestUrl = input instanceof URL ? input.toString() : String(input);
+        expect(requestUrl).toContain("/usergroups.create");
+        expect(init?.method).toBe("POST");
+
+        const body = String(init?.body);
+        const params = new URLSearchParams(body);
+        expect(params.get("name")).toBe("On-call");
+        expect(params.get("handle")).toBe("oncall");
+        expect(params.get("description")).toBe("Primary incident responders");
+        expect(params.get("channels")).toBe("C111,C222");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            usergroup: {
+              id: "S001",
+              handle: "oncall",
+              name: "On-call",
+              description: "Primary incident responders",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockFetch;
+
+    const result = await runCliWithBuffer([
+      "usergroups",
+      "create",
+      "On-call",
+      "oncall",
+      "--description=Primary incident responders",
+      "--channels=C111,C222",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr.length).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.command).toBe("usergroups.create");
+  });
+
   test("returns invalid argument with usage hint when required args are missing", async () => {
     const result = await runCliWithBuffer(["usergroups", "create", "--json"]);
 
@@ -156,7 +227,73 @@ describe("usergroups create command", () => {
     expect(parsed.ok).toBe(false);
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toContain("MISSING_ARGUMENT");
-    expect(parsed.error.hint).toBe("Usage: slack usergroups create <name> <handle> [--json]");
+    expect(parsed.error.hint).toBe(
+      "Usage: slack usergroups create <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+    );
+  });
+
+  test("returns invalid argument when --description value is empty", async () => {
+    const handler = createUsergroupsCreateHandler({
+      createClient: () => createMockClient(),
+    });
+
+    const result = await handler({
+      commandPath: ["usergroups", "create"],
+      positionals: ["On-call", "oncall"],
+      options: {
+        description: "",
+      },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe(
+      "usergroups create --description value cannot be empty. [MISSING_ARGUMENT]",
+    );
+  });
+
+  test("returns invalid argument when --channels value is empty", async () => {
+    const handler = createUsergroupsCreateHandler({
+      createClient: () => createMockClient(),
+    });
+
+    const result = await handler({
+      commandPath: ["usergroups", "create"],
+      positionals: ["On-call", "oncall"],
+      options: {
+        channels: "",
+      },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe(
+      "usergroups create --channels must be comma-separated non-empty channel ids.",
+    );
   });
 
   const deterministicSlackErrorCases: Array<{

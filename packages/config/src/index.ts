@@ -71,7 +71,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "usergroups create",
-    args: "<name> <handle> [--json]",
+    args: "<name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     description: "Create user group",
   },
   {
