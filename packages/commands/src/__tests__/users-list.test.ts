@@ -144,6 +144,42 @@ describe("users list command", () => {
     expect(result.error.message).toBe("Slack token is not configured.");
   });
 
+  test("maps SLACK_API_ERROR to INVALID_ARGUMENT with message and hint", async () => {
+    const handler = createUsersListHandler({
+      createClient: () => {
+        throw createSlackClientError({
+          code: "SLACK_API_ERROR",
+          message: "Slack API request failed: invalid_cursor.",
+          hint: "Pass a valid cursor from users list response.",
+          details: "invalid_cursor",
+        });
+      },
+    });
+
+    const result = await handler({
+      commandPath: ["users", "list"],
+      positionals: [],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe("Slack API request failed: invalid_cursor.");
+    expect(result.error.hint).toBe("Pass a valid cursor from users list response.");
+  });
+
   test("passes --cursor and --limit options to users.list client call", async () => {
     const originalFetch = globalThis.fetch;
     const originalUserToken = process.env.SLACK_MCP_XOXP_TOKEN;
