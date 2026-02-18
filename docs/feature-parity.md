@@ -56,6 +56,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - **Progress**: `--include-activity` control delivered in command path
   - **Progress**: Time-range expressions (`1d/1w/30d/90d`) delivered
   - **Progress**: `#channel-name` resolution delivered in command path
+  - **Progress**: Deterministic guard for unsupported Edge token prefixes (`xoxc`/`xoxd`) in `messages history` path
 
 - [x] `messages post` - post plain text messages
   - **Org equiv**: `conversations_add_message` tool (core path)
@@ -181,6 +182,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Cursor pagination and query forwarding (`--limit`, `--oldest`, `--latest`, `--cursor`)
   - `thread_ts` positional strict validation (`seconds.fraction`)
   - `--oldest`/`--latest` strict validation (`seconds.fraction`)
+  - Deterministic guard for unsupported Edge token prefixes (`xoxc`/`xoxd`) in `messages replies` path
 - **Remaining gap**: none at current boundary scope
 - **Dependencies**: message history foundation complete
 - **Complexity**: Low-Medium (contract hardening + validation)
