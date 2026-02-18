@@ -417,6 +417,90 @@ describe("messages post command", () => {
     expect(result.error.message).toContain("SLACK_API_ERROR");
     expect(result.error.message).toContain("channel_not_found");
   });
+
+  test("maps SLACK_HTTP_ERROR to INTERNAL_ERROR and preserves message/hint", async () => {
+    const expectedMessage = "Slack HTTP transport failed with status 503";
+    const expectedHint = "Check network path and retry.";
+
+    const handler = createMessagesPostHandler({
+      env: {},
+      createClient: () => ({
+        postMessage: async () => {
+          throw createSlackClientError({
+            code: "SLACK_HTTP_ERROR",
+            message: expectedMessage,
+            hint: expectedHint,
+          });
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "post"],
+      positionals: ["C123", "hello"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INTERNAL_ERROR");
+    expect(result.error.message).toBe(expectedMessage);
+    expect(result.error.hint).toBe(expectedHint);
+  });
+
+  test("maps SLACK_RESPONSE_ERROR to INTERNAL_ERROR and preserves message/hint", async () => {
+    const expectedMessage = "Slack response payload missing message.ts";
+    const expectedHint = "Capture raw response and validate schema assumptions.";
+
+    const handler = createMessagesPostHandler({
+      env: {},
+      createClient: () => ({
+        postMessage: async () => {
+          throw createSlackClientError({
+            code: "SLACK_RESPONSE_ERROR",
+            message: expectedMessage,
+            hint: expectedHint,
+          });
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "post"],
+      positionals: ["C123", "hello"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INTERNAL_ERROR");
+    expect(result.error.message).toBe(expectedMessage);
+    expect(result.error.hint).toBe(expectedHint);
+  });
 });
 
 describe("postMessage client path", () => {
