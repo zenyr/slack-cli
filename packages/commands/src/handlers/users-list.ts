@@ -160,6 +160,46 @@ type UsersListHandlerDeps = {
   createClient: () => SlackWebApiClient;
 };
 
+const QUERY_AUTOPAGE_MAX_PAGES = 5;
+
+const listUsersWithOptionalAutoPagination = async (
+  client: SlackWebApiClient,
+  options: {
+    cursor?: string;
+    limit?: number;
+  },
+  autoPaginate: boolean,
+): Promise<{ users: SlackUser[]; nextCursor?: string }> => {
+  const users: SlackUser[] = [];
+  let cursor = options.cursor;
+  let pagesFetched = 0;
+
+  while (true) {
+    const page = await client.listUsers({
+      cursor,
+      limit: options.limit,
+    });
+    users.push(...page.users);
+    pagesFetched += 1;
+
+    if (!autoPaginate || page.nextCursor === undefined) {
+      return {
+        users,
+        nextCursor: page.nextCursor,
+      };
+    }
+
+    if (pagesFetched >= QUERY_AUTOPAGE_MAX_PAGES) {
+      return {
+        users,
+        nextCursor: page.nextCursor,
+      };
+    }
+
+    cursor = page.nextCursor;
+  }
+};
+
 const defaultUsersListDeps: UsersListHandlerDeps = {
   createClient: createSlackWebApiClient,
 };
@@ -182,14 +222,20 @@ export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDe
       return limitOrError;
     }
 
+    const queryParts = request.positionals.join(" ").trim();
+    const shouldAutoPaginateQuery = queryParts.length > 0 && cursorOrError === undefined;
+
     try {
       const client = deps.createClient();
-      const result = await client.listUsers({
-        cursor: cursorOrError,
-        limit: limitOrError,
-      });
+      const result = await listUsersWithOptionalAutoPagination(
+        client,
+        {
+          cursor: cursorOrError,
+          limit: limitOrError,
+        },
+        shouldAutoPaginateQuery,
+      );
 
-      const queryParts = request.positionals.join(" ").trim();
       let filteredUsers = result.users;
       let appliedQuery: string | undefined;
 

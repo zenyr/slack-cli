@@ -430,6 +430,242 @@ describe("users list command", () => {
     expect(result.data.count).toBe(2);
   });
 
+  test("auto-paginates in query mode without explicit cursor", async () => {
+    const listUsersCalls: Array<{ cursor?: string; limit?: number }> = [];
+
+    const handler = createUsersListHandler({
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async (options = {}) => {
+          listUsersCalls.push(options);
+
+          if (options.cursor === undefined) {
+            return {
+              users: [
+                {
+                  id: "U001",
+                  username: "bob",
+                  displayName: "Bob",
+                  realName: "Bob Smith",
+                  email: "bob@example.com",
+                  isBot: false,
+                  isDeleted: false,
+                  isAdmin: false,
+                },
+              ],
+              nextCursor: "cursor-2",
+            };
+          }
+
+          if (options.cursor === "cursor-2") {
+            return {
+              users: [
+                {
+                  id: "U002",
+                  username: "alice",
+                  displayName: "Alice",
+                  realName: "Alice Kim",
+                  email: "alice@example.com",
+                  isBot: false,
+                  isDeleted: false,
+                  isAdmin: false,
+                },
+              ],
+            };
+          }
+
+          return {
+            users: [],
+          };
+        },
+        searchMessages: async () => ({
+          query: "",
+          total: 0,
+          messages: [],
+        }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+        }),
+      }),
+    });
+
+    const result = await handler({
+      commandPath: ["users", "list"],
+      positionals: ["alice"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(listUsersCalls.length).toBe(2);
+    expect(listUsersCalls[0]?.cursor).toBeUndefined();
+    expect(listUsersCalls[1]?.cursor).toBe("cursor-2");
+
+    if (!isRecord(result.data)) {
+      return;
+    }
+
+    expect(result.data.count).toBe(1);
+    expect(result.data.nextCursor).toBeUndefined();
+    expect(Array.isArray(result.data.users)).toBe(true);
+
+    const users = result.data.users;
+    if (Array.isArray(users) && users.length > 0) {
+      const firstUser = users[0];
+      if (isRecord(firstUser)) {
+        expect(firstUser.username).toBe("alice");
+      }
+    }
+  });
+
+  test("does not auto-paginate when explicit --cursor is provided", async () => {
+    let listUsersCallCount = 0;
+
+    const handler = createUsersListHandler({
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => {
+          listUsersCallCount += 1;
+
+          return {
+            users: [
+              {
+                id: "U010",
+                username: "alice",
+                displayName: "Alice",
+                realName: "Alice Kim",
+                email: "alice@example.com",
+                isBot: false,
+                isDeleted: false,
+                isAdmin: false,
+              },
+            ],
+            nextCursor: "cursor-next",
+          };
+        },
+        searchMessages: async () => ({
+          query: "",
+          total: 0,
+          messages: [],
+        }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+        }),
+      }),
+    });
+
+    const result = await handler({
+      commandPath: ["users", "list"],
+      positionals: ["alice"],
+      options: {
+        cursor: "cursor-start",
+      },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(listUsersCallCount).toBe(1);
+    if (!isRecord(result.data)) {
+      return;
+    }
+
+    expect(result.data.count).toBe(1);
+    expect(result.data.nextCursor).toBe("cursor-next");
+  });
+
+  test("caps query auto-pagination with deterministic nextCursor", async () => {
+    const listUsersCalls: Array<{ cursor?: string; limit?: number }> = [];
+
+    const handler = createUsersListHandler({
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async (options = {}) => {
+          listUsersCalls.push(options);
+          const page = listUsersCalls.length;
+
+          return {
+            users: [
+              {
+                id: `U-${page}`,
+                username: `user-${page}`,
+                displayName: `User ${page}`,
+                realName: `User ${page}`,
+                email: `user-${page}@example.com`,
+                isBot: false,
+                isDeleted: false,
+                isAdmin: false,
+              },
+            ],
+            nextCursor: `cursor-${page}`,
+          };
+        },
+        searchMessages: async () => ({
+          query: "",
+          total: 0,
+          messages: [],
+        }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+        }),
+      }),
+    });
+
+    const result = await handler({
+      commandPath: ["users", "list"],
+      positionals: ["user"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(listUsersCalls.length).toBe(5);
+    expect(listUsersCalls[0]?.cursor).toBeUndefined();
+    expect(listUsersCalls[4]?.cursor).toBe("cursor-4");
+
+    if (!isRecord(result.data)) {
+      return;
+    }
+
+    expect(result.data.count).toBe(5);
+    expect(result.data.nextCursor).toBe("cursor-5");
+  });
+
   test("returns invalid argument for invalid regex query", async () => {
     const handler = createUsersListHandler({
       createClient: () => ({
