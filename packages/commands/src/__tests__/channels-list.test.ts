@@ -132,6 +132,113 @@ describe("channels list command", () => {
     expect(result.error.message).toBe("Slack token is not configured.");
   });
 
+  const deterministicSlackErrorCases: Array<{
+    title: string;
+    clientErrorArgs: Parameters<typeof createSlackClientError>[0];
+    expectedCliCode: "INVALID_ARGUMENT" | "INTERNAL_ERROR";
+    expectedHint?: string;
+    expectedDetail?: string;
+  }> = [
+    {
+      title: "maps SLACK_CONFIG_ERROR to INVALID_ARGUMENT without marker",
+      clientErrorArgs: {
+        code: "SLACK_CONFIG_ERROR",
+        message: "Slack token is not configured.",
+        hint: "Set SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN in environment.",
+      },
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedHint: "Set SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN in environment.",
+    },
+    {
+      title: "maps SLACK_AUTH_ERROR to INVALID_ARGUMENT without marker",
+      clientErrorArgs: {
+        code: "SLACK_AUTH_ERROR",
+        message: "Slack authentication failed.",
+        hint: "Use a valid token with channels:read scope.",
+      },
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedHint: "Use a valid token with channels:read scope.",
+    },
+    {
+      title: "maps SLACK_API_ERROR to INVALID_ARGUMENT without marker and detail suffix",
+      clientErrorArgs: {
+        code: "SLACK_API_ERROR",
+        message: "Slack API request failed.",
+        hint: "Verify channel visibility and token scopes.",
+        details: "channel_not_found",
+      },
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedHint: "Verify channel visibility and token scopes.",
+      expectedDetail: "channel_not_found",
+    },
+    {
+      title: "maps SLACK_HTTP_ERROR to INTERNAL_ERROR and appends retry-after hint",
+      clientErrorArgs: {
+        code: "SLACK_HTTP_ERROR",
+        message: "Slack HTTP transport failed with status 429.",
+        hint: "Retry request with smaller page size.",
+        retryAfterSeconds: 12,
+        details: "http-details-must-not-appear",
+      },
+      expectedCliCode: "INTERNAL_ERROR",
+      expectedHint: "Retry request with smaller page size. Retry after 12s.",
+      expectedDetail: "http-details-must-not-appear",
+    },
+    {
+      title: "maps SLACK_RESPONSE_ERROR to INTERNAL_ERROR without marker and detail suffix",
+      clientErrorArgs: {
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack response payload missing channels array.",
+        hint: "Inspect raw API response for schema drift.",
+        details: "response-details-must-not-appear",
+      },
+      expectedCliCode: "INTERNAL_ERROR",
+      expectedHint: "Inspect raw API response for schema drift.",
+      expectedDetail: "response-details-must-not-appear",
+    },
+  ];
+
+  deterministicSlackErrorCases.forEach(
+    ({ title, clientErrorArgs, expectedCliCode, expectedHint, expectedDetail }) => {
+      test(title, async () => {
+        const handler = createChannelsListHandler({
+          createClient: () => {
+            throw createSlackClientError(clientErrorArgs);
+          },
+        });
+
+        const result = await handler({
+          commandPath: ["channels", "list"],
+          positionals: [],
+          options: {},
+          flags: {
+            json: true,
+            help: false,
+            version: false,
+          },
+          context: {
+            version: "1.2.3",
+          },
+        });
+
+        expect(result.ok).toBe(false);
+        if (result.ok) {
+          return;
+        }
+
+        expect(result.error.code).toBe(expectedCliCode);
+        expect(result.error.message).toBe(clientErrorArgs.message);
+        expect(result.error.hint).toBe(expectedHint);
+        expect(result.error.message).not.toContain("[AUTH_ERROR]");
+        expect(result.error.message).not.toContain("[SLACK_API_ERROR]");
+
+        if (expectedDetail !== undefined) {
+          expect(result.error.message).not.toContain(expectedDetail);
+        }
+      });
+    },
+  );
+
   // ===== Unit 2 Tests =====
 
   describe("type filtering", () => {
