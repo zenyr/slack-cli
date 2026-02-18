@@ -1,10 +1,107 @@
 import { createError } from "../errors";
 import type { SlackClientError, SlackUser, SlackWebApiClient } from "../slack";
 import { createSlackWebApiClient, isSlackClientError } from "../slack";
-import type { CliResult, CommandRequest } from "../types";
+import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const commandLabel = (path: string[]): string => {
   return path.join(".");
+};
+
+const readStringOption = (options: CliOptions, key: string): string | undefined => {
+  const value = options[key];
+  return typeof value === "string" ? value : undefined;
+};
+
+const isCliErrorResult = (value: unknown): value is CliResult => {
+  return typeof value === "object" && value !== null && "ok" in value;
+};
+
+const parseCursorOption = (
+  options: CliOptions,
+  command: string,
+): string | undefined | CliResult => {
+  const value = options.cursor;
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === true) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "users list --cursor requires a value. [MISSING_ARGUMENT]",
+      "Pass --cursor=<cursor>.",
+      command,
+    );
+  }
+
+  const raw = readStringOption(options, "cursor");
+  if (raw === undefined) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "users list --cursor requires a value. [MISSING_ARGUMENT]",
+      "Pass --cursor=<cursor>.",
+      command,
+    );
+  }
+
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "users list --cursor value cannot be empty. [MISSING_ARGUMENT]",
+      "Pass --cursor=<cursor>.",
+      command,
+    );
+  }
+
+  return trimmed;
+};
+
+const parseLimitOption = (options: CliOptions, command: string): number | undefined | CliResult => {
+  const value = options.limit;
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === true) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "users list --limit requires a value. [MISSING_ARGUMENT]",
+      "Provide an integer: --limit=<n>.",
+      command,
+    );
+  }
+
+  const raw = readStringOption(options, "limit");
+  if (raw === undefined) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "users list --limit requires a value. [MISSING_ARGUMENT]",
+      "Provide an integer: --limit=<n>.",
+      command,
+    );
+  }
+
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "users list --limit value cannot be empty. [MISSING_ARGUMENT]",
+      "Provide an integer: --limit=<n>.",
+      command,
+    );
+  }
+
+  if (!/^[1-9]\d*$/.test(trimmed)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `users list --limit must be a positive integer. Received: ${trimmed}`,
+      "Use --limit with a positive integer, e.g. --limit=25.",
+      command,
+    );
+  }
+
+  return Number.parseInt(trimmed, 10);
 };
 
 const mapSlackErrorToCliResult = (error: SlackClientError, command: string): CliResult => {
@@ -75,10 +172,22 @@ export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDe
 
   return async (request: CommandRequest): Promise<CliResult> => {
     const command = commandLabel(request.commandPath);
+    const cursorOrError = parseCursorOption(request.options, command);
+    if (isCliErrorResult(cursorOrError)) {
+      return cursorOrError;
+    }
+
+    const limitOrError = parseLimitOption(request.options, command);
+    if (isCliErrorResult(limitOrError)) {
+      return limitOrError;
+    }
 
     try {
       const client = deps.createClient();
-      const result = await client.listUsers();
+      const result = await client.listUsers({
+        cursor: cursorOrError,
+        limit: limitOrError,
+      });
 
       const queryParts = request.positionals.join(" ").trim();
       let filteredUsers = result.users;
@@ -105,7 +214,6 @@ export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDe
       }
 
       if (result.nextCursor !== undefined) {
-        // TODO(commands-owner): Add cursor/page flags for users list and remove when handlers support explicit pagination controls.
         lines.push("");
         lines.push(`Next cursor available: ${result.nextCursor}`);
       }

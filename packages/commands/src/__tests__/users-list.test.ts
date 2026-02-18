@@ -144,6 +144,151 @@ describe("users list command", () => {
     expect(result.error.message).toBe("Slack token is not configured.");
   });
 
+  test("passes --cursor and --limit options to users.list client call", async () => {
+    const originalFetch = globalThis.fetch;
+    const originalUserToken = process.env.SLACK_MCP_XOXP_TOKEN;
+    const originalBotToken = process.env.SLACK_MCP_XOXB_TOKEN;
+
+    process.env.SLACK_MCP_XOXP_TOKEN = "xoxp-test-token";
+    delete process.env.SLACK_MCP_XOXB_TOKEN;
+
+    const mockFetch = async (input: string | URL | Request) => {
+      const requestUrl = input instanceof URL ? input.toString() : String(input);
+      expect(requestUrl).toContain("/users.list");
+      expect(requestUrl).toContain("cursor=cursor-999");
+      expect(requestUrl).toContain("limit=25");
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          members: [],
+          response_metadata: {
+            next_cursor: "",
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      );
+    };
+
+    globalThis.fetch = mockFetch as typeof fetch;
+
+    const result = await runCliWithBuffer([
+      "users",
+      "list",
+      "--cursor=cursor-999",
+      "--limit=25",
+      "--json",
+    ]);
+
+    if (originalUserToken === undefined) {
+      delete process.env.SLACK_MCP_XOXP_TOKEN;
+    } else {
+      process.env.SLACK_MCP_XOXP_TOKEN = originalUserToken;
+    }
+
+    if (originalBotToken === undefined) {
+      delete process.env.SLACK_MCP_XOXB_TOKEN;
+    } else {
+      process.env.SLACK_MCP_XOXB_TOKEN = originalBotToken;
+    }
+
+    globalThis.fetch = originalFetch;
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr.length).toBe(0);
+  });
+
+  test("returns INVALID_ARGUMENT when --cursor is missing value", async () => {
+    const handler = createUsersListHandler({
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({
+          query: "",
+          total: 0,
+          messages: [],
+        }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+        }),
+      }),
+    });
+
+    const result = await handler({
+      commandPath: ["users", "list"],
+      positionals: [],
+      options: {
+        cursor: true,
+      },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe("users list --cursor requires a value. [MISSING_ARGUMENT]");
+    expect(result.error.hint).toBe("Pass --cursor=<cursor>.");
+  });
+
+  test("returns INVALID_ARGUMENT when --limit is non-positive", async () => {
+    const handler = createUsersListHandler({
+      createClient: () => ({
+        listChannels: async () => ({ channels: [] }),
+        listUsers: async () => ({ users: [] }),
+        searchMessages: async () => ({
+          query: "",
+          total: 0,
+          messages: [],
+        }),
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+        }),
+      }),
+    });
+
+    const result = await handler({
+      commandPath: ["users", "list"],
+      positionals: [],
+      options: {
+        limit: "0",
+      },
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe("users list --limit must be a positive integer. Received: 0");
+    expect(result.error.hint).toBe("Use --limit with a positive integer, e.g. --limit=25.");
+  });
+
   test("filters users by username with case-insensitive query", async () => {
     const handler = createUsersListHandler({
       createClient: () => ({
