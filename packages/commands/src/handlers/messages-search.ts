@@ -35,6 +35,12 @@ const formatSuccessLines = (query: string, total: number, count: number): string
 const STRICT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CHANNEL_ID_PATTERN = /^[CDG][A-Z0-9]{8,}$/;
 const MESSAGE_POINTER_PATTERN = /^p(\d{7,})$/;
+const RELATIVE_DATE_TO_DAYS: Record<string, number> = {
+  "1d": 1,
+  "1w": 7,
+  "30d": 30,
+  "90d": 90,
+};
 
 type UrlShortcutNormalization =
   | { normalizedQuery: string }
@@ -62,8 +68,33 @@ const isCalendarDate = (value: string): boolean => {
   );
 };
 
+const formatUtcCalendarDate = (date: Date): string => {
+  const year = date.getUTCFullYear().toString().padStart(4, "0");
+  const month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+  const day = date.getUTCDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const parseFlexibleCalendarDate = (value: string): string | undefined => {
+  const normalizedValue = value.trim().toLowerCase();
+  if (isCalendarDate(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  const relativeDays = RELATIVE_DATE_TO_DAYS[normalizedValue];
+  if (relativeDays === undefined) {
+    return undefined;
+  }
+
+  const now = new Date(Date.now());
+  const relativeDate = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - relativeDays),
+  );
+  return formatUtcCalendarDate(relativeDate);
+};
+
 const dateHint = (name: string): string => {
-  return `${name} must be a valid date in YYYY-MM-DD format.`;
+  return `${name} must be YYYY-MM-DD or relative: 1d, 1w, 30d, 90d.`;
 };
 
 const normalizeSlackMessageUrlQuery = (query: string): UrlShortcutNormalization => {
@@ -165,7 +196,7 @@ const buildFilterParts = (
   }
 
   if (options.after !== undefined) {
-    if (typeof options.after !== "string" || isCalendarDate(options.after) === false) {
+    if (typeof options.after !== "string") {
       return {
         filterParts,
         invalidDateMessage: `invalid messages search --after value: ${String(options.after)}`,
@@ -173,11 +204,20 @@ const buildFilterParts = (
       };
     }
 
-    filterParts.push(`after:${options.after}`);
+    const normalizedAfterDate = parseFlexibleCalendarDate(options.after);
+    if (normalizedAfterDate === undefined) {
+      return {
+        filterParts,
+        invalidDateMessage: `invalid messages search --after value: ${String(options.after)}`,
+        invalidDateHint: dateHint("--after"),
+      };
+    }
+
+    filterParts.push(`after:${normalizedAfterDate}`);
   }
 
   if (options.before !== undefined) {
-    if (typeof options.before !== "string" || isCalendarDate(options.before) === false) {
+    if (typeof options.before !== "string") {
       return {
         filterParts,
         invalidDateMessage: `invalid messages search --before value: ${String(options.before)}`,
@@ -185,7 +225,16 @@ const buildFilterParts = (
       };
     }
 
-    filterParts.push(`before:${options.before}`);
+    const normalizedBeforeDate = parseFlexibleCalendarDate(options.before);
+    if (normalizedBeforeDate === undefined) {
+      return {
+        filterParts,
+        invalidDateMessage: `invalid messages search --before value: ${String(options.before)}`,
+        invalidDateHint: dateHint("--before"),
+      };
+    }
+
+    filterParts.push(`before:${normalizedBeforeDate}`);
   }
 
   if (options.threads === true) {
@@ -273,7 +322,7 @@ export const createMessagesSearchHandler = (
       return createError(
         "INVALID_ARGUMENT",
         invalidDateMessage,
-        `${invalidDateHint} Example: 2026-01-31.`,
+        `${invalidDateHint} Examples: 2026-01-31, 1w.`,
         COMMAND_ID,
       );
     }
