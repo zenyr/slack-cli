@@ -34,6 +34,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - [x] `users list` - list workspace users  
   - **Org equiv**: Partial coverage of `users_search` tool
   - **Status**: Query/search semantics + explicit pagination controls implemented (`--cursor`, `--limit`)
+  - **Progress**: Query-mode bounded auto-pagination delivered when `--cursor` is omitted
   - **Gap**: Edge API integration for Slack Connect users (xoxc/xoxd) deferred
   
 - [x] `messages search` - search messages workspace-wide
