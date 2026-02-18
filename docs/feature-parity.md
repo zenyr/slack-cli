@@ -126,7 +126,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `channels_list`                    | ✅ Implemented   | **P0**   | Low        |
 | `reactions_add`                    | ✅ Implemented   | P2       | Low        |
 | `reactions_remove`                 | ✅ Implemented   | P2       | Low        |
-| `attachment_get_data`              | ❌ Missing       | P3       | Medium     |
+| `attachment_get_data`              | ⚠️ Partial      | P3       | Medium     |
 | `users_search`                     | ⚠️ Partial      | **P0**   | Low        |
 | `usergroups_list`                  | ✅ Implemented   | P2       | Low        |
 | `usergroups_create`                | ✅ Implemented   | P2       | Medium     |
@@ -134,7 +134,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `usergroups_users_update`          | ✅ Implemented   | P2       | Medium     |
 | `usergroups_me`                    | ✅ Implemented   | P3       | High       |
 
-**Summary**: 10 implemented, 3 partial, 1 missing
+**Summary**: 10 implemented, 4 partial, 0 missing
 
 ---
 
@@ -267,7 +267,13 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Text vs binary base64 encoding (MIME detection)
   - Env guard (SLACK_MCP_ATTACHMENT_TOOL)
 - **Complexity**: Medium (file download, encoding, size limits)
-- **Next smallest unit (boundary-safe)**: file.info metadata fetch only (no download)
+- **Current state**: metadata-only boundary slice delivered (`attachment get` command path + `files.info` client integration)
+- **Delivered in merge set**:
+  - `files.info` metadata type/client contract (`fetchFileInfo`)
+  - `attachment get <file-id>` command wiring (handler + registry + config)
+  - targeted client/handler tests for metadata flow
+- **Remaining gap**: file download, base64 mode, size-limit guard, env guard rollout
+- **Next smallest unit**: env-guarded download pipeline (start with text-only path, no binary branching)
 
 #### Cache Layer (Infrastructure)
 - **Org features**:
@@ -327,7 +333,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | **Utilities**                | 4        | N/A        | N/A  |
 | **MCP Resources**            | 0 (stub) | 2          | -2   |
 | **Advanced Infra**           | 0        | 5          | -5   |
-| **Total Org-Equivalent Tools** | **13** (10 full + 3 partial) | **14** (full) | **7% gap** |
+| **Total Org-Equivalent Tools** | **14** (10 full + 4 partial) | **14** (full) | **0 missing / quality gap in 4 partial** |
 
 **Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Complete (usergroups management + me actions)**
 
