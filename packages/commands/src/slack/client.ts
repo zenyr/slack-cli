@@ -8,6 +8,7 @@ import type {
   SlackChannelRepliesResult,
   SlackChannelType,
   SlackCreateUsergroupParams,
+  SlackFileBinary,
   SlackFileMetadata,
   SlackListChannelsOptions,
   SlackListChannelsResult,
@@ -105,6 +106,30 @@ const buildApiUrl = (baseUrl: string, method: string, params: URLSearchParams): 
 const buildMethodUrl = (baseUrl: string, method: string): URL => {
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   return new URL(`${normalizedBase}/${method}`);
+};
+
+const normalizeAttachmentDownloadParams = (
+  urlPrivate: string,
+  maxBytes: number,
+): { normalizedUrl: string; maxBytes: number } => {
+  const normalizedUrl = urlPrivate.trim();
+  if (normalizedUrl.length === 0) {
+    throw createSlackClientError({
+      code: "SLACK_CONFIG_ERROR",
+      message: "Attachment private URL is empty.",
+      hint: "Provide valid files.info metadata with non-empty url_private.",
+    });
+  }
+
+  if (maxBytes <= 0) {
+    throw createSlackClientError({
+      code: "SLACK_CONFIG_ERROR",
+      message: `Attachment download max byte size is invalid: ${maxBytes}.`,
+      hint: "Use positive max byte size for attachment download.",
+    });
+  }
+
+  return { normalizedUrl, maxBytes };
 };
 
 const resolveTokenTypeFromValue = (token: string): "xoxp" | "xoxb" | undefined => {
@@ -730,25 +755,10 @@ export const createSlackWebApiClient = (
   };
 
   const fetchFileText = async (urlPrivate: string, maxBytes: number) => {
-    const normalizedUrl = urlPrivate.trim();
-    if (normalizedUrl.length === 0) {
-      throw createSlackClientError({
-        code: "SLACK_CONFIG_ERROR",
-        message: "Attachment private URL is empty.",
-        hint: "Provide valid files.info metadata with non-empty url_private.",
-      });
-    }
-
-    if (maxBytes <= 0) {
-      throw createSlackClientError({
-        code: "SLACK_CONFIG_ERROR",
-        message: `Attachment text max byte size is invalid: ${maxBytes}.`,
-        hint: "Use positive max byte size for attachment text download.",
-      });
-    }
+    const normalized = normalizeAttachmentDownloadParams(urlPrivate, maxBytes);
 
     const token = (await getResolvedToken()).token;
-    const response = await fetchImpl(normalizedUrl, {
+    const response = await fetchImpl(normalized.normalizedUrl, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -756,11 +766,11 @@ export const createSlackWebApiClient = (
     });
 
     const contentLength = parsePositiveIntegerHeader(response.headers.get("content-length"));
-    if (contentLength !== undefined && contentLength > maxBytes) {
+    if (contentLength !== undefined && contentLength > normalized.maxBytes) {
       throw createSlackClientError({
         code: "SLACK_CONFIG_ERROR",
         message: `Attachment text exceeds max size: ${contentLength} bytes.`,
-        hint: `Reduce file size or keep content at or below ${maxBytes} bytes.`,
+        hint: `Reduce file size or keep content at or below ${normalized.maxBytes} bytes.`,
       });
     }
 
@@ -775,11 +785,11 @@ export const createSlackWebApiClient = (
 
     const content = await response.text();
     const byteLength = textEncoder.encode(content).byteLength;
-    if (byteLength > maxBytes) {
+    if (byteLength > normalized.maxBytes) {
       throw createSlackClientError({
         code: "SLACK_CONFIG_ERROR",
         message: `Attachment text exceeds max size: ${byteLength} bytes.`,
-        hint: `Reduce file size or keep content at or below ${maxBytes} bytes.`,
+        hint: `Reduce file size or keep content at or below ${normalized.maxBytes} bytes.`,
       });
     }
 
@@ -787,6 +797,55 @@ export const createSlackWebApiClient = (
       content,
       byteLength,
       contentType: response.headers.get("content-type") ?? undefined,
+    };
+  };
+
+  const fetchFileBinary = async (
+    urlPrivate: string,
+    maxBytes: number,
+  ): Promise<SlackFileBinary> => {
+    const normalized = normalizeAttachmentDownloadParams(urlPrivate, maxBytes);
+
+    const token = (await getResolvedToken()).token;
+    const response = await fetchImpl(normalized.normalizedUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const contentLength = parsePositiveIntegerHeader(response.headers.get("content-length"));
+    if (contentLength !== undefined && contentLength > normalized.maxBytes) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: `Attachment binary exceeds max size: ${contentLength} bytes.`,
+        hint: `Reduce file size or keep content at or below ${normalized.maxBytes} bytes.`,
+      });
+    }
+
+    if (!response.ok) {
+      throw createSlackClientError({
+        code: "SLACK_HTTP_ERROR",
+        message: `Slack file download failed with status ${response.status}.`,
+        hint: "Verify file visibility and token scopes for private file download.",
+        status: response.status,
+      });
+    }
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > normalized.maxBytes) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: `Attachment binary exceeds max size: ${bytes.byteLength} bytes.`,
+        hint: `Reduce file size or keep content at or below ${normalized.maxBytes} bytes.`,
+      });
+    }
+
+    return {
+      contentBase64: Buffer.from(bytes).toString("base64"),
+      byteLength: bytes.byteLength,
+      contentType: response.headers.get("content-type") ?? undefined,
+      encoding: "base64",
     };
   };
 
@@ -1006,6 +1065,7 @@ export const createSlackWebApiClient = (
     searchMessages,
     fetchFileInfo,
     fetchFileText,
+    fetchFileBinary,
     fetchChannelHistory,
     fetchMessageReplies,
     postMessage,

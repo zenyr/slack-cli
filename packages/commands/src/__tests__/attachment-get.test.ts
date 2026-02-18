@@ -56,6 +56,9 @@ describe("attachment get command", () => {
             contentType: "text/plain",
           };
         },
+        fetchFileBinary: async () => {
+          throw new Error("should not be called");
+        },
       }),
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
     });
@@ -119,6 +122,9 @@ describe("attachment get command", () => {
         fetchFileText: async () => {
           throw new Error("should not be called");
         },
+        fetchFileBinary: async () => {
+          throw new Error("should not be called");
+        },
       }),
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
     });
@@ -162,6 +168,9 @@ describe("attachment get command", () => {
           };
         },
         fetchFileText: async () => {
+          throw new Error("should not be called");
+        },
+        fetchFileBinary: async () => {
           throw new Error("should not be called");
         },
       }),
@@ -208,6 +217,9 @@ describe("attachment get command", () => {
         fetchFileText: async () => {
           throw new Error("should not be called");
         },
+        fetchFileBinary: async () => {
+          throw new Error("should not be called");
+        },
       }),
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
     });
@@ -234,6 +246,82 @@ describe("attachment get command", () => {
     expect(result.error.code).toBe("INVALID_ARGUMENT");
     expect(result.error.message).toContain("SLACK_API_ERROR");
     expect(result.error.message).toContain("file_not_found");
+  });
+
+  test("returns base64 payload for non-text MIME attachments", async () => {
+    const handler = createAttachmentGetHandler({
+      env: {
+        SLACK_MCP_ATTACHMENT_TOOL: "true",
+      },
+      createClient: () => ({
+        fetchFileInfo: async () => {
+          return {
+            id: "F-BINARY",
+            name: "diagram.png",
+            mimetype: "image/png",
+            filetype: "png",
+            size: 256,
+            urlPrivate: "https://files.slack.com/files-pri/T123-F-BINARY/download",
+          };
+        },
+        fetchFileText: async () => {
+          throw new Error("should not be called");
+        },
+        fetchFileBinary: async (urlPrivate: string, maxBytes: number) => {
+          expect(urlPrivate).toBe("https://files.slack.com/files-pri/T123-F-BINARY/download");
+          expect(maxBytes).toBe(5 * 1024 * 1024);
+          return {
+            contentBase64: "AP9/",
+            byteLength: 3,
+            contentType: "image/png",
+            encoding: "base64",
+          };
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["attachment", "get"],
+      positionals: ["F-BINARY"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("attachment.get");
+    expect(isRecord(result.data)).toBe(true);
+    if (!isRecord(result.data)) {
+      return;
+    }
+
+    expect(isRecord(result.data.file)).toBe(true);
+    if (!isRecord(result.data.file)) {
+      return;
+    }
+
+    expect(result.data.file.id).toBe("F-BINARY");
+    expect(result.data.file.mimetype).toBe("image/png");
+    expect(isRecord(result.data.binary)).toBe(true);
+    if (!isRecord(result.data.binary)) {
+      return;
+    }
+
+    expect(result.data.binary.content_base64).toBe("AP9/");
+    expect(result.data.binary.byte_length).toBe(3);
+    expect(result.data.binary.content_type).toBe("image/png");
+    expect(result.data.binary.encoding).toBe("base64");
   });
 
   test("returns internal error when attachment client contract is unavailable", async () => {

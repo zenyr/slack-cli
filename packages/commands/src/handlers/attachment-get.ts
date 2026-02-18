@@ -34,6 +34,15 @@ type AttachmentMetadataClient = {
     urlPrivate: string,
     maxBytes: number,
   ) => Promise<{ content: string; byteLength: number; contentType?: string }>;
+  fetchFileBinary: (
+    urlPrivate: string,
+    maxBytes: number,
+  ) => Promise<{
+    contentBase64: string;
+    byteLength: number;
+    contentType?: string;
+    encoding: "base64";
+  }>;
 };
 
 type CreateClientOptions = {
@@ -90,7 +99,31 @@ const hasAttachmentMetadataClient = (value: unknown): value is AttachmentMetadat
   return (
     isRecord(value) &&
     typeof value.fetchFileInfo === "function" &&
-    typeof value.fetchFileText === "function"
+    typeof value.fetchFileText === "function" &&
+    typeof value.fetchFileBinary === "function"
+  );
+};
+
+const isTextMimeType = (mimetype: string | undefined): boolean => {
+  if (mimetype === undefined) {
+    return true;
+  }
+
+  const normalized = mimetype.trim().toLowerCase();
+  if (normalized.length === 0) {
+    return true;
+  }
+
+  if (normalized.startsWith("text/")) {
+    return true;
+  }
+
+  return (
+    normalized === "application/json" ||
+    normalized === "application/xml" ||
+    normalized === "application/javascript" ||
+    normalized === "application/x-javascript" ||
+    normalized === "application/x-ndjson"
   );
 };
 
@@ -180,15 +213,6 @@ export const createAttachmentGetHandler = (
       }
 
       const metadata = mapFileMetadata(await client.fetchFileInfo(fileId));
-      if (metadata.size !== undefined && metadata.size > MAX_ATTACHMENT_TEXT_BYTES) {
-        return createError(
-          "INVALID_ARGUMENT",
-          `attachment get text path supports up to ${MAX_ATTACHMENT_TEXT_BYTES} bytes. Received: ${metadata.size}. [ATTACHMENT_TEXT_TOO_LARGE]`,
-          "Download a smaller text file or use another tool for larger/binary attachments.",
-          COMMAND_ID,
-        );
-      }
-
       if (metadata.url_private === undefined || metadata.url_private.trim().length === 0) {
         return createError(
           "INVALID_ARGUMENT",
@@ -198,26 +222,63 @@ export const createAttachmentGetHandler = (
         );
       }
 
-      const textPayload = await client.fetchFileText(
+      if (isTextMimeType(metadata.mimetype)) {
+        if (metadata.size !== undefined && metadata.size > MAX_ATTACHMENT_TEXT_BYTES) {
+          return createError(
+            "INVALID_ARGUMENT",
+            `attachment get text path supports up to ${MAX_ATTACHMENT_TEXT_BYTES} bytes. Received: ${metadata.size}. [ATTACHMENT_TEXT_TOO_LARGE]`,
+            "Download a smaller text file or use another tool for larger/binary attachments.",
+            COMMAND_ID,
+          );
+        }
+
+        const textPayload = await client.fetchFileText(
+          metadata.url_private,
+          MAX_ATTACHMENT_TEXT_BYTES,
+        );
+        const textContentLines =
+          textPayload.content.length === 0 ? ["(empty)"] : textPayload.content.split("\n");
+
+        return {
+          ok: true,
+          command: COMMAND_ID,
+          message: `Attachment metadata and text loaded for ${metadata.id}.`,
+          data: {
+            file: metadata,
+            text: {
+              content: textPayload.content,
+              byte_length: textPayload.byteLength,
+              content_type: textPayload.contentType,
+            },
+          },
+          textLines: [...buildTextLines(metadata), "", "Text content:", ...textContentLines],
+        };
+      }
+
+      const binaryPayload = await client.fetchFileBinary(
         metadata.url_private,
         MAX_ATTACHMENT_TEXT_BYTES,
       );
-      const textContentLines =
-        textPayload.content.length === 0 ? ["(empty)"] : textPayload.content.split("\n");
 
       return {
         ok: true,
         command: COMMAND_ID,
-        message: `Attachment metadata and text loaded for ${metadata.id}.`,
+        message: `Attachment metadata and binary payload loaded for ${metadata.id}.`,
         data: {
           file: metadata,
-          text: {
-            content: textPayload.content,
-            byte_length: textPayload.byteLength,
-            content_type: textPayload.contentType,
+          binary: {
+            content_base64: binaryPayload.contentBase64,
+            byte_length: binaryPayload.byteLength,
+            content_type: binaryPayload.contentType,
+            encoding: binaryPayload.encoding,
           },
         },
-        textLines: [...buildTextLines(metadata), "", "Text content:", ...textContentLines],
+        textLines: [
+          ...buildTextLines(metadata),
+          "",
+          `Binary content (${binaryPayload.encoding}):`,
+          binaryPayload.contentBase64,
+        ],
       };
     } catch (error) {
       return mapSlackClientError(error);

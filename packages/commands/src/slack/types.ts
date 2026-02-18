@@ -189,6 +189,13 @@ export type SlackFileText = {
   contentType?: string;
 };
 
+export type SlackFileBinary = {
+  contentBase64: string;
+  byteLength: number;
+  contentType?: string;
+  encoding: "base64";
+};
+
 export type SlackPostMessageParams = {
   channel: string;
   text: string;
@@ -264,4 +271,5 @@ export type SlackWebApiClient = {
 export type SlackAttachmentWebApiClient = {
   fetchFileInfo: (fileId: string) => Promise<SlackFileMetadata>;
   fetchFileText: (urlPrivate: string, maxBytes: number) => Promise<SlackFileText>;
+  fetchFileBinary: (urlPrivate: string, maxBytes: number) => Promise<SlackFileBinary>;
 };
