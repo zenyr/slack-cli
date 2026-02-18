@@ -33,6 +33,13 @@ const formatSuccessLines = (query: string, total: number, count: number): string
 };
 
 const STRICT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const CHANNEL_ID_PATTERN = /^[CDG][A-Z0-9]{8,}$/;
+const MESSAGE_POINTER_PATTERN = /^p(\d{7,})$/;
+
+type UrlShortcutNormalization =
+  | { normalizedQuery: string }
+  | { invalidReason: string; invalidHint: string }
+  | undefined;
 
 const isCalendarDate = (value: string): boolean => {
   if (STRICT_DATE_PATTERN.test(value) === false) {
@@ -57,6 +64,91 @@ const isCalendarDate = (value: string): boolean => {
 
 const dateHint = (name: string): string => {
   return `${name} must be a valid date in YYYY-MM-DD format.`;
+};
+
+const normalizeSlackMessageUrlQuery = (query: string): UrlShortcutNormalization => {
+  const querySegments = query
+    .split(" ")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  if (querySegments.length !== 1) {
+    return undefined;
+  }
+
+  const rawInput = querySegments[0];
+  if (rawInput === undefined) {
+    return undefined;
+  }
+
+  if (rawInput.startsWith("http://") === false && rawInput.startsWith("https://") === false) {
+    return undefined;
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(rawInput);
+  } catch {
+    return {
+      invalidReason: "Malformed URL input.",
+      invalidHint:
+        "Use Slack message permalink format: https://<workspace>.slack.com/archives/<channel-id>/p<message-ts>.",
+    };
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase();
+  if (hostname.endsWith(".slack.com") === false) {
+    return undefined;
+  }
+
+  if (parsedUrl.protocol !== "https:") {
+    return {
+      invalidReason: "Slack message URL must use https.",
+      invalidHint:
+        "Use Slack message permalink format: https://<workspace>.slack.com/archives/<channel-id>/p<message-ts>.",
+    };
+  }
+
+  const pathSegments = parsedUrl.pathname.split("/").filter((segment) => segment.length > 0);
+  if (pathSegments.length !== 3 || pathSegments[0] !== "archives") {
+    return {
+      invalidReason: "Unsupported Slack URL path.",
+      invalidHint: "Use Slack message permalink path: /archives/<channel-id>/p<message-ts>.",
+    };
+  }
+
+  const channelId = pathSegments[1];
+  if (channelId === undefined || CHANNEL_ID_PATTERN.test(channelId) === false) {
+    return {
+      invalidReason: "Invalid Slack channel id in URL.",
+      invalidHint: "Use Slack channel ids like C12345678 in message permalink URLs.",
+    };
+  }
+
+  const messagePointer = pathSegments[2];
+  const pointerMatch =
+    messagePointer === undefined ? undefined : MESSAGE_POINTER_PATTERN.exec(messagePointer);
+  if (pointerMatch === null || pointerMatch === undefined) {
+    return {
+      invalidReason: "Invalid Slack message pointer in URL.",
+      invalidHint: "Message permalink must end with p<message-ts> (example: p1700000000123456).",
+    };
+  }
+
+  const packedTs = pointerMatch[1];
+  if (packedTs === undefined || packedTs.length <= 6) {
+    return {
+      invalidReason: "Invalid Slack message timestamp in URL.",
+      invalidHint: "Message permalink must include a timestamp with seconds and microseconds.",
+    };
+  }
+
+  const secondsPart = packedTs.slice(0, -6);
+  const microsPart = packedTs.slice(-6);
+
+  return {
+    normalizedQuery: `in:${channelId} ${secondsPart}.${microsPart}`,
+  };
 };
 
 const buildFilterParts = (
@@ -157,6 +249,25 @@ export const createMessagesSearchHandler = (
       );
     }
 
+    const normalizedUrlQuery = normalizeSlackMessageUrlQuery(query);
+    if (
+      normalizedUrlQuery !== undefined &&
+      "invalidReason" in normalizedUrlQuery &&
+      "invalidHint" in normalizedUrlQuery
+    ) {
+      return createError(
+        "INVALID_ARGUMENT",
+        `invalid messages search URL query: ${normalizedUrlQuery.invalidReason}`,
+        `${normalizedUrlQuery.invalidHint} Input: ${query}`,
+        COMMAND_ID,
+      );
+    }
+
+    const normalizedBaseQuery =
+      normalizedUrlQuery !== undefined && "normalizedQuery" in normalizedUrlQuery
+        ? normalizedUrlQuery.normalizedQuery
+        : query;
+
     const { filterParts, invalidDateMessage, invalidDateHint } = buildFilterParts(request.options);
     if (invalidDateMessage !== undefined) {
       return createError(
@@ -168,7 +279,7 @@ export const createMessagesSearchHandler = (
     }
 
     const filteredQuery = [
-      ...query.split(" ").filter((segment) => segment.length > 0),
+      ...normalizedBaseQuery.split(" ").filter((segment) => segment.length > 0),
       ...filterParts,
     ].join(" ");
 
