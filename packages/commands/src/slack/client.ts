@@ -629,11 +629,21 @@ export const createSlackWebApiClient = (
   };
 
   const updateUsergroup = async (params: SlackUpdateUsergroupParams) => {
-    const payload = new URLSearchParams({
+    const payloadInput: Record<string, string> = {
       usergroup: params.id,
       name: params.name,
       handle: params.handle,
-    });
+    };
+
+    if (params.description !== undefined) {
+      payloadInput.description = params.description;
+    }
+
+    if (params.channels !== undefined && params.channels.length > 0) {
+      payloadInput.channels = params.channels.join(",");
+    }
+
+    const payload = new URLSearchParams(payloadInput);
     const payloadData = await callApiPost("usergroups.update", payload);
     const updatedGroup = mapUserGroup(readRecord(payloadData, "usergroup"));
 

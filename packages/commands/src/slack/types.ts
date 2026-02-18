@@ -95,6 +95,8 @@ export type SlackUpdateUsergroupParams = {
   id: string;
   name: string;
   handle: string;
+  description?: string;
+  channels?: string[];
 };
 
 export type SlackUpdateUsergroupResult = {
