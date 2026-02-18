@@ -67,6 +67,11 @@ export type SlackListUsersResult = {
   nextCursor?: string;
 };
 
+export type SlackListUsersOptions = {
+  limit?: number;
+  cursor?: string;
+};
+
 export type SlackUserGroup = {
   id: string;
   handle: string;
@@ -256,7 +261,7 @@ export type SlackReactionsWebApiClient = {
 
 export type SlackWebApiClient = {
   listChannels: (options: SlackListChannelsOptions) => Promise<SlackListChannelsResult>;
-  listUsers: () => Promise<SlackListUsersResult>;
+  listUsers: (options?: SlackListUsersOptions) => Promise<SlackListUsersResult>;
   searchMessages: (query: string) => Promise<SlackSearchMessagesResult>;
   fetchChannelHistory: (params: {
     channel: string;

@@ -14,6 +14,7 @@ import type {
   SlackListChannelsResult,
   SlackListUsergroupsOptions,
   SlackListUsergroupsResult,
+  SlackListUsersOptions,
   SlackListUsersResult,
   SlackMessage,
   SlackPostMessageResult,
@@ -523,10 +524,14 @@ export const createSlackWebApiClient = (
     };
   };
 
-  const listUsers = async (): Promise<SlackListUsersResult> => {
+  const listUsers = async (options: SlackListUsersOptions = {}): Promise<SlackListUsersResult> => {
     const params = new URLSearchParams({
-      limit: "200",
+      limit: String(options.limit ?? 200),
     });
+    if (options.cursor !== undefined) {
+      params.set("cursor", options.cursor);
+    }
+
     const payload = await callApi("users.list", params);
     const usersRaw = readArray(payload, "members") ?? [];
     const users = usersRaw.map(mapUser).filter((value): value is SlackUser => value !== undefined);
