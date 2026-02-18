@@ -189,6 +189,87 @@ describe("usergroups users update command", () => {
     expect(parsed.error.message).toContain("requires --yes confirmation");
   });
 
+  test("returns deterministic destructive replacement preview for text output", async () => {
+    const handler = createUsergroupsUsersUpdateHandler({
+      createClient: () =>
+        createMockClient({
+          updateUsergroupUsers: async () => ({
+            usergroupId: "S777",
+            userIds: [
+              "U001",
+              "U002",
+              "U003",
+              "U004",
+              "U005",
+              "U006",
+              "U007",
+              "U008",
+              "U009",
+              "U010",
+              "U011",
+            ],
+          }),
+        }),
+    });
+
+    const result = await handler({
+      commandPath: ["usergroups", "users", "update"],
+      positionals: [
+        "S777",
+        "U001",
+        "U002",
+        "U003",
+        "U004",
+        "U005",
+        "U006",
+        "U007",
+        "U008",
+        "U009",
+        "U010",
+        "U011",
+      ],
+      options: { yes: true },
+      flags: {
+        json: false,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(isRecord(result.data)).toBe(true);
+    if (!isRecord(result.data)) {
+      return;
+    }
+
+    expect(result.data.usergroupId).toBe("S777");
+    expect(result.data.count).toBe(11);
+    expect(result.message).toBe("Replaced user group S777 membership with 11 users.");
+    expect(result.textLines).toEqual([
+      "Replaced user group S777 membership.",
+      "Total users after replacement: 11.",
+      "Membership preview (10/11):",
+      "- U001",
+      "- U002",
+      "- U003",
+      "- U004",
+      "- U005",
+      "- U006",
+      "- U007",
+      "- U008",
+      "- U009",
+      "- U010",
+      "- ... and 1 more",
+    ]);
+  });
+
   const deterministicSlackErrorCases: Array<{
     title: string;
     clientErrorArgs: Parameters<typeof createSlackClientError>[0];
