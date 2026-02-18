@@ -5,6 +5,52 @@ import { createAttachmentGetHandler } from "../handlers/attachment-get";
 import { createSlackClientError } from "../slack";
 
 describe("attachment get command", () => {
+  const createHandlerThrowingSlackError = (errorOptions: {
+    code:
+      | "SLACK_CONFIG_ERROR"
+      | "SLACK_AUTH_ERROR"
+      | "SLACK_API_ERROR"
+      | "SLACK_HTTP_ERROR"
+      | "SLACK_RESPONSE_ERROR";
+    message: string;
+    hint: string;
+    details?: string;
+  }) => {
+    return createAttachmentGetHandler({
+      env: {
+        SLACK_MCP_ATTACHMENT_TOOL: "true",
+      },
+      createClient: () => ({
+        fetchFileInfo: async () => {
+          throw createSlackClientError(errorOptions);
+        },
+        fetchFileText: async () => {
+          throw new Error("should not be called");
+        },
+        fetchFileBinary: async () => {
+          throw new Error("should not be called");
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+  };
+
+  const runAttachmentGet = async (handler: ReturnType<typeof createAttachmentGetHandler>) => {
+    return handler({
+      commandPath: ["attachment", "get"],
+      positionals: ["F404"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+  };
+
   test("routes command and returns missing argument when file id is absent", async () => {
     const result = await runCliWithBuffer(["attachment", "get", "--json"]);
 
@@ -200,43 +246,15 @@ describe("attachment get command", () => {
     expect(result.error.message).toContain("ATTACHMENT_TEXT_TOO_LARGE");
   });
 
-  test("maps SLACK_API_ERROR to invalid argument with marker", async () => {
-    const handler = createAttachmentGetHandler({
-      env: {
-        SLACK_MCP_ATTACHMENT_TOOL: "true",
-      },
-      createClient: () => ({
-        fetchFileInfo: async () => {
-          throw createSlackClientError({
-            code: "SLACK_API_ERROR",
-            message: "Slack API request failed: file_not_found.",
-            hint: "Verify file id and scopes.",
-            details: "file_not_found",
-          });
-        },
-        fetchFileText: async () => {
-          throw new Error("should not be called");
-        },
-        fetchFileBinary: async () => {
-          throw new Error("should not be called");
-        },
-      }),
-      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+  test("maps SLACK_CONFIG_ERROR to INVALID_ARGUMENT without marker or details", async () => {
+    const handler = createHandlerThrowingSlackError({
+      code: "SLACK_CONFIG_ERROR",
+      message: "Slack token is required.",
+      hint: "Set SLACK_BOT_TOKEN.",
+      details: "config-details-must-not-appear",
     });
 
-    const result = await handler({
-      commandPath: ["attachment", "get"],
-      positionals: ["F404"],
-      options: {},
-      flags: {
-        json: true,
-        help: false,
-        version: false,
-      },
-      context: {
-        version: "1.2.3",
-      },
-    });
+    const result = await runAttachmentGet(handler);
 
     expect(result.ok).toBe(false);
     if (result.ok) {
@@ -244,8 +262,103 @@ describe("attachment get command", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("SLACK_API_ERROR");
+    expect(result.error.message).toBe("Slack token is required.");
+    expect(result.error.message).not.toContain("[AUTH_ERROR]");
+    expect(result.error.message).not.toContain("[SLACK_API_ERROR]");
+    expect(result.error.message).not.toContain("config-details-must-not-appear");
+    expect(result.error.hint).toBe("Set SLACK_BOT_TOKEN.");
+  });
+
+  test("maps SLACK_AUTH_ERROR to INVALID_ARGUMENT with AUTH marker", async () => {
+    const handler = createHandlerThrowingSlackError({
+      code: "SLACK_AUTH_ERROR",
+      message: "Slack auth rejected token.",
+      hint: "Use a valid token.",
+      details: "auth-details-must-not-appear",
+    });
+
+    const result = await runAttachmentGet(handler);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe("Slack auth rejected token. [AUTH_ERROR]");
+    expect(result.error.message).not.toContain("[SLACK_API_ERROR]");
+    expect(result.error.message).not.toContain("auth-details-must-not-appear");
+    expect(result.error.hint).toBe("Use a valid token.");
+  });
+
+  test("maps SLACK_API_ERROR to INVALID_ARGUMENT with API marker and details", async () => {
+    const handler = createHandlerThrowingSlackError({
+      code: "SLACK_API_ERROR",
+      message: "Slack API request failed: file_not_found.",
+      hint: "Verify file id and scopes.",
+      details: "file_not_found",
+    });
+
+    const result = await runAttachmentGet(handler);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe(
+      "Slack API request failed: file_not_found. file_not_found [SLACK_API_ERROR]",
+    );
+    expect(result.error.message).toContain("[SLACK_API_ERROR]");
     expect(result.error.message).toContain("file_not_found");
+    expect(result.error.hint).toBe("Verify file id and scopes.");
+  });
+
+  test("maps SLACK_HTTP_ERROR to INTERNAL_ERROR without marker or details", async () => {
+    const handler = createHandlerThrowingSlackError({
+      code: "SLACK_HTTP_ERROR",
+      message: "Slack HTTP transport failed with status 503.",
+      hint: "Retry after backoff.",
+      details: "http-details-must-not-appear",
+    });
+
+    const result = await runAttachmentGet(handler);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INTERNAL_ERROR");
+    expect(result.error.message).toBe("Slack HTTP transport failed with status 503.");
+    expect(result.error.message).not.toContain("[AUTH_ERROR]");
+    expect(result.error.message).not.toContain("[SLACK_API_ERROR]");
+    expect(result.error.message).not.toContain("http-details-must-not-appear");
+    expect(result.error.hint).toBe("Retry after backoff.");
+  });
+
+  test("maps SLACK_RESPONSE_ERROR to INTERNAL_ERROR without marker or details", async () => {
+    const handler = createHandlerThrowingSlackError({
+      code: "SLACK_RESPONSE_ERROR",
+      message: "Slack response payload is malformed.",
+      hint: "Retry after validation fix.",
+      details: "response-details-must-not-appear",
+    });
+
+    const result = await runAttachmentGet(handler);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INTERNAL_ERROR");
+    expect(result.error.message).toBe("Slack response payload is malformed.");
+    expect(result.error.message).not.toContain("[AUTH_ERROR]");
+    expect(result.error.message).not.toContain("[SLACK_API_ERROR]");
+    expect(result.error.message).not.toContain("response-details-must-not-appear");
+    expect(result.error.hint).toBe("Retry after validation fix.");
   });
 
   test("returns base64 payload for non-text MIME attachments", async () => {
