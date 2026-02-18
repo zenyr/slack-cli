@@ -120,7 +120,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - **Current state**:
   - `usergroups me list`, `usergroups me join`, `usergroups me leave` command paths delivered
   - Membership flow wired (`auth.test` + `usergroups.list` + `usergroups.users.list` + `usergroups.users.update`)
-- **Remaining gap**: optional UX polish for confirmations/diff preview
+- **Progress merged**:
+  - Action-level text output polish delivered for `join`/`leave` confirmation readability
 
 ---
 
@@ -240,7 +241,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Optional include_users/include_disabled/include_count flags
 - **Complexity**: Low (direct API wrapper)
 - **Current state**: Implemented with optional flag parity and response mapping (`include_users/include_disabled/include_count`)
-- **Smallest remaining unit**: output formatting polish for large user id lists
+- **Progress merged**: large `--include-users` text output readability polish delivered
+- **Smallest remaining unit**: none at current boundary scope
 
 #### `usergroups create/update` Commands
 - **Org tools**: `usergroups_create`, `usergroups_update`
@@ -259,7 +261,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Replace entire member list (destructive operation)
 - **Complexity**: Medium (safety guards needed)
 - **Current state**: Core member replacement delivered via `usergroups users update` with `--yes` confirmation guardrail
-- **Smallest remaining unit**: richer dry-run preview/confirmation messaging
+- **Progress merged**: deterministic preview/confirmation messaging polish delivered
+- **Smallest remaining unit**: none at current boundary scope
 
 #### `usergroups me` Command (Multi-step)
 - **Org tool**: `usergroups_me`
@@ -269,7 +272,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Multi-step flow: fetch current members → modify → update
 - **Complexity**: High (multi-step workflow, member list manipulation)
 - **Current state**: `list`/`join`/`leave` actions delivered as CLI subcommands
-- **Smallest remaining unit**: action-level confirmation/diff output polish
+- **Progress merged**: action-level output polish delivered for `join`/`leave`
+- **Smallest remaining unit**: none at current boundary scope
 
 ---
 
