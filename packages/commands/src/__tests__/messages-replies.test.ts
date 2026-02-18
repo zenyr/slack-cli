@@ -525,6 +525,75 @@ describe("messages replies command", () => {
     expect(result.error.code).toBe("INVALID_ARGUMENT");
     expect(result.error.message).toContain("AUTH_ERROR");
   });
+
+  const edgeTokenGuardCases: Array<{
+    title: string;
+    token: string;
+    source: "store:active" | "store:fallback" | "SLACK_MCP_XOXP_TOKEN" | "SLACK_MCP_XOXB_TOKEN";
+    tokenType?: "xoxp" | "xoxb";
+  }> = [
+    {
+      title: "unclassified xoxc token",
+      token: "xoxc-edge-test",
+      source: "store:active",
+    },
+    {
+      title: "unclassified xoxd token",
+      token: "xoxd-edge-test",
+      source: "store:fallback",
+    },
+    {
+      title: "xoxc token classified as xoxp",
+      token: "xoxc-edge-test",
+      source: "SLACK_MCP_XOXP_TOKEN",
+      tokenType: "xoxp",
+    },
+    {
+      title: "xoxd token classified as xoxb",
+      token: "xoxd-edge-test",
+      source: "SLACK_MCP_XOXB_TOKEN",
+      tokenType: "xoxb",
+    },
+  ];
+
+  edgeTokenGuardCases.forEach(({ title, token, source, tokenType }) => {
+    test(`returns invalid argument for ${title}`, async () => {
+      const handler = createMessagesRepliesHandler({
+        env: {},
+        resolveToken: () => ({
+          token,
+          source,
+          tokenType,
+        }),
+        createClient: () => {
+          throw new Error("createClient should not be called for edge tokens");
+        },
+      });
+
+      const result = await handler({
+        commandPath: ["messages", "replies"],
+        positionals: ["C123", "1700000000.000000"],
+        options: {},
+        flags: {
+          json: true,
+          help: false,
+          version: false,
+        },
+        context: {
+          version: "1.2.3",
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) {
+        return;
+      }
+
+      expect(result.error.code).toBe("INVALID_ARGUMENT");
+      expect(result.error.message).toContain("edge API tokens");
+      expect(result.error.hint).toContain("not yet supported");
+    });
+  });
 });
 
 describe("fetchMessageReplies client path", () => {

@@ -187,6 +187,10 @@ const readOptionalCursor = (options: CliOptions): string | undefined | CliResult
   return stringValue.trim();
 };
 
+const hasEdgeTokenPrefix = (token: string): boolean => {
+  return token.startsWith("xoxc") || token.startsWith("xoxd");
+};
+
 const mapSlackClientError = (error: unknown): CliResult => {
   if (!isSlackClientError(error)) {
     return createError(
@@ -290,6 +294,15 @@ export const createMessagesRepliesHandler = (
 
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      if (hasEdgeTokenPrefix(resolvedToken.token)) {
+        return createError(
+          "INVALID_ARGUMENT",
+          "messages replies does not support edge API tokens (xoxc/xoxd).",
+          "Use SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN. Edge API token path is not yet supported for messages replies.",
+          COMMAND_ID,
+        );
+      }
+
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
 
       const query = {

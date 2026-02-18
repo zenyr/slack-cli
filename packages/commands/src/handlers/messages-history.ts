@@ -218,6 +218,10 @@ const parseIncludeActivityOption = (options: CliOptions): boolean | CliResult =>
   );
 };
 
+const hasEdgeTokenPrefix = (token: string): boolean => {
+  return token.startsWith("xoxc") || token.startsWith("xoxd");
+};
+
 const isRawChannelId = (candidate: string): boolean => {
   return /^[CGD][A-Z0-9]+$/.test(candidate);
 };
@@ -355,6 +359,15 @@ export const createMessagesHistoryHandler = (
 
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      if (hasEdgeTokenPrefix(resolvedToken.token)) {
+        return createError(
+          "INVALID_ARGUMENT",
+          "messages history does not support edge API tokens (xoxc/xoxd).",
+          "Use SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN. Edge API token path is not yet supported for messages history.",
+          COMMAND_ID,
+        );
+      }
+
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
 
       // Resolve channel identifier to raw ID
