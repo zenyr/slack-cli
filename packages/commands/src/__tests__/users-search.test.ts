@@ -108,4 +108,157 @@ describe("users search command", () => {
       expect(parsed.textLines[0]).toBe("Found 1 users (filtered by: alice).");
     }
   });
+
+  test("auto-paginates in query mode without explicit cursor", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    delete process.env[XOXB_ENV_KEY];
+
+    const cursors: Array<string | undefined> = [];
+    const mockedFetch = async (input: string | URL | Request, init?: RequestInit) => {
+      const requestUrl = input instanceof URL ? input.toString() : String(input);
+      expect(requestUrl).toContain("/users.list");
+
+      const parsedUrl = new URL(requestUrl);
+      const cursor = parsedUrl.searchParams.get("cursor") ?? undefined;
+      cursors.push(cursor);
+
+      const headers = new Headers(init?.headers);
+      expect(headers.get("Authorization")).toBe("Bearer xoxp-test-token");
+
+      if (cursor === undefined) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            members: [
+              {
+                id: "U001",
+                name: "bob",
+                deleted: false,
+                is_bot: false,
+                is_admin: false,
+                profile: {
+                  display_name: "Bob",
+                  real_name: "Bob",
+                },
+              },
+            ],
+            response_metadata: {
+              next_cursor: "cursor-2",
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      expect(cursor).toBe("cursor-2");
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          members: [
+            {
+              id: "U002",
+              name: "alice",
+              deleted: false,
+              is_bot: false,
+              is_admin: false,
+              profile: {
+                display_name: "Alice",
+                real_name: "Alice",
+              },
+            },
+          ],
+          response_metadata: {
+            next_cursor: "",
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    };
+
+    globalThis.fetch = mockedFetch as typeof fetch;
+
+    const result = await runCliWithBuffer(["users", "search", "alice", "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr.length).toBe(0);
+    expect(cursors).toEqual([undefined, "cursor-2"]);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.command).toBe("users.search");
+    if (!isRecord(parsed.data)) {
+      return;
+    }
+
+    expect(parsed.data.count).toBe(1);
+    expect(parsed.data.nextCursor).toBeUndefined();
+  });
+
+  test("caps query auto-pagination with deterministic nextCursor", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    delete process.env[XOXB_ENV_KEY];
+
+    const cursors: Array<string | undefined> = [];
+    const mockedFetch = async (input: string | URL | Request, init?: RequestInit) => {
+      const requestUrl = input instanceof URL ? input.toString() : String(input);
+      expect(requestUrl).toContain("/users.list");
+
+      const parsedUrl = new URL(requestUrl);
+      const cursor = parsedUrl.searchParams.get("cursor") ?? undefined;
+      cursors.push(cursor);
+
+      const headers = new Headers(init?.headers);
+      expect(headers.get("Authorization")).toBe("Bearer xoxp-test-token");
+
+      const page = cursor === undefined ? 1 : Number(cursor.replace("cursor-", "")) + 1;
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          members: [
+            {
+              id: `U00${page}`,
+              name: `user-${page}`,
+              deleted: false,
+              is_bot: false,
+              is_admin: false,
+              profile: {
+                display_name: `User ${page}`,
+                real_name: `User ${page}`,
+              },
+            },
+          ],
+          response_metadata: {
+            next_cursor: `cursor-${page}`,
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    };
+
+    globalThis.fetch = mockedFetch as typeof fetch;
+
+    const result = await runCliWithBuffer(["users", "search", "no-match", "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr.length).toBe(0);
+    expect(cursors).toEqual([undefined, "cursor-1", "cursor-2", "cursor-3", "cursor-4"]);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.command).toBe("users.search");
+    if (!isRecord(parsed.data)) {
+      return;
+    }
+
+    expect(parsed.data.count).toBe(0);
+    expect(parsed.data.nextCursor).toBe("cursor-5");
+  });
 });
