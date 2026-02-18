@@ -174,6 +174,15 @@ export type SlackMessage = {
   threadTs?: string;
 };
 
+export type SlackFileMetadata = {
+  id: string;
+  name: string;
+  mimetype?: string;
+  filetype?: string;
+  size?: number;
+  urlPrivate?: string;
+};
+
 export type SlackPostMessageParams = {
   channel: string;
   text: string;
@@ -244,4 +253,8 @@ export type SlackWebApiClient = {
     cursor?: string;
     includeActivity?: boolean;
   }) => Promise<SlackChannelHistoryResult>;
+};
+
+export type SlackAttachmentWebApiClient = {
+  fetchFileInfo: (fileId: string) => Promise<SlackFileMetadata>;
 };
