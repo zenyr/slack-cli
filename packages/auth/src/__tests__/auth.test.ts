@@ -134,6 +134,68 @@ describe("auth service", () => {
     }
   });
 
+  test("login rejects xoxb token when declared type is xoxp", async () => {
+    const { rootDir, authFilePath } = await createTempAuthFilePath();
+
+    try {
+      const auth = createAuthService({ env: {}, authFilePath });
+
+      await expect(auth.login({ type: "xoxp", token: "xoxb-login-token" })).rejects.toMatchObject({
+        code: "AUTH_CONFIG_ERROR",
+        message: "Login token prefix does not match declared token type.",
+        hint: "Use matching token type and prefix (xoxp -> xoxp..., xoxb -> xoxb...).",
+      });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  test("login rejects xoxp token when declared type is xoxb", async () => {
+    const { rootDir, authFilePath } = await createTempAuthFilePath();
+
+    try {
+      const auth = createAuthService({ env: {}, authFilePath });
+
+      await expect(auth.login({ type: "xoxb", token: "xoxp-login-token" })).rejects.toMatchObject({
+        code: "AUTH_CONFIG_ERROR",
+        message: "Login token prefix does not match declared token type.",
+        hint: "Use matching token type and prefix (xoxp -> xoxp..., xoxb -> xoxb...).",
+      });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  test("login rejects xoxc token when declared type is xoxp", async () => {
+    const { rootDir, authFilePath } = await createTempAuthFilePath();
+
+    try {
+      const auth = createAuthService({ env: {}, authFilePath });
+
+      await expect(auth.login({ type: "xoxp", token: "xoxc-login-token" })).rejects.toMatchObject({
+        code: "AUTH_CONFIG_ERROR",
+        message: "Login token prefix does not match declared token type.",
+      });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  test("login rejects xoxd token when declared type is xoxb", async () => {
+    const { rootDir, authFilePath } = await createTempAuthFilePath();
+
+    try {
+      const auth = createAuthService({ env: {}, authFilePath });
+
+      await expect(auth.login({ type: "xoxb", token: "xoxd-login-token" })).rejects.toMatchObject({
+        code: "AUTH_CONFIG_ERROR",
+        message: "Login token prefix does not match declared token type.",
+      });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
   test("login rejects invalid runtime token type with typed error", async () => {
     const { rootDir, authFilePath } = await createTempAuthFilePath();
 
