@@ -58,7 +58,12 @@ describe("help command", () => {
       ),
     ).toBe(true);
     expect(result.stdout.some((line) => line.includes("search <query> [--channel"))).toBe(true);
-    expect(result.stdout.some((line) => line.includes("--after YYYY-MM-DD"))).toBe(true);
+    expect(result.stdout.some((line) => line.includes("--after <YYYY-MM-DD|1d|1w|30d|90d>"))).toBe(
+      true,
+    );
+    expect(result.stdout.some((line) => line.includes("--before <YYYY-MM-DD|1d|1w|30d|90d>"))).toBe(
+      true,
+    );
     expect(result.stdout.some((line) => line.includes("--threads"))).toBe(true);
     expect(
       result.stdout.some((line) =>

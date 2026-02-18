@@ -101,7 +101,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages search",
-    args: "<query> [--channel <value>] [--user <value>] [--after YYYY-MM-DD] [--before YYYY-MM-DD] [--threads] [--json]",
+    args: "<query> [--channel <value>] [--user <value>] [--after <YYYY-MM-DD|1d|1w|30d|90d>] [--before <YYYY-MM-DD|1d|1w|30d|90d>] [--threads] [--json]",
     description: "Search messages",
   },
   {
