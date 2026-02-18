@@ -177,6 +177,79 @@ describe("reactions client path", () => {
     });
   });
 
+  test("addReaction maps transport rate limit to Slack HTTP error", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () => {
+        return new Response("", {
+          status: 429,
+          headers: {
+            "retry-after": "7",
+          },
+        });
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+
+    await expect(
+      client.addReaction({
+        channel: "C123",
+        timestamp: "1700000000.000001",
+        name: "thumbsup",
+      }),
+    ).rejects.toMatchObject({
+      code: "SLACK_HTTP_ERROR",
+      message: "Slack API rate limit reached.",
+      hint: "Retry later or narrow query scope.",
+      status: 429,
+      retryAfterSeconds: 7,
+    });
+  });
+
+  test("removeReaction maps auth-related API failure to Slack auth error", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () => {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: "invalid_auth",
+            needed: "reactions:write",
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+
+    await expect(
+      client.removeReaction({
+        channel: "C456",
+        timestamp: "1700000002.000003",
+        name: "eyes",
+      }),
+    ).rejects.toMatchObject({
+      code: "SLACK_AUTH_ERROR",
+      message: "Slack authentication failed: invalid_auth.",
+      hint: "Use a valid token with required scopes in SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
+      details: "reactions:write",
+    });
+  });
+
   test("removeReaction maps Slack API error payload", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
