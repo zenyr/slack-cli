@@ -12,6 +12,14 @@ import type { CliResult, CommandRequest } from "../types";
 const COMMAND_ID = "usergroups.me.join";
 const USAGE_HINT = "Usage: slack usergroups me join <usergroup-id> [--json]";
 
+const buildUsersTextLine = (userIds: string[]): string => {
+  if (userIds.length === 0) {
+    return "Users (0): (none)";
+  }
+
+  return `Users (${userIds.length}): ${userIds.join(", ")}`;
+};
+
 const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   switch (error.code) {
     case "SLACK_CONFIG_ERROR":
@@ -84,8 +92,10 @@ export const createUsergroupsMeJoinHandler = (
             changed: false,
           },
           textLines: [
-            `No change. User ${userId} is already in user group ${usergroupId}.`,
-            `Users (${usersResult.userIds.length}): ${usersResult.userIds.join(", ")}`,
+            "Result: no-op (already a member)",
+            `User group: ${usergroupId}`,
+            `User: ${userId}`,
+            buildUsersTextLine(usersResult.userIds),
           ],
         };
       }
@@ -105,8 +115,10 @@ export const createUsergroupsMeJoinHandler = (
           changed: true,
         },
         textLines: [
-          `Joined user group ${updateResult.usergroupId} as ${userId}.`,
-          `Users (${updateResult.userIds.length}): ${updateResult.userIds.join(", ")}`,
+          "Result: joined",
+          `User group: ${updateResult.usergroupId}`,
+          `User: ${userId}`,
+          buildUsersTextLine(updateResult.userIds),
         ],
       };
     } catch (error) {
