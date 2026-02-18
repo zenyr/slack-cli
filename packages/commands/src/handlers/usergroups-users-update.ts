@@ -7,6 +7,7 @@ import type { CliResult, CommandRequest } from "../types";
 const COMMAND_ID = "usergroups.users.update";
 const USAGE_HINT =
   "Usage: slack usergroups users update <usergroup-id> <user-id> [user-id ...] --yes [--json]";
+const MEMBERS_PREVIEW_LIMIT = 10;
 
 const isTruthyOption = (value: string | boolean | undefined): boolean => {
   if (value === true) {
@@ -37,6 +38,22 @@ const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
     case "SLACK_RESPONSE_ERROR":
       return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID);
   }
+};
+
+const createMembershipPreviewLines = (userIds: string[]): string[] => {
+  const previewUserIds = userIds.slice(0, MEMBERS_PREVIEW_LIMIT);
+  const hiddenCount = userIds.length - previewUserIds.length;
+
+  const lines = [`Membership preview (${previewUserIds.length}/${userIds.length}):`];
+  previewUserIds.forEach((userId) => {
+    lines.push(`- ${userId}`);
+  });
+
+  if (hiddenCount > 0) {
+    lines.push(`- ... and ${hiddenCount} more`);
+  }
+
+  return lines;
 };
 
 type UsergroupsUsersUpdateHandlerDeps = {
@@ -103,15 +120,16 @@ export const createUsergroupsUsersUpdateHandler = (
       return {
         ok: true,
         command: COMMAND_ID,
-        message: `Updated user group ${result.usergroupId} membership.`,
+        message: `Replaced user group ${result.usergroupId} membership with ${result.userIds.length} users.`,
         data: {
           usergroupId: result.usergroupId,
           users: result.userIds,
           count: result.userIds.length,
         },
         textLines: [
-          `Updated user group ${result.usergroupId} membership.`,
-          `Users (${result.userIds.length}): ${result.userIds.join(", ")}`,
+          `Replaced user group ${result.usergroupId} membership.`,
+          `Total users after replacement: ${result.userIds.length}.`,
+          ...createMembershipPreviewLines(result.userIds),
         ],
       };
     } catch (error) {
