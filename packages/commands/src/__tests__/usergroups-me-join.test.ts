@@ -192,6 +192,48 @@ describe("usergroups me join command", () => {
 
     expect(result.data.changed).toBe(false);
     expect(result.data.count).toBe(2);
+    expect(result.textLines).toEqual([
+      "Result: no-op (already a member)",
+      "User group: S001",
+      "User: U001",
+      "Users (2): U001, U100",
+    ]);
+  });
+
+  test("join success returns deterministic non-json text lines", async () => {
+    const handler = createUsergroupsMeJoinHandler({
+      createClient: () =>
+        createMockClient({
+          listUsergroupUsers: async () => ({ usergroupId: "S001", userIds: ["U100"] }),
+          updateUsergroupUsers: async () => ({ usergroupId: "S001", userIds: ["U100", "U001"] }),
+        }),
+    });
+
+    const result = await handler({
+      commandPath: ["usergroups", "me", "join"],
+      positionals: ["S001"],
+      options: {},
+      flags: {
+        json: false,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.textLines).toEqual([
+      "Result: joined",
+      "User group: S001",
+      "User: U001",
+      "Users (2): U100, U001",
+    ]);
   });
 
   test("returns invalid argument with usage hint when usergroup id is missing", async () => {

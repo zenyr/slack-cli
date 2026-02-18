@@ -120,6 +120,12 @@ describe("usergroups me leave command", () => {
     expect(result.data.changed).toBe(true);
     expect(result.data.count).toBe(2);
     expect(result.data.users).toEqual(["U100", "U200"]);
+    expect(result.textLines).toEqual([
+      "Result: left",
+      "User group: S001",
+      "User: U001",
+      "Users (2): U100, U200",
+    ]);
   });
 
   test("not-member returns success no-op", async () => {
@@ -164,6 +170,12 @@ describe("usergroups me leave command", () => {
 
     expect(result.data.changed).toBe(false);
     expect(result.data.count).toBe(2);
+    expect(result.textLines).toEqual([
+      "Result: no-op (already not a member)",
+      "User group: S001",
+      "User: U001",
+      "Users (2): U100, U200",
+    ]);
   });
 
   test("returns invalid argument with usage hint when usergroup id is missing", async () => {
