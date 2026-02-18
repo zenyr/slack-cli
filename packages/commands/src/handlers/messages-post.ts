@@ -8,7 +8,9 @@ import { isSlackClientError } from "../slack/utils";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post";
-const USAGE_HINT = "Usage: slack messages post <channel-id> <text> [--thread-ts=<ts>] [--json]";
+const USAGE_HINT =
+  "Usage: slack messages post <channel-id> <text> [--thread-ts=<ts>] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
+const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 
 type CreateClientOptions = {
   token?: string;
@@ -60,7 +62,7 @@ const mapSlackClientError = (error: unknown): CliResult => {
   }
 };
 
-const isCliErrorResult = (value: string | undefined | CliResult): value is CliResult => {
+const isCliErrorResult = (value: unknown): value is CliResult => {
   return typeof value === "object" && value !== null && "ok" in value;
 };
 
@@ -114,6 +116,36 @@ const readThreadTsOption = (options: CliOptions): string | undefined | CliResult
   return threadTs;
 };
 
+const readOptionalBooleanOption = (
+  options: CliOptions,
+  optionName: "unfurl-links" | "unfurl-media" | "reply-broadcast",
+): boolean | undefined | CliResult => {
+  const rawValue = options[optionName];
+  if (rawValue === undefined) {
+    return undefined;
+  }
+
+  if (typeof rawValue === "boolean") {
+    return rawValue;
+  }
+
+  const normalized = rawValue.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+    return true;
+  }
+
+  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+    return false;
+  }
+
+  return createError(
+    "INVALID_ARGUMENT",
+    `messages post --${optionName} must be boolean when provided with '=...'. Received: ${rawValue}`,
+    `${BOOLEAN_OPTION_VALUES_HINT} ${USAGE_HINT}`,
+    COMMAND_ID,
+  );
+};
+
 export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHandlerDeps> = {}) => {
   const deps: MessagesPostHandlerDeps = {
     ...defaultDeps,
@@ -148,6 +180,21 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       return threadTsOrError;
     }
 
+    const unfurlLinksOrError = readOptionalBooleanOption(request.options, "unfurl-links");
+    if (isCliErrorResult(unfurlLinksOrError)) {
+      return unfurlLinksOrError;
+    }
+
+    const unfurlMediaOrError = readOptionalBooleanOption(request.options, "unfurl-media");
+    if (isCliErrorResult(unfurlMediaOrError)) {
+      return unfurlMediaOrError;
+    }
+
+    const replyBroadcastOrError = readOptionalBooleanOption(request.options, "reply-broadcast");
+    if (isCliErrorResult(replyBroadcastOrError)) {
+      return replyBroadcastOrError;
+    }
+
     const postPolicy = evaluatePostChannelPolicy(channelId, deps.env);
     if (postPolicy.allowed === false) {
       return createError(
@@ -163,11 +210,15 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
-      const data = await client.postMessage({
+      const postMessagePayload = {
         channel: channelId,
         text: mrkdwnText,
         threadTs: threadTsOrError,
-      });
+        unfurlLinks: unfurlLinksOrError,
+        unfurlMedia: unfurlMediaOrError,
+        replyBroadcast: replyBroadcastOrError,
+      };
+      const data = await client.postMessage(postMessagePayload);
 
       return {
         ok: true,

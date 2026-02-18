@@ -171,6 +171,9 @@ describe("messages post command", () => {
         expect(params.get("channel")).toBe("C123");
         expect(params.get("text")).toBe("hello from cli");
         expect(params.get("thread_ts")).toBeNull();
+        expect(params.get("unfurl_links")).toBeNull();
+        expect(params.get("unfurl_media")).toBeNull();
+        expect(params.get("reply_broadcast")).toBeNull();
 
         return new Response(
           JSON.stringify({
@@ -282,6 +285,91 @@ describe("messages post command", () => {
     }
 
     expect(parsed.data.message.threadTs).toBe("1700000000.000001");
+  });
+
+  test("forwards advanced message post boolean options to chat.postMessage payload", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = String(init?.body);
+        const params = new URLSearchParams(body);
+        expect(params.get("channel")).toBe("C123");
+        expect(params.get("text")).toBe("hello from cli");
+        expect(params.get("thread_ts")).toBe("1700000000.000001");
+        expect(params.get("unfurl_links")).toBe("true");
+        expect(params.get("unfurl_media")).toBe("false");
+        expect(params.get("reply_broadcast")).toBe("true");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            ts: "1700000002.000100",
+            message: {
+              type: "message",
+              user: "U001",
+              text: "hello from cli",
+              ts: "1700000002.000100",
+              thread_ts: "1700000000.000001",
+            },
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      "C123",
+      "hello",
+      "from",
+      "cli",
+      "--thread-ts=1700000000.000001",
+      "--unfurl-links",
+      "--unfurl-media=off",
+      "--reply-broadcast=1",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data)) {
+      return;
+    }
+
+    expect(parsed.data.channel).toBe("C123");
+    expect(parsed.data.ts).toBe("1700000002.000100");
+  });
+
+  test("returns invalid argument for invalid --reply-broadcast boolean value", async () => {
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      "C123",
+      "hello",
+      "--reply-broadcast=maybe",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toContain("--reply-broadcast must be boolean");
+    expect(parsed.error.hint).toContain("true|false|1|0|yes|no|on|off");
   });
 
   test("enforces post channel policy before attempting post", async () => {
@@ -619,5 +707,54 @@ describe("postMessage client path", () => {
     }
 
     expect(result.message.threadTs).toBe("1700000000.999999");
+  });
+
+  test("sends advanced post boolean controls when provided", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = String(init?.body);
+        const params = new URLSearchParams(body);
+        expect(params.get("channel")).toBe("C777");
+        expect(params.get("text")).toBe("deployed");
+        expect(params.get("thread_ts")).toBe("1700000000.999999");
+        expect(params.get("unfurl_links")).toBe("false");
+        expect(params.get("unfurl_media")).toBe("true");
+        expect(params.get("reply_broadcast")).toBe("false");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C777",
+            ts: "1700000001.000001",
+            message: {
+              type: "message",
+              text: "deployed",
+              ts: "1700000001.000001",
+              thread_ts: "1700000000.999999",
+            },
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+    const result = await client.postMessage({
+      channel: "C777",
+      text: "deployed",
+      threadTs: "1700000000.999999",
+      unfurlLinks: false,
+      unfurlMedia: true,
+      replyBroadcast: false,
+    });
+
+    expect(result.ts).toBe("1700000001.000001");
+    expect(isRecord(result.message)).toBe(true);
   });
 });

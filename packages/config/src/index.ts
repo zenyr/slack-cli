@@ -111,7 +111,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages post",
-    args: "<channel-id> <text> [--thread-ts=<ts>] [--json]",
+    args: "<channel-id> <text> [--thread-ts=<ts>] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
     description: "Post plain text message to channel",
   },
   {

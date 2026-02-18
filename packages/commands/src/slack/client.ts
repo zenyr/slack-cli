@@ -17,6 +17,7 @@ import type {
   SlackListUsersOptions,
   SlackListUsersResult,
   SlackMessage,
+  SlackPostMessageParams,
   SlackPostMessageResult,
   SlackPostWebApiClient,
   SlackReactionParams,
@@ -948,17 +949,22 @@ export const createSlackWebApiClient = (
     };
   };
 
-  const postMessage = async (params: {
-    channel: string;
-    text: string;
-    threadTs?: string;
-  }): Promise<SlackPostMessageResult> => {
+  const postMessage = async (params: SlackPostMessageParams): Promise<SlackPostMessageResult> => {
     const payload = new URLSearchParams({
       channel: params.channel,
       text: params.text,
     });
     if (params.threadTs !== undefined) {
       payload.set("thread_ts", params.threadTs);
+    }
+    if (params.unfurlLinks !== undefined) {
+      payload.set("unfurl_links", params.unfurlLinks ? "true" : "false");
+    }
+    if (params.unfurlMedia !== undefined) {
+      payload.set("unfurl_media", params.unfurlMedia ? "true" : "false");
+    }
+    if (params.replyBroadcast !== undefined) {
+      payload.set("reply_broadcast", params.replyBroadcast ? "true" : "false");
     }
     const payloadData = await callApiPost("chat.postMessage", payload);
     const channel = readString(payloadData, "channel") ?? params.channel;
