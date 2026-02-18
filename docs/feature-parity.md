@@ -39,6 +39,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - **Progress**: Command-scoped validation labels aligned (`users search` vs `users list`) for `--cursor`/`--limit` errors
   - **Progress**: Env token-key prefix validation hardened (`SLACK_MCP_XOXP_TOKEN`->`xoxp*`, `SLACK_MCP_XOXB_TOKEN`->`xoxb*`)
   - **Progress**: Deterministic resolver diagnostics added when only unsupported edge env tokens (`SLACK_MCP_XOXC_TOKEN`/`SLACK_MCP_XOXD_TOKEN`) are configured
+  - **Progress**: Deterministic `users search` edge-token guard added (`xoxc`/`xoxd` -> `INVALID_ARGUMENT` with unsupported-edge hint)
   - **Gap**: Edge API integration for Slack Connect users (xoxc/xoxd) deferred
   
 - [x] `messages search` - search messages workspace-wide
