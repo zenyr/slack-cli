@@ -6,6 +6,7 @@ import type {
   AuthIdentity,
   AuthService,
   AuthServiceOptions,
+  AuthTokenSource,
   AuthTokenType,
   LoginInput,
   ResolvedAuthToken,
@@ -47,6 +48,28 @@ const isAuthTokenType = (value: string): value is AuthTokenType => {
 const tokenPrefixByType: Record<AuthTokenType, string> = {
   xoxp: "xoxp",
   xoxb: "xoxb",
+};
+
+const ensureResolvedTokenPrefix = (
+  token: string,
+  type: AuthTokenType,
+  source: AuthTokenSource,
+): ResolvedAuthToken => {
+  const requiredPrefix = tokenPrefixByType[type];
+  if (token.startsWith(requiredPrefix)) {
+    return {
+      token,
+      type,
+      source,
+    };
+  }
+
+  throw createAuthError({
+    code: "AUTH_CONFIG_ERROR",
+    message: "Resolved token prefix does not match expected token type.",
+    hint: "Update env/store token values so xoxp uses xoxp... and xoxb uses xoxb....",
+    details: `source=${source}, expected_prefix=${requiredPrefix}`,
+  });
 };
 
 const ensureAuthFilePath = (options: AuthServiceOptions): string => {
@@ -166,11 +189,7 @@ const resolveFromXoxpEnv: TokenResolutionStrategy = (context) => {
     return undefined;
   }
 
-  return {
-    token,
-    type: "xoxp",
-    source: `env:${XOXP_ENV_KEY}`,
-  };
+  return ensureResolvedTokenPrefix(token, "xoxp", `env:${XOXP_ENV_KEY}`);
 };
 
 const resolveFromXoxbEnv: TokenResolutionStrategy = (context) => {
@@ -179,11 +198,7 @@ const resolveFromXoxbEnv: TokenResolutionStrategy = (context) => {
     return undefined;
   }
 
-  return {
-    token,
-    type: "xoxb",
-    source: `env:${XOXB_ENV_KEY}`,
-  };
+  return ensureResolvedTokenPrefix(token, "xoxb", `env:${XOXB_ENV_KEY}`);
 };
 
 const resolveFromStoreActive: TokenResolutionStrategy = (context) => {
@@ -196,21 +211,13 @@ const resolveFromStoreActive: TokenResolutionStrategy = (context) => {
     return undefined;
   }
 
-  return {
-    token,
-    type: context.store.active,
-    source: "store:active",
-  };
+  return ensureResolvedTokenPrefix(token, context.store.active, "store:active");
 };
 
 const resolveFromStoreFallback: TokenResolutionStrategy = (context) => {
   const xoxpToken = context.store.tokens.xoxp;
   if (xoxpToken !== undefined) {
-    return {
-      token: xoxpToken,
-      type: "xoxp",
-      source: "store:fallback",
-    };
+    return ensureResolvedTokenPrefix(xoxpToken, "xoxp", "store:fallback");
   }
 
   const xoxbToken = context.store.tokens.xoxb;
@@ -218,11 +225,7 @@ const resolveFromStoreFallback: TokenResolutionStrategy = (context) => {
     return undefined;
   }
 
-  return {
-    token: xoxbToken,
-    type: "xoxb",
-    source: "store:fallback",
-  };
+  return ensureResolvedTokenPrefix(xoxbToken, "xoxb", "store:fallback");
 };
 
 const resolutionStrategies: TokenResolutionStrategy[] = [

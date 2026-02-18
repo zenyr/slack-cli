@@ -54,6 +54,29 @@ describe("auth service", () => {
     }
   });
 
+  test("resolveToken rejects mismatched xoxp env token prefix", async () => {
+    const { rootDir, authFilePath } = await createTempAuthFilePath();
+
+    try {
+      const auth = createAuthService({
+        env: {
+          SLACK_MCP_XOXP_TOKEN: "xoxb-env-token",
+          SLACK_MCP_XOXB_TOKEN: "xoxb-valid-token",
+        },
+        authFilePath,
+      });
+
+      await expect(auth.resolveToken()).rejects.toMatchObject({
+        code: "AUTH_CONFIG_ERROR",
+        message: "Resolved token prefix does not match expected token type.",
+        hint: "Update env/store token values so xoxp uses xoxp... and xoxb uses xoxb....",
+        details: "source=env:SLACK_MCP_XOXP_TOKEN, expected_prefix=xoxp",
+      });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
   test("falls back to active store token when env tokens missing", async () => {
     const { rootDir, authFilePath } = await createTempAuthFilePath();
 
@@ -80,6 +103,69 @@ describe("auth service", () => {
         token: "xoxb-store-token",
         type: "xoxb",
         source: "store:active",
+      });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  test("resolveToken rejects mismatched active store token prefix", async () => {
+    const { rootDir, authFilePath } = await createTempAuthFilePath();
+
+    try {
+      await Bun.write(
+        authFilePath,
+        JSON.stringify(
+          {
+            active: "xoxp",
+            tokens: {
+              xoxp: "xoxb-store-token",
+              xoxb: "xoxb-valid-token",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const auth = createAuthService({ env: {}, authFilePath });
+
+      await expect(auth.resolveToken()).rejects.toMatchObject({
+        code: "AUTH_CONFIG_ERROR",
+        message: "Resolved token prefix does not match expected token type.",
+        hint: "Update env/store token values so xoxp uses xoxp... and xoxb uses xoxb....",
+        details: "source=store:active, expected_prefix=xoxp",
+      });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  test("resolveToken rejects mismatched fallback store token prefix", async () => {
+    const { rootDir, authFilePath } = await createTempAuthFilePath();
+
+    try {
+      await Bun.write(
+        authFilePath,
+        JSON.stringify(
+          {
+            tokens: {
+              xoxp: "xoxb-store-token",
+              xoxb: "xoxb-valid-token",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const auth = createAuthService({ env: {}, authFilePath });
+
+      await expect(auth.resolveToken()).rejects.toMatchObject({
+        code: "AUTH_CONFIG_ERROR",
+        message: "Resolved token prefix does not match expected token type.",
+        hint: "Update env/store token values so xoxp uses xoxp... and xoxb uses xoxb....",
+        details: "source=store:fallback, expected_prefix=xoxp",
       });
     } finally {
       await rm(rootDir, { recursive: true, force: true });
