@@ -43,10 +43,10 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 
 - [x] `messages history` - fetch channel history with pagination
   - **Org equiv**: `conversations_history` tool
-  - **Status**: Base implementation shipped (`--limit`, `--oldest`, `--latest`, `--cursor`)
+  - **Status**: Boundary contract implemented (`--limit`, `--oldest`, `--latest`, `--cursor`)
   - **Progress**: `--include-activity` control delivered in command path
   - **Progress**: Time-range expressions (`1d/1w/30d/90d`) delivered
-  - **Gap**: `#channel` resolution deferred
+  - **Progress**: `#channel-name` resolution delivered in command path
 
 - [x] `messages post` - post plain text messages
   - **Org equiv**: `conversations_add_message` tool (core path)
@@ -119,13 +119,13 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 
 | Org Tool (14 total)              | Main CLI Status | Priority | Complexity |
 |----------------------------------|-----------------|----------|------------|
-| `conversations_history`            | ⚠️ Partial      | **P0**   | Medium     |
+| `conversations_history`            | ✅ Implemented   | **P0**   | Medium     |
 | `conversations_replies`            | ⚠️ Partial      | **P1**   | Medium     |
 | `conversations_add_message`        | ✅ Implemented   | **P1**   | High       |
 | `conversations_search_messages`    | ⚠️ Partial      | **P0**   | Low        |
 | `channels_list`                    | ✅ Implemented   | **P0**   | Low        |
 | `reactions_add`                    | ✅ Implemented   | P2       | Low        |
-| `reactions_remove`                 | ⚠️ Partial      | P2       | Low        |
+| `reactions_remove`                 | ✅ Implemented   | P2       | Low        |
 | `attachment_get_data`              | ❌ Missing       | P3       | Medium     |
 | `users_search`                     | ⚠️ Partial      | **P0**   | Low        |
 | `usergroups_list`                  | ✅ Implemented   | P2       | Low        |
@@ -134,7 +134,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `usergroups_users_update`          | ✅ Implemented   | P2       | Medium     |
 | `usergroups_me`                    | ✅ Implemented   | P3       | High       |
 
-**Summary**: 8 implemented, 5 partial, 1 missing
+**Summary**: 10 implemented, 3 partial, 1 missing
 
 ---
 
@@ -155,8 +155,10 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Slack history types + `conversations.history` client call
   - `messages history` handler with cursor/limit/oldest/latest
   - Time-expression parsing support (`1d/1w/30d/90d`)
+  - `--include-activity` option path
+  - Positional `#channel-name` resolution to channel ID
   - command wiring + dedicated tests
-- **Next smallest unit**: Add `#channel` resolution
+- **Remaining gap**: none at current boundary scope
 
 #### `messages replies` Command
 - **Org tool**: `conversations_replies`
@@ -206,8 +208,9 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - **Complexity**: Low (simple API calls + policy check)
 - **Current state**:
   - `reactions add` command wiring delivered
-  - `reactions remove` handler delivered, command wiring pending
-- **Smallest unit**: reactions remove command wiring (minimal path, no policy enforcement)
+  - `reactions remove` command wiring delivered
+  - remove path validation + error mapping coverage delivered
+- **Remaining gap**: none at current boundary scope
 
 ---
 
@@ -264,7 +267,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Text vs binary base64 encoding (MIME detection)
   - Env guard (SLACK_MCP_ATTACHMENT_TOOL)
 - **Complexity**: Medium (file download, encoding, size limits)
-- **Smallest unit**: file.info metadata fetch only (no download)
+- **Next smallest unit (boundary-safe)**: file.info metadata fetch only (no download)
 
 #### Cache Layer (Infrastructure)
 - **Org features**:
@@ -317,18 +320,18 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 |------------------------------|----------|------------|------|
 | **Core Infrastructure**      | 7        | N/A        | N/A  |
 | **Auth Commands**            | 5        | N/A        | N/A  |
-| **Conversation Tools**       | 4 (partial) | 8       | -4   |
+| **Conversation Tools**       | 4 (2 full + 2 partial) | 8       | -4   |
 | **Channel Tools**            | 1        | 1          | 0    |
 | **User Tools**               | 1        | 1          | 0    |
 | **Usergroup Tools**          | 5 full | 5 | 0 |
 | **Utilities**                | 4        | N/A        | N/A  |
 | **MCP Resources**            | 0 (stub) | 2          | -2   |
 | **Advanced Infra**           | 0        | 5          | -5   |
-| **Total Org-Equivalent Tools** | **13** (8 full + 5 partial) | **14** (full) | **7% gap** |
+| **Total Org-Equivalent Tools** | **13** (10 full + 3 partial) | **14** (full) | **7% gap** |
 
 **Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Complete (usergroups management + me actions)**
 
-**Next milestone**: 🏍️ **Motorcycle** contract completion (`reactions remove` parity finish + replies/history contract sweep)
+**Next milestone**: 🏍️ **Motorcycle** contract completion (`messages replies` contract sweep)
 
 **Future milestones**: 
 - 🏍️ **Motorcycle**: Write APIs (post, reactions) + threads
@@ -369,7 +372,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 2. `messages post` - Markdown utility wiring complete in runtime ✅
 3. `messages post` - Channel policy utility wiring complete in runtime ✅
 4. `reactions add` - Add reaction command wiring ✅
-5. `reactions remove` - Handler delivered, command wiring pending
+5. `reactions remove` - Remove path command wiring + validation complete ✅
 6. `messages post` - `thread_ts` support (deferred follow-up unit)
 
 **Dependencies**: Channel resolution (can use inline API calls, cache not required yet)
