@@ -570,54 +570,133 @@ describe("messages search command", () => {
     expect(result.error.hint).toContain("not yet supported");
   });
 
-  test("maps slack auth error to invalid argument", async () => {
-    const handler = createMessagesSearchHandler({
-      env: {},
-      resolveToken: () => ({
-        token: "xoxp-test",
-        source: "SLACK_MCP_XOXP_TOKEN",
-      }),
-      createClient: () => ({
-        listChannels: async () => ({
-          channels: [],
-        }),
-        listUsers: async () => ({
-          users: [],
-        }),
-        searchMessages: async () => {
-          throw createSlackClientError({
-            code: "SLACK_AUTH_ERROR",
-            message: "Slack authentication failed: invalid_auth.",
-            hint: "Use a valid token.",
-          });
-        },
-        fetchChannelHistory: async () => ({
-          channel: "",
-          messages: [],
-        }),
-      }),
-    });
+  const deterministicSlackErrorCases = [
+    {
+      title: "maps SLACK_CONFIG_ERROR to INVALID_ARGUMENT without marker",
+      slackCode: "SLACK_CONFIG_ERROR",
+      message: "Search query is empty.",
+      hint: "Provide non-empty query for messages search.",
+      details: undefined,
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedMarker: undefined,
+      expectedDetail: undefined,
+    },
+    {
+      title: "maps SLACK_AUTH_ERROR to INVALID_ARGUMENT with [AUTH_ERROR] marker",
+      slackCode: "SLACK_AUTH_ERROR",
+      message: "Slack authentication failed: invalid_auth. [AUTH_ERROR]",
+      hint: "Use a valid token with required scopes.",
+      details: undefined,
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedMarker: "[AUTH_ERROR]",
+      expectedDetail: undefined,
+    },
+    {
+      title: "maps SLACK_API_ERROR to INVALID_ARGUMENT with [SLACK_API_ERROR] marker",
+      slackCode: "SLACK_API_ERROR",
+      message:
+        "Slack API request failed: channel_not_found. [SLACK_API_ERROR] detail=channel_not_found",
+      hint: "Verify query input and token scopes.",
+      details: "channel_not_found",
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedMarker: "[SLACK_API_ERROR]",
+      expectedDetail: "channel_not_found",
+    },
+    {
+      title: "maps SLACK_HTTP_ERROR to INTERNAL_ERROR",
+      slackCode: "SLACK_HTTP_ERROR",
+      message: "Slack HTTP transport failed with status 503.",
+      hint: "Retry with narrower query scope.",
+      details: undefined,
+      expectedCliCode: "INTERNAL_ERROR",
+      expectedMarker: undefined,
+      expectedDetail: undefined,
+    },
+    {
+      title: "maps SLACK_RESPONSE_ERROR to INTERNAL_ERROR",
+      slackCode: "SLACK_RESPONSE_ERROR",
+      message: "Slack response payload was not valid JSON.",
+      hint: "Inspect proxy/response rewrite layers.",
+      details: undefined,
+      expectedCliCode: "INTERNAL_ERROR",
+      expectedMarker: undefined,
+      expectedDetail: undefined,
+    },
+  ] as const;
 
-    const result = await handler({
-      commandPath: ["messages", "search"],
-      positionals: ["deploy"],
-      options: {},
-      flags: {
-        json: true,
-        help: false,
-        version: false,
-      },
-      context: {
-        version: "1.2.3",
-      },
-    });
+  deterministicSlackErrorCases.forEach(
+    ({
+      title,
+      slackCode,
+      message,
+      hint,
+      details,
+      expectedCliCode,
+      expectedMarker,
+      expectedDetail,
+    }) => {
+      test(title, async () => {
+        const handler = createMessagesSearchHandler({
+          env: {},
+          resolveToken: () => ({
+            token: "xoxp-test",
+            source: "SLACK_MCP_XOXP_TOKEN",
+          }),
+          createClient: () => ({
+            listChannels: async () => ({
+              channels: [],
+            }),
+            listUsers: async () => ({
+              users: [],
+            }),
+            searchMessages: async () => {
+              throw createSlackClientError({
+                code: slackCode,
+                message,
+                hint,
+                details,
+              });
+            },
+            fetchChannelHistory: async () => ({
+              channel: "",
+              messages: [],
+            }),
+          }),
+        });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
-    }
+        const result = await handler({
+          commandPath: ["messages", "search"],
+          positionals: ["deploy"],
+          options: {},
+          flags: {
+            json: true,
+            help: false,
+            version: false,
+          },
+          context: {
+            version: "1.2.3",
+          },
+        });
 
-    expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.hint).toBe("Use a valid token.");
-  });
+        expect(result.ok).toBe(false);
+        if (result.ok) {
+          return;
+        }
+
+        expect(result.error.code).toBe(expectedCliCode);
+        expect(result.error.hint).toBe(hint);
+
+        if (expectedMarker === undefined) {
+          expect(result.error.message).not.toContain("[AUTH_ERROR]");
+          expect(result.error.message).not.toContain("[SLACK_API_ERROR]");
+        } else {
+          expect(result.error.message).toContain(expectedMarker);
+        }
+
+        if (expectedDetail !== undefined) {
+          expect(result.error.message).toContain(expectedDetail);
+        }
+      });
+    },
+  );
 });
