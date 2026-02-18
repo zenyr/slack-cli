@@ -215,39 +215,107 @@ describe("usergroups list command", () => {
     expect(parsed.error.hint).toBe("Use boolean value for --include-users: true|false|1|0|yes|no.");
   });
 
-  test("maps Slack auth errors to invalid argument", async () => {
-    const handler = createUsergroupsListHandler({
-      createClient: () => {
-        throw createSlackClientError({
-          code: "SLACK_AUTH_ERROR",
-          message: "Slack authentication failed: invalid_auth.",
-          hint: "Use valid Slack token.",
+  const deterministicSlackErrorCases: Array<{
+    title: string;
+    clientErrorArgs: Parameters<typeof createSlackClientError>[0];
+    expectedCliCode: "INVALID_ARGUMENT" | "INTERNAL_ERROR";
+    expectedHint?: string;
+    expectedDetail?: string;
+  }> = [
+    {
+      title: "maps SLACK_CONFIG_ERROR to INVALID_ARGUMENT without marker",
+      clientErrorArgs: {
+        code: "SLACK_CONFIG_ERROR",
+        message: "Slack token is not configured.",
+        hint: "Set SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN in environment.",
+      },
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedHint: "Set SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN in environment.",
+    },
+    {
+      title: "maps SLACK_AUTH_ERROR to INVALID_ARGUMENT without marker",
+      clientErrorArgs: {
+        code: "SLACK_AUTH_ERROR",
+        message: "Slack authentication failed: invalid_auth.",
+        hint: "Use valid Slack token.",
+      },
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedHint: "Use valid Slack token.",
+    },
+    {
+      title: "maps SLACK_API_ERROR to INVALID_ARGUMENT without marker and detail suffix",
+      clientErrorArgs: {
+        code: "SLACK_API_ERROR",
+        message: "Slack API request failed.",
+        hint: "Check arguments and retry usergroups.list.",
+        details: "invalid_arguments",
+      },
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedHint: "Check arguments and retry usergroups.list.",
+      expectedDetail: "invalid_arguments",
+    },
+    {
+      title: "maps SLACK_HTTP_ERROR to INTERNAL_ERROR without marker",
+      clientErrorArgs: {
+        code: "SLACK_HTTP_ERROR",
+        message: "Slack HTTP transport failed with status 503.",
+        hint: "Check network path and retry.",
+      },
+      expectedCliCode: "INTERNAL_ERROR",
+      expectedHint: "Check network path and retry.",
+    },
+    {
+      title: "maps SLACK_RESPONSE_ERROR to INTERNAL_ERROR without marker",
+      clientErrorArgs: {
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack response payload missing usergroups.",
+        hint: "Capture raw response and validate schema assumptions.",
+      },
+      expectedCliCode: "INTERNAL_ERROR",
+      expectedHint: "Capture raw response and validate schema assumptions.",
+    },
+  ];
+
+  deterministicSlackErrorCases.forEach(
+    ({ title, clientErrorArgs, expectedCliCode, expectedHint, expectedDetail }) => {
+      test(title, async () => {
+        const handler = createUsergroupsListHandler({
+          createClient: () => {
+            throw createSlackClientError(clientErrorArgs);
+          },
         });
-      },
-    });
 
-    const result = await handler({
-      commandPath: ["usergroups", "list"],
-      positionals: [],
-      options: {},
-      flags: {
-        json: true,
-        help: false,
-        version: false,
-      },
-      context: {
-        version: "1.2.3",
-      },
-    });
+        const result = await handler({
+          commandPath: ["usergroups", "list"],
+          positionals: [],
+          options: {},
+          flags: {
+            json: true,
+            help: false,
+            version: false,
+          },
+          context: {
+            version: "1.2.3",
+          },
+        });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
-    }
+        expect(result.ok).toBe(false);
+        if (result.ok) {
+          return;
+        }
 
-    expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toBe("Slack authentication failed: invalid_auth.");
-  });
+        expect(result.error.code).toBe(expectedCliCode);
+        expect(result.error.message).toBe(clientErrorArgs.message);
+        expect(result.error.hint).toBe(expectedHint);
+        expect(result.error.message).not.toContain("[AUTH_ERROR]");
+        expect(result.error.message).not.toContain("[SLACK_API_ERROR]");
+
+        if (expectedDetail !== undefined) {
+          expect(result.error.message).not.toContain(expectedDetail);
+        }
+      });
+    },
+  );
 
   test("returns invalid argument when positionals are provided", async () => {
     const handler = createUsergroupsListHandler({
