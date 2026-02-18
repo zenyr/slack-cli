@@ -44,6 +44,11 @@ const isAuthTokenType = (value: string): value is AuthTokenType => {
   return value === "xoxp" || value === "xoxb";
 };
 
+const tokenPrefixByType: Record<AuthTokenType, string> = {
+  xoxp: "xoxp",
+  xoxb: "xoxb",
+};
+
 const ensureAuthFilePath = (options: AuthServiceOptions): string => {
   if (options.authFilePath !== undefined && options.authFilePath.trim().length > 0) {
     return options.authFilePath.trim();
@@ -378,6 +383,15 @@ export const createAuthService = (options: AuthServiceOptions = {}): AuthService
         code: "AUTH_CONFIG_ERROR",
         message: "Login token must not be empty.",
         hint: "Provide xoxp or xoxb token string.",
+      });
+    }
+
+    const requiredPrefix = tokenPrefixByType[input.type];
+    if (!token.startsWith(requiredPrefix)) {
+      throw createAuthError({
+        code: "AUTH_CONFIG_ERROR",
+        message: "Login token prefix does not match declared token type.",
+        hint: "Use matching token type and prefix (xoxp -> xoxp..., xoxb -> xoxb...).",
       });
     }
 
