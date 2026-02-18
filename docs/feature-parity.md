@@ -38,9 +38,9 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   
 - [x] `messages search` - search messages workspace-wide
   - **Org equiv**: `conversations_search_messages` tool
-  - **Status**: Multi-filter implemented (`--channel`, `--user`, `--after`, `--before`, `--threads`)
+  - **Status**: Boundary contract implemented (`--channel`, `--user`, `--after`, `--before`, `--threads`)
   - **Progress**: Slack permalink URL shortcut extraction/normalization delivered (`/archives/<channel-id>/p<message-ts>`)
-  - **Gap**: Flexible date parsing remains deferred
+  - **Progress**: Flexible date parsing delivered (`YYYY-MM-DD` + bounded relative forms `1d/1w/30d/90d`)
 
 - [x] `messages history` - fetch channel history with pagination
   - **Org equiv**: `conversations_history` tool
@@ -123,11 +123,11 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `conversations_history`            | ✅ Implemented   | **P0**   | Medium     |
 | `conversations_replies`            | ✅ Implemented   | **P1**   | Medium     |
 | `conversations_add_message`        | ✅ Implemented   | **P1**   | High       |
-| `conversations_search_messages`    | ⚠️ Partial      | **P0**   | Low        |
+| `conversations_search_messages`    | ✅ Implemented   | **P0**   | Low        |
 | `channels_list`                    | ✅ Implemented   | **P0**   | Low        |
 | `reactions_add`                    | ✅ Implemented   | P2       | Low        |
 | `reactions_remove`                 | ✅ Implemented   | P2       | Low        |
-| `attachment_get_data`              | ⚠️ Partial      | P3       | Medium     |
+| `attachment_get_data`              | ✅ Implemented   | P3       | Medium     |
 | `users_search`                     | ⚠️ Partial      | **P0**   | Low        |
 | `usergroups_list`                  | ✅ Implemented   | P2       | Low        |
 | `usergroups_create`                | ✅ Implemented   | P2       | Medium     |
@@ -135,7 +135,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `usergroups_users_update`          | ✅ Implemented   | P2       | Medium     |
 | `usergroups_me`                    | ✅ Implemented   | P3       | High       |
 
-**Summary**: 11 implemented, 3 partial, 0 missing
+**Summary**: 13 implemented, 1 partial, 0 missing
 
 ---
 
@@ -278,8 +278,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - targeted client/handler tests for metadata flow
   - explicit env guard (`SLACK_MCP_ATTACHMENT_TOOL`) with deterministic disabled-path error
   - text retrieval API path (`fetchFileText`) with 5MB limit enforcement
-- **Remaining gap**: binary/base64 mode and broader download behavior parity
-- **Next smallest unit**: add binary/base64 branch with MIME-aware encoding while preserving text-path compatibility
+  - MIME-aware binary/base64 fallback path with encoding metadata
+- **Remaining gap**: none at current boundary scope
 
 #### Cache Layer (Infrastructure)
 - **Org features**:
@@ -332,18 +332,18 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 |------------------------------|----------|------------|------|
 | **Core Infrastructure**      | 7        | N/A        | N/A  |
 | **Auth Commands**            | 5        | N/A        | N/A  |
-| **Conversation Tools**       | 4 (3 full + 1 partial) | 8       | -4   |
+| **Conversation Tools**       | 4 (4 full + 0 partial) | 8       | -4   |
 | **Channel Tools**            | 1        | 1          | 0    |
 | **User Tools**               | 1        | 1          | 0    |
 | **Usergroup Tools**          | 5 full | 5 | 0 |
 | **Utilities**                | 4        | N/A        | N/A  |
 | **MCP Resources**            | 0 (stub) | 2          | -2   |
 | **Advanced Infra**           | 0        | 5          | -5   |
-| **Total Org-Equivalent Tools** | **14** (11 full + 3 partial) | **14** (full) | **0 missing / quality gap in 3 partial** |
+| **Total Org-Equivalent Tools** | **14** (13 full + 1 partial) | **14** (full) | **0 missing / quality gap in 1 partial** |
 
 **Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Complete (usergroups management + me actions)**
 
-**Next milestone**: 🏍️ **Motorcycle** write-path completion (`messages post --thread-ts` + attachment guard rollout entry)
+**Next milestone**: 🏍️ **Motorcycle** write-path completion (`messages post --thread-ts`) + users search parity polish
 
 **Future milestones**: 
 - 🏍️ **Motorcycle**: Write APIs (post, reactions) + threads
