@@ -76,7 +76,12 @@ describe("help command", () => {
     const result = await runCliWithBuffer(["users", "--help"]);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.some((line) => line.includes("list [<query>] [--json]"))).toBe(true);
+    expect(
+      result.stdout.some((line) =>
+        line.includes("list [<query>] [--cursor=<cursor>] [--limit=<n>] [--json]"),
+      ),
+    ).toBe(true);
+    expect(result.stdout.some((line) => line.includes("list [<query>] [--json]"))).toBe(false);
     expect(result.stderr.length).toBe(0);
   });
 
