@@ -139,4 +139,66 @@ describe("attachment client path", () => {
       expect(error.message).toContain("file_not_found");
     }
   });
+
+  test("fetchFileText downloads private URL and maps response", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const requestUrl = input instanceof URL ? input.toString() : String(input);
+        expect(requestUrl).toBe("https://files.slack.test/F123");
+        expect(init?.method).toBe("GET");
+
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer xoxp-test-token");
+
+        return new Response("line one\nline two", {
+          status: 200,
+          headers: {
+            "content-type": "text/plain; charset=utf-8",
+          },
+        });
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+    const result = await client.fetchFileText("https://files.slack.test/F123", 1024);
+
+    expect(result).toEqual({
+      content: "line one\nline two",
+      byteLength: 17,
+      contentType: "text/plain; charset=utf-8",
+    });
+  });
+
+  test("fetchFileText rejects payload larger than max bytes", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () => {
+        return new Response("123456", {
+          status: 200,
+          headers: {
+            "content-type": "text/plain",
+          },
+        });
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+
+    await expect(client.fetchFileText("https://files.slack.test/F123", 5)).rejects.toMatchObject({
+      code: "SLACK_CONFIG_ERROR",
+    });
+  });
 });
