@@ -142,6 +142,62 @@ describe("messages replies command", () => {
     });
   });
 
+  const invalidRangeValueTestCases = [
+    {
+      option: "oldest",
+      value: "1700000000",
+      description: "missing fractional part",
+    },
+    {
+      option: "oldest",
+      value: ".000001",
+      description: "missing seconds part",
+    },
+    {
+      option: "latest",
+      value: "1700000000.",
+      description: "missing fractional digits",
+    },
+    {
+      option: "latest",
+      value: "abc.def",
+      description: "non-numeric timestamp",
+    },
+  ];
+
+  invalidRangeValueTestCases.forEach(({ option, value, description }) => {
+    test(`returns error when --${option} has invalid timestamp (${description})`, async () => {
+      const result = await runCliWithBuffer([
+        "messages",
+        "replies",
+        "C123",
+        "1700000000.000000",
+        `--${option}=${value}`,
+        "--json",
+      ]);
+
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr.length).toBe(0);
+
+      const parsed = parseJsonOutput(result.stdout);
+      expect(isRecord(parsed)).toBe(true);
+      if (!isRecord(parsed)) {
+        return;
+      }
+
+      expect(parsed.ok).toBe(false);
+      expect(isRecord(parsed.error)).toBe(true);
+      if (!isRecord(parsed.error)) {
+        return;
+      }
+
+      expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+      expect(parsed.error.message).toContain("seconds.fraction");
+      expect(parsed.error.message).toContain(`--${option}`);
+      expect(parsed.error.message).toContain(value);
+    });
+  });
+
   const invalidLimitValueTestCases = [
     {
       value: "abc",
@@ -274,8 +330,8 @@ describe("messages replies command", () => {
         expect(requestUrl).toContain("channel=C123");
         expect(requestUrl).toContain("ts=1700000000.000000");
         expect(requestUrl).toContain("limit=50");
-        expect(requestUrl).toContain("oldest=1");
-        expect(requestUrl).toContain("latest=2");
+        expect(requestUrl).toContain("oldest=1700000000.000001");
+        expect(requestUrl).toContain("latest=1700000002.000002");
         expect(requestUrl).toContain("cursor=cursor-99");
 
         const headers = new Headers(init?.headers);
@@ -321,9 +377,9 @@ describe("messages replies command", () => {
       "--limit",
       "50",
       "--oldest",
-      "1",
+      "1700000000.000001",
       "--latest",
-      "2",
+      "1700000002.000002",
       "--cursor",
       "cursor-99",
       "--json",
