@@ -120,7 +120,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | Org Tool (14 total)              | Main CLI Status | Priority | Complexity |
 |----------------------------------|-----------------|----------|------------|
 | `conversations_history`            | ✅ Implemented   | **P0**   | Medium     |
-| `conversations_replies`            | ⚠️ Partial      | **P1**   | Medium     |
+| `conversations_replies`            | ✅ Implemented   | **P1**   | Medium     |
 | `conversations_add_message`        | ✅ Implemented   | **P1**   | High       |
 | `conversations_search_messages`    | ⚠️ Partial      | **P0**   | Low        |
 | `channels_list`                    | ✅ Implemented   | **P0**   | Low        |
@@ -134,7 +134,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `usergroups_users_update`          | ✅ Implemented   | P2       | Medium     |
 | `usergroups_me`                    | ✅ Implemented   | P3       | High       |
 
-**Summary**: 10 implemented, 4 partial, 0 missing
+**Summary**: 11 implemented, 3 partial, 0 missing
 
 ---
 
@@ -166,12 +166,15 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - **Required features**:
   - Fetch thread messages by channel_id + thread_ts
   - Cursor-based pagination
-- **Current state**: Base command implemented with cursor pagination and test coverage
-- **Progress merged**: `thread_ts` positional validation hardening delivered (`seconds.fraction` contract)
-- **Remaining gap**: final CLI/docs contract alignment sweep
+- **Current state**: Boundary contract implemented with strict positional and range timestamp validation
+- **Progress merged**:
+  - Cursor pagination and query forwarding (`--limit`, `--oldest`, `--latest`, `--cursor`)
+  - `thread_ts` positional strict validation (`seconds.fraction`)
+  - `--oldest`/`--latest` strict validation (`seconds.fraction`)
+- **Remaining gap**: none at current boundary scope
 - **Dependencies**: message history foundation complete
 - **Complexity**: Low-Medium (contract hardening + validation)
-- **Smallest unit**: Contract alignment + limit parsing strictness + targeted tests
+- **Smallest next unit**: optional UX polish for text output formatting consistency
 
 ---
 
@@ -326,18 +329,18 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 |------------------------------|----------|------------|------|
 | **Core Infrastructure**      | 7        | N/A        | N/A  |
 | **Auth Commands**            | 5        | N/A        | N/A  |
-| **Conversation Tools**       | 4 (2 full + 2 partial) | 8       | -4   |
+| **Conversation Tools**       | 4 (3 full + 1 partial) | 8       | -4   |
 | **Channel Tools**            | 1        | 1          | 0    |
 | **User Tools**               | 1        | 1          | 0    |
 | **Usergroup Tools**          | 5 full | 5 | 0 |
 | **Utilities**                | 4        | N/A        | N/A  |
 | **MCP Resources**            | 0 (stub) | 2          | -2   |
 | **Advanced Infra**           | 0        | 5          | -5   |
-| **Total Org-Equivalent Tools** | **14** (10 full + 4 partial) | **14** (full) | **0 missing / quality gap in 4 partial** |
+| **Total Org-Equivalent Tools** | **14** (11 full + 3 partial) | **14** (full) | **0 missing / quality gap in 3 partial** |
 
 **Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Complete (usergroups management + me actions)**
 
-**Next milestone**: 🏍️ **Motorcycle** contract completion (`messages replies` contract sweep)
+**Next milestone**: 🏍️ **Motorcycle** write-path completion (`messages post --thread-ts` + attachment guard rollout entry)
 
 **Future milestones**: 
 - 🏍️ **Motorcycle**: Write APIs (post, reactions) + threads
@@ -356,7 +359,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 2. **Complete `users search`** - Add query filtering (P0, low complexity)
 3. **Complete `messages search`** - Add multi-filter + date parsing (P0, low complexity)
 4. **Add `messages history`** - New command with pagination (P0, medium complexity) ✅
-5. **Add `messages replies`** - Thread support (P1, medium complexity) ⏳
+5. **Add `messages replies`** - Thread support (P1, medium complexity) ✅
 
 **Scope boundary**: Read-only APIs, no write operations, no cache layer yet (inline channel lookup acceptable)
 
