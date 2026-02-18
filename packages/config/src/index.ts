@@ -55,6 +55,11 @@ export const COMMANDS: CliCommand[] = [
     description: "List users",
   },
   {
+    name: "attachment get",
+    args: "<file-id> [--json]",
+    description: "Get attachment metadata by file id",
+  },
+  {
     name: "usergroups list",
     args: "[--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
     description: "List user groups",
@@ -159,6 +164,7 @@ export const TOOLS = [
   "channels_list",
   "reactions_add",
   "reactions_remove",
+  "attachment_get_data",
   "users_search",
   "usergroups_list",
   "usergroups_create",
