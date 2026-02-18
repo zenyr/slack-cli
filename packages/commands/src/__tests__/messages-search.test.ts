@@ -424,6 +424,78 @@ describe("messages search command", () => {
     expect(result.error.message).toContain("user token");
   });
 
+  test("returns invalid argument for unclassified xoxc edge token", async () => {
+    const handler = createMessagesSearchHandler({
+      env: {},
+      resolveToken: () => ({
+        token: "xoxc-edge-test",
+        source: "store:active",
+      }),
+      createClient: () => {
+        throw new Error("createClient should not be called for xoxc token");
+      },
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "search"],
+      positionals: ["deploy"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("edge API tokens");
+    expect(result.error.hint).toContain("not yet supported");
+  });
+
+  test("returns invalid argument for unclassified xoxd edge token", async () => {
+    const handler = createMessagesSearchHandler({
+      env: {},
+      resolveToken: () => ({
+        token: "xoxd-edge-test",
+        source: "store:fallback",
+      }),
+      createClient: () => {
+        throw new Error("createClient should not be called for xoxd token");
+      },
+    });
+
+    const result = await handler({
+      commandPath: ["messages", "search"],
+      positionals: ["deploy"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("edge API tokens");
+    expect(result.error.hint).toContain("not yet supported");
+  });
+
   test("maps slack auth error to invalid argument", async () => {
     const handler = createMessagesSearchHandler({
       env: {},
