@@ -51,7 +51,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "users list",
-    args: "[<query>] [--json]",
+    args: "[<query>] [--cursor=<cursor>] [--limit=<n>] [--json]",
     description: "List users",
   },
   {
