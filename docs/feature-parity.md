@@ -75,12 +75,12 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - [x] `usergroups list` - list workspace user groups
   - **Org equiv**: `usergroups_list` tool
   - **Status**: Core list path delivered
-- [x] `usergroups create` - create user group (minimal fields)
+- [x] `usergroups create` - create user group
   - **Org equiv**: `usergroups_create` tool
-  - **Status**: Core create path delivered (`name`, `handle`)
-- [x] `usergroups update` - update user group metadata (minimal fields)
+  - **Status**: Metadata path delivered (`name`, `handle`, optional `--description`, optional `--channels`)
+- [x] `usergroups update` - update user group metadata
   - **Org equiv**: `usergroups_update` tool
-  - **Status**: Core metadata update path delivered (`id`, `name`, `handle`)
+  - **Status**: Metadata update path delivered (`id`, `name`, `handle`, optional `--description`, optional `--channels`)
 - [x] `usergroups users update` - replace user group members
   - **Org equiv**: `usergroups_users_update` tool
   - **Status**: Core member replacement path delivered (explicit user-id list, `--yes` guardrail)
@@ -111,8 +111,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 #### 2. `usergroups create/update/users update` - Delivered
 - **Current state**:
   - `usergroups list` delivered
-  - `usergroups create` core path delivered
-  - `usergroups update` core metadata path delivered
+  - `usergroups create` metadata path delivered (`name`, `handle`, optional `--description`, optional `--channels`)
+  - `usergroups update` metadata path delivered (`id`, `name`, `handle`, optional `--description`, optional `--channels`)
   - `usergroups users update` core member replacement path delivered
 - **Out of unit**: `usergroups me` multi-step actions
 
@@ -249,8 +249,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Create: name, handle, desc, default channels
   - Update: modify metadata (no member changes)
 - **Complexity**: Medium (input validation, channel ID resolution)
-- **Current state**: Core create/update path delivered (minimal required fields)
-- **Smallest remaining unit**: optional metadata fields (`description`, channel defaults)
+- **Current state**: Metadata parity delivered for create/update (`name`, `handle`, optional `--description`, optional `--channels`)
+- **Smallest remaining unit**: output/UX polish only (no metadata gap at current boundary)
 
 #### `usergroups users update` Command
 - **Org tool**: `usergroups_users_update`
