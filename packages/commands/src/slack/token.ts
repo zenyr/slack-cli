@@ -5,6 +5,8 @@ import { createSlackClientError, isRecord, readString } from "./utils";
 
 const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
 const XOXB_ENV_KEY = "SLACK_MCP_XOXB_TOKEN";
+const XOXC_ENV_KEY = "SLACK_MCP_XOXC_TOKEN";
+const XOXD_ENV_KEY = "SLACK_MCP_XOXD_TOKEN";
 
 const readNonEmptyEnv = (
   env: Record<string, string | undefined>,
@@ -121,6 +123,17 @@ export const resolveSlackTokenFromEnv = (
       source: XOXB_ENV_KEY,
       tokenType: "xoxb",
     };
+  }
+
+  const hasUnsupportedEdgeToken =
+    readNonEmptyEnv(env, XOXC_ENV_KEY) !== undefined ||
+    readNonEmptyEnv(env, XOXD_ENV_KEY) !== undefined;
+  if (hasUnsupportedEdgeToken) {
+    throw createSlackClientError({
+      code: "SLACK_CONFIG_ERROR",
+      message: "Slack edge tokens are unsupported in this environment.",
+      hint: `Unset ${XOXC_ENV_KEY}/${XOXD_ENV_KEY} and set ${XOXP_ENV_KEY} or ${XOXB_ENV_KEY}.`,
+    });
   }
 
   throw createSlackClientError({

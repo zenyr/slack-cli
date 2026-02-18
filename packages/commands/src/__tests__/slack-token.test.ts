@@ -22,6 +22,26 @@ describe("resolveSlackTokenFromEnv", () => {
     expect(token.token).toBe("xoxb-456");
   });
 
+  test("keeps xoxp precedence when unsupported edge token is also set", () => {
+    const token = resolveSlackTokenFromEnv({
+      SLACK_MCP_XOXP_TOKEN: "xoxp-123",
+      SLACK_MCP_XOXC_TOKEN: "xoxc-edge",
+    });
+
+    expect(token.source).toBe("SLACK_MCP_XOXP_TOKEN");
+    expect(token.token).toBe("xoxp-123");
+  });
+
+  test("keeps xoxb fallback when unsupported edge token is also set", () => {
+    const token = resolveSlackTokenFromEnv({
+      SLACK_MCP_XOXB_TOKEN: "xoxb-456",
+      SLACK_MCP_XOXD_TOKEN: "xoxd-edge",
+    });
+
+    expect(token.source).toBe("SLACK_MCP_XOXB_TOKEN");
+    expect(token.token).toBe("xoxb-456");
+  });
+
   test("throws config error when user token prefix does not match env key", () => {
     try {
       resolveSlackTokenFromEnv({
@@ -70,5 +90,29 @@ describe("resolveSlackTokenFromEnv", () => {
 
   test("throws config error when both tokens are missing", () => {
     expect(() => resolveSlackTokenFromEnv({})).toThrow("Slack token is not configured.");
+  });
+
+  test("throws unsupported-edge config error when only xoxc token is set", () => {
+    try {
+      resolveSlackTokenFromEnv({
+        SLACK_MCP_XOXC_TOKEN: "xoxc-edge",
+      });
+      throw new Error("Expected resolveSlackTokenFromEnv to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toMatchObject({
+        code: "SLACK_CONFIG_ERROR",
+        message: "Slack edge tokens are unsupported in this environment.",
+        hint: "Unset SLACK_MCP_XOXC_TOKEN/SLACK_MCP_XOXD_TOKEN and set SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
+      });
+    }
+  });
+
+  test("throws unsupported-edge config error when only xoxd token is set", () => {
+    expect(() =>
+      resolveSlackTokenFromEnv({
+        SLACK_MCP_XOXD_TOKEN: "xoxd-edge",
+      }),
+    ).toThrow("Slack edge tokens are unsupported in this environment.");
   });
 });
