@@ -42,6 +42,25 @@ const RELATIVE_DATE_TO_DAYS: Record<string, number> = {
   "90d": 90,
 };
 
+const TOKEN_SOURCES_CLASSIFIED_AS_XOXP_OR_XOXB = new Set([
+  "SLACK_MCP_XOXP_TOKEN",
+  "SLACK_MCP_XOXB_TOKEN",
+  "env:SLACK_MCP_XOXP_TOKEN",
+  "env:SLACK_MCP_XOXB_TOKEN",
+]);
+
+const hasEdgeTokenPrefix = (token: string): boolean => {
+  return token.startsWith("xoxc") || token.startsWith("xoxd");
+};
+
+const isTokenClassifiedAsXoxpOrXoxb = (resolvedToken: ResolvedSlackToken): boolean => {
+  if (resolvedToken.tokenType === "xoxp" || resolvedToken.tokenType === "xoxb") {
+    return true;
+  }
+
+  return TOKEN_SOURCES_CLASSIFIED_AS_XOXP_OR_XOXB.has(resolvedToken.source);
+};
+
 type UrlShortcutNormalization =
   | { normalizedQuery: string }
   | { invalidReason: string; invalidHint: string }
@@ -343,6 +362,18 @@ export const createMessagesSearchHandler = (
           "INVALID_ARGUMENT",
           "messages search requires user token (xoxp).",
           "Set SLACK_MCP_XOXP_TOKEN. Bot tokens cannot call search.messages.",
+          COMMAND_ID,
+        );
+      }
+
+      if (
+        isTokenClassifiedAsXoxpOrXoxb(resolvedToken) === false &&
+        hasEdgeTokenPrefix(resolvedToken.token)
+      ) {
+        return createError(
+          "INVALID_ARGUMENT",
+          "messages search does not support edge API tokens (xoxc/xoxd).",
+          "Use SLACK_MCP_XOXP_TOKEN with a user token (xoxp). Edge API token path is not yet supported for messages search.",
           COMMAND_ID,
         );
       }
