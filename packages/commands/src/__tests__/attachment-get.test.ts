@@ -32,7 +32,9 @@ describe("attachment get command", () => {
     const calls: string[] = [];
 
     const handler = createAttachmentGetHandler({
-      env: {},
+      env: {
+        SLACK_MCP_ATTACHMENT_TOOL: "true",
+      },
       createClient: () => ({
         fetchFileInfo: async (fileId: string) => {
           calls.push(fileId);
@@ -43,6 +45,15 @@ describe("attachment get command", () => {
             filetype: "text",
             size: 128,
             urlPrivate: "https://files.slack.com/files-pri/T123-F999/download",
+          };
+        },
+        fetchFileText: async (urlPrivate: string, maxBytes: number) => {
+          expect(urlPrivate).toBe("https://files.slack.com/files-pri/T123-F999/download");
+          expect(maxBytes).toBe(5 * 1024 * 1024);
+          return {
+            content: "incident line 1\nincident line 2",
+            byteLength: 31,
+            contentType: "text/plain",
           };
         },
       }),
@@ -88,11 +99,103 @@ describe("attachment get command", () => {
     expect(result.data.file.url_private).toBe(
       "https://files.slack.com/files-pri/T123-F999/download",
     );
+    expect(isRecord(result.data.text)).toBe(true);
+    if (!isRecord(result.data.text)) {
+      return;
+    }
+
+    expect(result.data.text.content).toBe("incident line 1\nincident line 2");
+    expect(result.data.text.byte_length).toBe(31);
+    expect(result.data.text.content_type).toBe("text/plain");
+  });
+
+  test("returns deterministic INVALID_ARGUMENT when attachment tool env is disabled", async () => {
+    const handler = createAttachmentGetHandler({
+      env: {},
+      createClient: () => ({
+        fetchFileInfo: async () => {
+          throw new Error("should not be called");
+        },
+        fetchFileText: async () => {
+          throw new Error("should not be called");
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["attachment", "get"],
+      positionals: ["F999"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("ATTACHMENT_TOOL_DISABLED");
+    expect(result.error.hint).toContain("SLACK_MCP_ATTACHMENT_TOOL=true");
+  });
+
+  test("returns INVALID_ARGUMENT when metadata size exceeds text limit", async () => {
+    const handler = createAttachmentGetHandler({
+      env: {
+        SLACK_MCP_ATTACHMENT_TOOL: "1",
+      },
+      createClient: () => ({
+        fetchFileInfo: async () => {
+          return {
+            id: "F-LARGE",
+            name: "huge-log.txt",
+            size: 6 * 1024 * 1024,
+            urlPrivate: "https://files.slack.com/files-pri/T123-F-LARGE/download",
+          };
+        },
+        fetchFileText: async () => {
+          throw new Error("should not be called");
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await handler({
+      commandPath: ["attachment", "get"],
+      positionals: ["F-LARGE"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("ATTACHMENT_TEXT_TOO_LARGE");
   });
 
   test("maps SLACK_API_ERROR to invalid argument with marker", async () => {
     const handler = createAttachmentGetHandler({
-      env: {},
+      env: {
+        SLACK_MCP_ATTACHMENT_TOOL: "true",
+      },
       createClient: () => ({
         fetchFileInfo: async () => {
           throw createSlackClientError({
@@ -101,6 +204,9 @@ describe("attachment get command", () => {
             hint: "Verify file id and scopes.",
             details: "file_not_found",
           });
+        },
+        fetchFileText: async () => {
+          throw new Error("should not be called");
         },
       }),
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
@@ -132,7 +238,9 @@ describe("attachment get command", () => {
 
   test("returns internal error when attachment client contract is unavailable", async () => {
     const handler = createAttachmentGetHandler({
-      env: {},
+      env: {
+        SLACK_MCP_ATTACHMENT_TOOL: "true",
+      },
       createClient: () => ({ listChannels: async () => ({ channels: [] }) }),
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
     });

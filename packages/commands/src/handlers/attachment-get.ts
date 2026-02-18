@@ -7,6 +7,8 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "attachment.get";
 const USAGE_HINT = "Usage: slack attachment get <file-id> [--json]";
+const ATTACHMENT_TOOL_ENV_KEY = "SLACK_MCP_ATTACHMENT_TOOL";
+const MAX_ATTACHMENT_TEXT_BYTES = 5 * 1024 * 1024;
 
 type SlackAttachmentMetadata = {
   id: string;
@@ -28,6 +30,10 @@ type SlackFileInfoMetadata = {
 
 type AttachmentMetadataClient = {
   fetchFileInfo: (fileId: string) => Promise<SlackFileInfoMetadata>;
+  fetchFileText: (
+    urlPrivate: string,
+    maxBytes: number,
+  ) => Promise<{ content: string; byteLength: number; contentType?: string }>;
 };
 
 type CreateClientOptions = {
@@ -81,7 +87,21 @@ const mapSlackClientError = (error: unknown): CliResult => {
 };
 
 const hasAttachmentMetadataClient = (value: unknown): value is AttachmentMetadataClient => {
-  return isRecord(value) && typeof value.fetchFileInfo === "function";
+  return (
+    isRecord(value) &&
+    typeof value.fetchFileInfo === "function" &&
+    typeof value.fetchFileText === "function"
+  );
+};
+
+const isAttachmentToolEnabled = (env: Record<string, string | undefined>): boolean => {
+  const value = env[ATTACHMENT_TOOL_ENV_KEY];
+  if (value === undefined) {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
 };
 
 const mapFileMetadata = (value: SlackFileInfoMetadata): SlackAttachmentMetadata => {
@@ -138,6 +158,15 @@ export const createAttachmentGetHandler = (
 
     const fileId = rawFileId.trim();
 
+    if (!isAttachmentToolEnabled(deps.env)) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "attachment get text path is disabled. [ATTACHMENT_TOOL_DISABLED]",
+        "Set SLACK_MCP_ATTACHMENT_TOOL=true to enable text content retrieval for attachment get.",
+        COMMAND_ID,
+      );
+    }
+
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
@@ -151,15 +180,44 @@ export const createAttachmentGetHandler = (
       }
 
       const metadata = mapFileMetadata(await client.fetchFileInfo(fileId));
+      if (metadata.size !== undefined && metadata.size > MAX_ATTACHMENT_TEXT_BYTES) {
+        return createError(
+          "INVALID_ARGUMENT",
+          `attachment get text path supports up to ${MAX_ATTACHMENT_TEXT_BYTES} bytes. Received: ${metadata.size}. [ATTACHMENT_TEXT_TOO_LARGE]`,
+          "Download a smaller text file or use another tool for larger/binary attachments.",
+          COMMAND_ID,
+        );
+      }
+
+      if (metadata.url_private === undefined || metadata.url_private.trim().length === 0) {
+        return createError(
+          "INVALID_ARGUMENT",
+          "Attachment metadata does not include a private download URL. [ATTACHMENT_TEXT_UNAVAILABLE]",
+          "Ensure file is accessible and files.info includes url_private.",
+          COMMAND_ID,
+        );
+      }
+
+      const textPayload = await client.fetchFileText(
+        metadata.url_private,
+        MAX_ATTACHMENT_TEXT_BYTES,
+      );
+      const textContentLines =
+        textPayload.content.length === 0 ? ["(empty)"] : textPayload.content.split("\n");
 
       return {
         ok: true,
         command: COMMAND_ID,
-        message: `Attachment metadata loaded for ${metadata.id}.`,
+        message: `Attachment metadata and text loaded for ${metadata.id}.`,
         data: {
           file: metadata,
+          text: {
+            content: textPayload.content,
+            byte_length: textPayload.byteLength,
+            content_type: textPayload.contentType,
+          },
         },
-        textLines: buildTextLines(metadata),
+        textLines: [...buildTextLines(metadata), "", "Text content:", ...textContentLines],
       };
     } catch (error) {
       return mapSlackClientError(error);
