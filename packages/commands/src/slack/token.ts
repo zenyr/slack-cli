@@ -19,6 +19,18 @@ const readNonEmptyEnv = (
   return normalized.length > 0 ? normalized : undefined;
 };
 
+const ensureTokenPrefix = (token: string, envKey: string, expectedPrefix: string): void => {
+  if (token.startsWith(expectedPrefix)) {
+    return;
+  }
+
+  throw createSlackClientError({
+    code: "SLACK_CONFIG_ERROR",
+    message: `${envKey} must start with ${expectedPrefix}.`,
+    hint: `Set ${envKey} to a token that starts with ${expectedPrefix}.`,
+  });
+};
+
 const mapAuthErrorCode = (code: string): SlackClientErrorCode => {
   if (code === "AUTH_STORE_ERROR") {
     return "SLACK_CONFIG_ERROR";
@@ -93,6 +105,7 @@ export const resolveSlackTokenFromEnv = (
 ): ResolvedSlackToken => {
   const userToken = readNonEmptyEnv(env, XOXP_ENV_KEY);
   if (userToken !== undefined) {
+    ensureTokenPrefix(userToken, XOXP_ENV_KEY, "xoxp");
     return {
       token: userToken,
       source: XOXP_ENV_KEY,
@@ -102,6 +115,7 @@ export const resolveSlackTokenFromEnv = (
 
   const botToken = readNonEmptyEnv(env, XOXB_ENV_KEY);
   if (botToken !== undefined) {
+    ensureTokenPrefix(botToken, XOXB_ENV_KEY, "xoxb");
     return {
       token: botToken,
       source: XOXB_ENV_KEY,
