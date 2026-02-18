@@ -2,6 +2,7 @@ export { createSlackWebApiClient } from "./client";
 export { resolveSlackToken, resolveSlackTokenFromEnv } from "./token";
 export type {
   ResolvedSlackToken,
+  SlackAttachmentWebApiClient,
   SlackChannel,
   SlackChannelHistoryResult,
   SlackChannelRepliesResult,
@@ -9,6 +10,7 @@ export type {
   SlackChannelType,
   SlackClientError,
   SlackClientErrorCode,
+  SlackFileMetadata,
   SlackListChannelsOptions,
   SlackListChannelsResult,
   SlackListUsersResult,

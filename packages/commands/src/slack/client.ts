@@ -1,12 +1,14 @@
 import { resolveSlackToken, resolveSlackTokenFromEnv } from "./token";
 import type {
   ResolvedSlackToken,
+  SlackAttachmentWebApiClient,
   SlackAuthWebApiClient,
   SlackChannel,
   SlackChannelHistoryResult,
   SlackChannelRepliesResult,
   SlackChannelType,
   SlackCreateUsergroupParams,
+  SlackFileMetadata,
   SlackListChannelsOptions,
   SlackListChannelsResult,
   SlackListUsergroupsOptions,
@@ -263,6 +265,27 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
   };
 };
 
+const mapFileMetadata = (value: unknown): SlackFileMetadata | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const id = readString(value, "id");
+  const name = readString(value, "name");
+  if (id === undefined || name === undefined) {
+    return undefined;
+  }
+
+  return {
+    id,
+    name,
+    mimetype: readString(value, "mimetype"),
+    filetype: readString(value, "filetype"),
+    size: readNumber(value, "size"),
+    urlPrivate: readString(value, "url_private"),
+  };
+};
+
 const isActivityOrSystemMessage = (value: Record<string, unknown>): boolean => {
   const type = readString(value, "type");
   if (type !== undefined && type !== "message") {
@@ -276,6 +299,7 @@ const isActivityOrSystemMessage = (value: Record<string, unknown>): boolean => {
 export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
 ): SlackWebApiClient &
+  SlackAttachmentWebApiClient &
   SlackUsergroupsWebApiClient &
   SlackAuthWebApiClient &
   SlackUsergroupsUsersListWebApiClient &
@@ -663,6 +687,33 @@ export const createSlackWebApiClient = (
     };
   };
 
+  const fetchFileInfo = async (fileId: string): Promise<SlackFileMetadata> => {
+    const normalizedFileId = fileId.trim();
+    if (normalizedFileId.length === 0) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: "File id is empty.",
+        hint: "Provide non-empty file id for files.info.",
+      });
+    }
+
+    const payloadData = await callApi(
+      "files.info",
+      new URLSearchParams({ file: normalizedFileId }),
+    );
+    const fileMetadata = mapFileMetadata(readRecord(payloadData, "file"));
+
+    if (fileMetadata === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack API returned malformed files.info payload.",
+        hint: "Verify token scopes and file visibility for files.info.",
+      });
+    }
+
+    return fileMetadata;
+  };
+
   const fetchChannelHistory = async (params: {
     channel: string;
     limit?: number;
@@ -877,6 +928,7 @@ export const createSlackWebApiClient = (
     updateUsergroup,
     updateUsergroupUsers,
     searchMessages,
+    fetchFileInfo,
     fetchChannelHistory,
     fetchMessageReplies,
     postMessage,
