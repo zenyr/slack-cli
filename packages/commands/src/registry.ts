@@ -15,6 +15,7 @@ import {
   messagesRepliesHandler,
   messagesSearchHandler,
   usersListHandler,
+  usersSearchHandler,
 } from "./handlers/stubs";
 import { toolsHandler } from "./handlers/tools";
 import { usergroupsCreateHandler } from "./handlers/usergroups-create";
@@ -82,6 +83,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "users-list",
     path: ["users", "list"],
     execute: usersListHandler,
+  },
+  {
+    id: "users-search",
+    path: ["users", "search"],
+    execute: usersSearchHandler,
   },
   {
     id: "attachment-get",

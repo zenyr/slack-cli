@@ -55,6 +55,11 @@ export const COMMANDS: CliCommand[] = [
     description: "List users",
   },
   {
+    name: "users search",
+    args: "[<query>] [--cursor=<cursor>] [--limit=<n>] [--json]",
+    description: "Search users",
+  },
+  {
     name: "attachment get",
     args: "<file-id> [--json]",
     description: "Get attachment metadata by file id",

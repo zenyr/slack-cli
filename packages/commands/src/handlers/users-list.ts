@@ -158,6 +158,8 @@ const matchesUserFilter = (user: SlackUser, regexp: RegExp): boolean => {
 
 type UsersListHandlerDeps = {
   createClient: () => SlackWebApiClient;
+  commandId?: string;
+  commandLabel?: string;
 };
 
 const QUERY_AUTOPAGE_MAX_PAGES = 5;
@@ -202,6 +204,8 @@ const listUsersWithOptionalAutoPagination = async (
 
 const defaultUsersListDeps: UsersListHandlerDeps = {
   createClient: createSlackWebApiClient,
+  commandId: "users.list",
+  commandLabel: undefined,
 };
 
 export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDeps> = {}) => {
@@ -211,7 +215,8 @@ export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDe
   };
 
   return async (request: CommandRequest): Promise<CliResult> => {
-    const command = commandLabel(request.commandPath);
+    const commandId = deps.commandId ?? commandLabel(request.commandPath);
+    const command = deps.commandLabel ?? request.commandPath.join(" ");
     const cursorOrError = parseCursorOption(request.options, command);
     if (isCliErrorResult(cursorOrError)) {
       return cursorOrError;
@@ -266,7 +271,7 @@ export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDe
 
       return {
         ok: true,
-        command: "users.list",
+        command: commandId,
         message: appliedQuery
           ? `Listed ${filteredUsers.length} users (query: ${appliedQuery})`
           : `Listed ${result.users.length} users`,
