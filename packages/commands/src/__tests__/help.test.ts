@@ -52,6 +52,11 @@ describe("help command", () => {
     const result = await runCliWithBuffer(["messages", "--help"]);
 
     expect(result.exitCode).toBe(0);
+    expect(
+      result.stdout.some((line) =>
+        line.includes("post <channel-id> <text> [--thread-ts=<ts>] [--json]"),
+      ),
+    ).toBe(true);
     expect(result.stdout.some((line) => line.includes("search <query> [--channel"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("--after YYYY-MM-DD"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("--threads"))).toBe(true);
@@ -73,6 +78,17 @@ describe("help command", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout.some((line) => line.includes("list [<query>] [--json]"))).toBe(true);
     expect(result.stderr.length).toBe(0);
+  });
+
+  test("users list pagination options are exposed in command diagnostics", async () => {
+    const cursorResult = await runCliWithBuffer(["users", "list", "--cursor"]);
+    const limitResult = await runCliWithBuffer(["users", "list", "--limit"]);
+
+    expect(cursorResult.exitCode).toBe(2);
+    expect(cursorResult.stderr.some((line) => line.includes("--cursor=<cursor>"))).toBe(true);
+
+    expect(limitResult.exitCode).toBe(2);
+    expect(limitResult.stderr.some((line) => line.includes("--limit=<n>"))).toBe(true);
   });
 
   test("usergroups namespace help shows extended list and users update syntax", async () => {
