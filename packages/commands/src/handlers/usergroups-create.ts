@@ -2,10 +2,11 @@ import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import type { SlackClientError, SlackUsergroupsWebApiClient } from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
-import type { CliResult, CommandRequest } from "../types";
+import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "usergroups.create";
-const USAGE_HINT = "Usage: slack usergroups create <name> <handle> [--json]";
+const USAGE_HINT =
+  "Usage: slack usergroups create <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]";
 
 const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   switch (error.code) {
@@ -25,6 +26,84 @@ type UsergroupsCreateHandlerDeps = {
 
 const defaultUsergroupsCreateDeps: UsergroupsCreateHandlerDeps = {
   createClient: createSlackWebApiClient,
+};
+
+const isCliErrorResult = (value: string | string[] | undefined | CliResult): value is CliResult => {
+  return typeof value === "object" && value !== null && "ok" in value;
+};
+
+const readDescriptionOption = (options: CliOptions): string | undefined | CliResult => {
+  const rawDescription = options.description;
+  if (rawDescription === undefined) {
+    return undefined;
+  }
+
+  if (rawDescription === true) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "usergroups create --description requires a value. [MISSING_ARGUMENT]",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  if (typeof rawDescription !== "string") {
+    return createError(
+      "INVALID_ARGUMENT",
+      "usergroups create --description requires a string value.",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  const description = rawDescription.trim();
+  if (description.length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "usergroups create --description value cannot be empty. [MISSING_ARGUMENT]",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  return description;
+};
+
+const readChannelsOption = (options: CliOptions): string[] | undefined | CliResult => {
+  const rawChannels = options.channels;
+  if (rawChannels === undefined) {
+    return undefined;
+  }
+
+  if (rawChannels === true) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "usergroups create --channels requires a value. [MISSING_ARGUMENT]",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  if (typeof rawChannels !== "string") {
+    return createError(
+      "INVALID_ARGUMENT",
+      "usergroups create --channels requires a string value.",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  const channels = rawChannels.split(",").map((value) => value.trim());
+  if (channels.length === 0 || channels.some((value) => value.length === 0)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "usergroups create --channels must be comma-separated non-empty channel ids.",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  return channels;
 };
 
 export const createUsergroupsCreateHandler = (
@@ -68,9 +147,24 @@ export const createUsergroupsCreateHandler = (
     const name = rawName.trim();
     const handle = rawHandle.trim();
 
+    const descriptionOrError = readDescriptionOption(request.options);
+    if (isCliErrorResult(descriptionOrError)) {
+      return descriptionOrError;
+    }
+
+    const channelsOrError = readChannelsOption(request.options);
+    if (isCliErrorResult(channelsOrError)) {
+      return channelsOrError;
+    }
+
     try {
       const client = deps.createClient();
-      const usergroup = await client.createUsergroup({ name, handle });
+      const usergroup = await client.createUsergroup({
+        name,
+        handle,
+        description: descriptionOrError,
+        channels: channelsOrError,
+      });
 
       return {
         ok: true,
