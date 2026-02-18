@@ -65,6 +65,8 @@ const createAuthError = (
   return Object.assign(error, { code, hint });
 };
 
+const DEFAULT_AUTH_RUNTIME_MESSAGE = "Auth command failed due to unexpected runtime error.";
+
 describe("auth handlers", () => {
   test("validates auth login required options", async () => {
     const handler = createAuthLoginHandler({
@@ -274,6 +276,62 @@ describe("auth handlers", () => {
     expect(result.error.hint).toBe(hint);
   });
 
+  test("maps auth use config error to invalid argument and preserves message/hint", async () => {
+    const message = "auth use target must be one of: xoxp, xoxb.";
+    const hint = "Use exactly one target argument: xoxp or xoxb.";
+    const handler = createAuthUseHandler({
+      getAuthLayer: async () => {
+        return {
+          ...createMockLayer(),
+          use: async () => {
+            throw createAuthError("AUTH_CONFIG_ERROR", message, hint);
+          },
+        };
+      },
+    });
+
+    const result = await handler(createRequest(["auth", "use"], ["xoxp"]));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.use");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe(message);
+    expect(result.error.hint).toBe(hint);
+  });
+
+  test("maps auth login config error without message to deterministic defaults", async () => {
+    const handler = createAuthLoginHandler({
+      getAuthLayer: async () => {
+        return {
+          ...createMockLayer(),
+          login: async () => {
+            throw {
+              code: "AUTH_CONFIG_ERROR",
+            };
+          },
+        };
+      },
+    });
+
+    const result = await handler(
+      createRequest(["auth", "login"], [], { type: "xoxp", token: "xoxp-token" }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.login");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe(DEFAULT_AUTH_RUNTIME_MESSAGE);
+    expect(result.error.hint).toBeUndefined();
+  });
+
   test("validates auth use target argument", async () => {
     const handler = createAuthUseHandler({
       getAuthLayer: async () => createMockLayer(),
@@ -355,6 +413,61 @@ describe("auth handlers", () => {
     expect(result.command).toBe("auth.check");
     expect(result.error.code).toBe("INTERNAL_ERROR");
     expect(result.error.message).toBe("Failed to read auth store.");
+    expect(result.error.hint).toBeUndefined();
+  });
+
+  test("maps auth whoami store error to internal error and preserves hint", async () => {
+    const message = "Failed to read auth store.";
+    const hint = "Re-run login to restore local auth state.";
+    const handler = createAuthWhoamiHandler({
+      getAuthLayer: async () => {
+        return {
+          ...createMockLayer(),
+          whoami: async () => {
+            throw createAuthError("AUTH_STORE_ERROR", message, hint);
+          },
+        };
+      },
+    });
+
+    const result = await handler(createRequest(["auth", "whoami"]));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.whoami");
+    expect(result.error.code).toBe("INTERNAL_ERROR");
+    expect(result.error.message).toBe(message);
+    expect(result.error.hint).toBe(hint);
+  });
+
+  test("maps auth store error without message to deterministic defaults", async () => {
+    const handler = createAuthCheckHandler({
+      getAuthLayer: async () => {
+        return {
+          ...createMockLayer(),
+          check: async () => {
+            throw {
+              code: "AUTH_STORE_ERROR",
+            };
+          },
+        };
+      },
+    });
+
+    const result = await handler(createRequest(["auth", "check"]));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.check");
+    expect(result.error.code).toBe("INTERNAL_ERROR");
+    expect(result.error.message).toBe(DEFAULT_AUTH_RUNTIME_MESSAGE);
+    expect(result.error.hint).toBeUndefined();
   });
 
   test("maps slack auth invalid token to invalid argument", async () => {
@@ -379,5 +492,60 @@ describe("auth handlers", () => {
     expect(result.command).toBe("auth.check");
     expect(result.error.code).toBe("INVALID_ARGUMENT");
     expect(result.error.message).toBe("Slack token is invalid or inactive.");
+    expect(result.error.hint).toBeUndefined();
+  });
+
+  test("maps slack auth error to invalid argument and preserves hint", async () => {
+    const message = "Slack token is invalid or inactive.";
+    const hint = "Run slack auth login with a fresh token.";
+    const handler = createAuthCheckHandler({
+      getAuthLayer: async () => {
+        return {
+          ...createMockLayer(),
+          check: async () => {
+            throw createAuthError("AUTH_SLACK_AUTH_ERROR", message, hint);
+          },
+        };
+      },
+    });
+
+    const result = await handler(createRequest(["auth", "check"]));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.check");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe(message);
+    expect(result.error.hint).toBe(hint);
+  });
+
+  test("maps slack auth error without message to deterministic defaults", async () => {
+    const handler = createAuthWhoamiHandler({
+      getAuthLayer: async () => {
+        return {
+          ...createMockLayer(),
+          whoami: async () => {
+            throw {
+              code: "AUTH_SLACK_AUTH_ERROR",
+            };
+          },
+        };
+      },
+    });
+
+    const result = await handler(createRequest(["auth", "whoami"]));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.whoami");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe(DEFAULT_AUTH_RUNTIME_MESSAGE);
+    expect(result.error.hint).toBeUndefined();
   });
 });
