@@ -433,98 +433,127 @@ describe("messages replies command", () => {
     expect(parsed.textLines).toContain("1700000002.000100 U001 that sounds good");
   });
 
-  test("maps SLACK_API_ERROR to invalid argument with marker", async () => {
-    const handler = createMessagesRepliesHandler({
-      env: {},
-      createClient: () => ({
-        listChannels: async () => ({ channels: [] }),
-        listUsers: async () => ({ users: [] }),
-        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
-        fetchChannelHistory: async () => ({
-          channel: "",
-          messages: [],
-        }),
-        fetchMessageReplies: async () => {
-          throw createSlackClientError({
-            code: "SLACK_API_ERROR",
-            message: "Slack API request failed: channel_not_found.",
-            hint: "Verify channel id and scopes.",
-            details: "channel_not_found",
-          });
-        },
-      }),
-      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
-    });
+  const deterministicSlackErrorCases = [
+    {
+      title: "maps SLACK_CONFIG_ERROR to INVALID_ARGUMENT without marker",
+      slackCode: "SLACK_CONFIG_ERROR",
+      message: "Slack token is not configured.",
+      hint: "Set SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN in environment.",
+      details: undefined,
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedMarker: undefined,
+      expectedDetail: undefined,
+    },
+    {
+      title: "maps SLACK_AUTH_ERROR to INVALID_ARGUMENT with AUTH_ERROR marker",
+      slackCode: "SLACK_AUTH_ERROR",
+      message: "Slack authentication failed: invalid_auth.",
+      hint: "Use a valid token with required scopes in SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
+      details: undefined,
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedMarker: "AUTH_ERROR",
+      expectedDetail: undefined,
+    },
+    {
+      title: "maps SLACK_API_ERROR to INVALID_ARGUMENT with SLACK_API_ERROR marker",
+      slackCode: "SLACK_API_ERROR",
+      message: "Slack API request failed: channel_not_found.",
+      hint: "Verify channel id and scopes.",
+      details: "channel_not_found",
+      expectedCliCode: "INVALID_ARGUMENT",
+      expectedMarker: "SLACK_API_ERROR",
+      expectedDetail: "channel_not_found",
+    },
+    {
+      title: "maps SLACK_HTTP_ERROR to INTERNAL_ERROR without marker",
+      slackCode: "SLACK_HTTP_ERROR",
+      message: "Slack HTTP transport failed with status 503.",
+      hint: "Check network path and retry.",
+      details: undefined,
+      expectedCliCode: "INTERNAL_ERROR",
+      expectedMarker: undefined,
+      expectedDetail: undefined,
+    },
+    {
+      title: "maps SLACK_RESPONSE_ERROR to INTERNAL_ERROR without marker",
+      slackCode: "SLACK_RESPONSE_ERROR",
+      message: "Slack response payload missing thread message metadata.",
+      hint: "Capture raw response and validate schema assumptions.",
+      details: undefined,
+      expectedCliCode: "INTERNAL_ERROR",
+      expectedMarker: undefined,
+      expectedDetail: undefined,
+    },
+  ] as const;
 
-    const result = await handler({
-      commandPath: ["messages", "replies"],
-      positionals: ["C999", "1700000000.000000"],
-      options: {},
-      flags: {
-        json: true,
-        help: false,
-        version: false,
-      },
-      context: {
-        version: "1.2.3",
-      },
-    });
+  deterministicSlackErrorCases.forEach(
+    ({
+      title,
+      slackCode,
+      message,
+      hint,
+      details,
+      expectedCliCode,
+      expectedMarker,
+      expectedDetail,
+    }) => {
+      test(title, async () => {
+        const handler = createMessagesRepliesHandler({
+          env: {},
+          createClient: () => ({
+            listChannels: async () => ({ channels: [] }),
+            listUsers: async () => ({ users: [] }),
+            searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+            fetchChannelHistory: async () => ({
+              channel: "",
+              messages: [],
+            }),
+            fetchMessageReplies: async () => {
+              throw createSlackClientError({
+                code: slackCode,
+                message,
+                hint,
+                details,
+              });
+            },
+          }),
+          resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+        });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
-    }
+        const result = await handler({
+          commandPath: ["messages", "replies"],
+          positionals: ["C999", "1700000000.000000"],
+          options: {},
+          flags: {
+            json: true,
+            help: false,
+            version: false,
+          },
+          context: {
+            version: "1.2.3",
+          },
+        });
 
-    expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("SLACK_API_ERROR");
-    expect(result.error.message).toContain("channel_not_found");
-    expect(result.error.hint).toBe("Verify channel id and scopes.");
-  });
+        expect(result.ok).toBe(false);
+        if (result.ok) {
+          return;
+        }
 
-  test("maps SLACK_AUTH_ERROR to invalid argument with AUTH_ERROR marker", async () => {
-    const handler = createMessagesRepliesHandler({
-      env: {},
-      createClient: () => ({
-        listChannels: async () => ({ channels: [] }),
-        listUsers: async () => ({ users: [] }),
-        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
-        fetchChannelHistory: async () => ({
-          channel: "",
-          messages: [],
-        }),
-        fetchMessageReplies: async () => {
-          throw createSlackClientError({
-            code: "SLACK_AUTH_ERROR",
-            message: "Slack authentication failed: invalid_auth.",
-            hint: "Use a valid token with required scopes in SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
-          });
-        },
-      }),
-      resolveToken: () => ({ token: "xoxp-bad", source: "SLACK_MCP_XOXP_TOKEN" }),
-    });
+        expect(result.error.code).toBe(expectedCliCode);
+        expect(result.error.hint).toBe(hint);
+        if (expectedMarker === undefined) {
+          expect(result.error.message).not.toContain("AUTH_ERROR");
+          expect(result.error.message).not.toContain("SLACK_API_ERROR");
+        } else {
+          expect(result.error.message).toContain(expectedMarker);
+        }
 
-    const result = await handler({
-      commandPath: ["messages", "replies"],
-      positionals: ["C123", "1700000000.000000"],
-      options: {},
-      flags: {
-        json: true,
-        help: false,
-        version: false,
-      },
-      context: {
-        version: "1.2.3",
-      },
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
-    }
-
-    expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("AUTH_ERROR");
-  });
+        if (expectedDetail !== undefined) {
+          expect(result.error.message).toContain(expectedDetail);
+        }
+      });
+    },
+  );
 
   const edgeTokenGuardCases: Array<{
     title: string;
