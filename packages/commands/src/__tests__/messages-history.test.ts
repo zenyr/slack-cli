@@ -186,90 +186,129 @@ describe("messages history command", () => {
     expect(parsed.textLines).toContain("1700000002.000100 U001 deployed");
   });
 
-  test("maps SLACK_API_ERROR to invalid argument with marker", async () => {
-    const handler = createMessagesHistoryHandler({
-      env: {},
-      createClient: () => ({
-        listChannels: async () => ({ channels: [] }),
-        listUsers: async () => ({ users: [] }),
-        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
-        fetchChannelHistory: async () => {
-          throw createSlackClientError({
-            code: "SLACK_API_ERROR",
-            message: "Slack API request failed: channel_not_found.",
-            hint: "Verify channel id and scopes.",
-            details: "channel_not_found",
-          });
-        },
-      }),
-      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
-    });
-
-    const result = await handler({
-      commandPath: ["messages", "history"],
-      positionals: ["C999"],
-      options: {},
-      flags: {
-        json: true,
-        help: false,
-        version: false,
+  const slackClientErrorMappingCases: Array<{
+    title: string;
+    clientErrorArgs: Parameters<typeof createSlackClientError>[0];
+    expectedCode: "INVALID_ARGUMENT" | "INTERNAL_ERROR";
+    expectedMarker?: string;
+    expectedHint?: string;
+    expectedMessageIncludes?: string;
+  }> = [
+    {
+      title: "SLACK_CONFIG_ERROR -> INVALID_ARGUMENT without marker",
+      clientErrorArgs: {
+        code: "SLACK_CONFIG_ERROR",
+        message: "Missing Slack token configuration.",
+        hint: "Set SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
       },
-      context: {
-        version: "1.2.3",
+      expectedCode: "INVALID_ARGUMENT",
+      expectedHint: "Set SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
+    },
+    {
+      title: "SLACK_AUTH_ERROR -> INVALID_ARGUMENT with [AUTH_ERROR] marker",
+      clientErrorArgs: {
+        code: "SLACK_AUTH_ERROR",
+        message: "Slack authentication failed: invalid_auth.",
+        hint: "Use a valid token with required scopes in SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
       },
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
-    }
-
-    expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("SLACK_API_ERROR");
-    expect(result.error.message).toContain("channel_not_found");
-    expect(result.error.hint).toBe("Verify channel id and scopes.");
-  });
-
-  test("maps SLACK_AUTH_ERROR to invalid argument with AUTH_ERROR marker", async () => {
-    const handler = createMessagesHistoryHandler({
-      env: {},
-      createClient: () => ({
-        listChannels: async () => ({ channels: [] }),
-        listUsers: async () => ({ users: [] }),
-        searchMessages: async () => ({ query: "", total: 0, messages: [] }),
-        fetchChannelHistory: async () => {
-          throw createSlackClientError({
-            code: "SLACK_AUTH_ERROR",
-            message: "Slack authentication failed: invalid_auth.",
-            hint: "Use a valid token with required scopes in SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
-          });
-        },
-      }),
-      resolveToken: () => ({ token: "xoxp-bad", source: "SLACK_MCP_XOXP_TOKEN" }),
-    });
-
-    const result = await handler({
-      commandPath: ["messages", "history"],
-      positionals: ["C123"],
-      options: {},
-      flags: {
-        json: true,
-        help: false,
-        version: false,
+      expectedCode: "INVALID_ARGUMENT",
+      expectedMarker: "[AUTH_ERROR]",
+      expectedHint:
+        "Use a valid token with required scopes in SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
+    },
+    {
+      title: "SLACK_API_ERROR -> INVALID_ARGUMENT with [SLACK_API_ERROR] marker",
+      clientErrorArgs: {
+        code: "SLACK_API_ERROR",
+        message: "Slack API request failed: channel_not_found.",
+        hint: "Verify channel id and scopes.",
+        details: "channel_not_found",
       },
-      context: {
-        version: "1.2.3",
+      expectedCode: "INVALID_ARGUMENT",
+      expectedMarker: "[SLACK_API_ERROR]",
+      expectedHint: "Verify channel id and scopes.",
+      expectedMessageIncludes: "channel_not_found",
+    },
+    {
+      title: "SLACK_HTTP_ERROR -> INTERNAL_ERROR without marker",
+      clientErrorArgs: {
+        code: "SLACK_HTTP_ERROR",
+        message: "Slack HTTP error (503 Service Unavailable).",
+        hint: "Retry after a short delay.",
       },
-    });
+      expectedCode: "INTERNAL_ERROR",
+      expectedHint: "Retry after a short delay.",
+    },
+    {
+      title: "SLACK_RESPONSE_ERROR -> INTERNAL_ERROR without marker",
+      clientErrorArgs: {
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack returned invalid JSON payload.",
+        hint: "Inspect upstream proxy/response transforms.",
+      },
+      expectedCode: "INTERNAL_ERROR",
+      expectedHint: "Inspect upstream proxy/response transforms.",
+    },
+  ];
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      return;
-    }
+  slackClientErrorMappingCases.forEach(
+    ({
+      title,
+      clientErrorArgs,
+      expectedCode,
+      expectedMarker,
+      expectedHint,
+      expectedMessageIncludes,
+    }) => {
+      test(`maps ${title}`, async () => {
+        const handler = createMessagesHistoryHandler({
+          env: {},
+          createClient: () => ({
+            listChannels: async () => ({ channels: [] }),
+            listUsers: async () => ({ users: [] }),
+            searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+            fetchChannelHistory: async () => {
+              throw createSlackClientError(clientErrorArgs);
+            },
+          }),
+          resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+        });
 
-    expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("AUTH_ERROR");
-  });
+        const result = await handler({
+          commandPath: ["messages", "history"],
+          positionals: ["C123"],
+          options: {},
+          flags: {
+            json: true,
+            help: false,
+            version: false,
+          },
+          context: {
+            version: "1.2.3",
+          },
+        });
+
+        expect(result.ok).toBe(false);
+        if (result.ok) {
+          return;
+        }
+
+        expect(result.error.code).toBe(expectedCode);
+        expect(result.error.hint).toBe(expectedHint);
+
+        if (expectedMarker === undefined) {
+          expect(result.error.message).not.toContain("[AUTH_ERROR]");
+          expect(result.error.message).not.toContain("[SLACK_API_ERROR]");
+        } else {
+          expect(result.error.message).toContain(expectedMarker);
+        }
+
+        if (expectedMessageIncludes !== undefined) {
+          expect(result.error.message).toContain(expectedMessageIncludes);
+        }
+      });
+    },
+  );
 
   const edgeTokenGuardCases: Array<{
     title: string;
