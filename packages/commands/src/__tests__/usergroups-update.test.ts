@@ -66,7 +66,9 @@ describe("usergroups update command", () => {
 
     const lines = parsed.textLines.filter((line): line is string => typeof line === "string");
     const updateLine = lines.find((line) =>
-      line.includes("update <usergroup-id> <name> <handle> [--json]"),
+      line.includes(
+        "update <usergroup-id> <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+      ),
     );
     expect(updateLine).toBeDefined();
     expect(updateLine).not.toContain("--name");
@@ -170,7 +172,123 @@ describe("usergroups update command", () => {
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toContain("MISSING_ARGUMENT");
     expect(parsed.error.hint).toBe(
-      "Usage: slack usergroups update <usergroup-id> <name> <handle> [--json]",
+      "Usage: slack usergroups update <usergroup-id> <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+    );
+  });
+
+  test("forwards optional description and channels metadata only when provided", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    delete process.env[XOXB_ENV_KEY];
+
+    const mockFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = String(init?.body);
+        const params = new URLSearchParams(body);
+        expect(params.get("usergroup")).toBe("S001");
+        expect(params.get("name")).toBe("Engineering Core");
+        expect(params.get("handle")).toBe("eng-core");
+        expect(params.get("description")).toBe("Core eng team");
+        expect(params.get("channels")).toBe("C001,C002");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            usergroup: {
+              id: "S001",
+              handle: "eng-core",
+              name: "Engineering Core",
+              description: "Core eng team",
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockFetch;
+
+    const result = await runCliWithBuffer([
+      "usergroups",
+      "update",
+      "S001",
+      "Engineering Core",
+      "eng-core",
+      "--description=Core eng team",
+      "--channels=C001,C002",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr.length).toBe(0);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(true);
+  });
+
+  test.each([
+    {
+      title: "returns INVALID_ARGUMENT for --description without value",
+      args: ["--description"],
+      expectedMessage: "usergroups update --description requires a value. [MISSING_ARGUMENT]",
+    },
+    {
+      title: "returns INVALID_ARGUMENT for --description empty value",
+      args: ["--description="],
+      expectedMessage: "usergroups update --description value cannot be empty. [MISSING_ARGUMENT]",
+    },
+    {
+      title: "returns INVALID_ARGUMENT for --channels without value",
+      args: ["--channels"],
+      expectedMessage: "usergroups update --channels requires a value. [MISSING_ARGUMENT]",
+    },
+    {
+      title: "returns INVALID_ARGUMENT for --channels empty value",
+      args: ["--channels=   "],
+      expectedMessage: "usergroups update --channels value cannot be empty. [MISSING_ARGUMENT]",
+    },
+    {
+      title: "returns INVALID_ARGUMENT for --channels with empty token",
+      args: ["--channels=C001,,C003"],
+      expectedMessage:
+        "usergroups update --channels must contain non-empty comma-separated channel ids. Received: C001,,C003",
+    },
+  ])("$title", async ({ args, expectedMessage }) => {
+    const result = await runCliWithBuffer([
+      "usergroups",
+      "update",
+      "S001",
+      "Engineering Core",
+      "eng-core",
+      ...args,
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr.length).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toBe(expectedMessage);
+    expect(parsed.error.hint).toBe(
+      "Usage: slack usergroups update <usergroup-id> <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     );
   });
 

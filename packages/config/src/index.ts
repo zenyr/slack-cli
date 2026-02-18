@@ -91,7 +91,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "usergroups update",
-    args: "<usergroup-id> <name> <handle> [--json]",
+    args: "<usergroup-id> <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     description: "Update user group metadata",
   },
   {
