@@ -91,6 +91,8 @@ describe("help command", () => {
         line.includes("search [<query>] [--cursor=<cursor>] [--limit=<n>] [--json]"),
       ),
     ).toBe(true);
+    expect(result.stdout.some((line) => line.includes("xoxc"))).toBe(false);
+    expect(result.stdout.some((line) => line.includes("xoxd"))).toBe(false);
     expect(result.stdout.some((line) => line.includes("list [<query>] [--json]"))).toBe(false);
     expect(result.stderr.length).toBe(0);
   });
