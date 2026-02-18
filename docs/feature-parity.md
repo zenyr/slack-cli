@@ -39,7 +39,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - [x] `messages search` - search messages workspace-wide
   - **Org equiv**: `conversations_search_messages` tool
   - **Status**: Multi-filter implemented (`--channel`, `--user`, `--after`, `--before`, `--threads`)
-  - **Gap**: Flexible date parsing and URL extraction remain deferred
+  - **Progress**: Slack permalink URL shortcut extraction/normalization delivered (`/archives/<channel-id>/p<message-ts>`)
+  - **Gap**: Flexible date parsing remains deferred
 
 - [x] `messages history` - fetch channel history with pagination
   - **Org equiv**: `conversations_history` tool
@@ -270,13 +271,15 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Text vs binary base64 encoding (MIME detection)
   - Env guard (SLACK_MCP_ATTACHMENT_TOOL)
 - **Complexity**: Medium (file download, encoding, size limits)
-- **Current state**: metadata-only boundary slice delivered (`attachment get` command path + `files.info` client integration)
+- **Current state**: metadata + env-guarded text path delivered (`attachment get` + `files.info` + private URL text retrieval)
 - **Delivered in merge set**:
   - `files.info` metadata type/client contract (`fetchFileInfo`)
   - `attachment get <file-id>` command wiring (handler + registry + config)
   - targeted client/handler tests for metadata flow
-- **Remaining gap**: file download, base64 mode, size-limit guard, env guard rollout
-- **Next smallest unit**: env-guarded download pipeline (start with text-only path, no binary branching)
+  - explicit env guard (`SLACK_MCP_ATTACHMENT_TOOL`) with deterministic disabled-path error
+  - text retrieval API path (`fetchFileText`) with 5MB limit enforcement
+- **Remaining gap**: binary/base64 mode and broader download behavior parity
+- **Next smallest unit**: add binary/base64 branch with MIME-aware encoding while preserving text-path compatibility
 
 #### Cache Layer (Infrastructure)
 - **Org features**:
