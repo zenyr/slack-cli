@@ -8,11 +8,13 @@ describe("messages search command", () => {
   const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
   const XOXB_ENV_KEY = "SLACK_MCP_XOXB_TOKEN";
   const originalFetch = globalThis.fetch;
+  const originalDateNow = Date.now;
   const originalXoxpToken = process.env[XOXP_ENV_KEY];
   const originalXoxbToken = process.env[XOXB_ENV_KEY];
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    Date.now = originalDateNow;
 
     if (originalXoxpToken === undefined) {
       delete process.env[XOXP_ENV_KEY];
@@ -298,6 +300,96 @@ describe("messages search command", () => {
 
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.hint).toContain("YYYY-MM-DD");
+  });
+
+  test("normalizes relative --after and --before values into calendar dates", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    delete process.env[XOXB_ENV_KEY];
+    Date.now = () => Date.UTC(2026, 1, 15, 12, 0, 0);
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const requestUrl = input instanceof URL ? input.toString() : String(input);
+        expect(requestUrl).toContain("/search.messages");
+
+        const request = new URL(requestUrl, "https://slack.com");
+        expect(request.searchParams.get("query")).toBe("deploy after:2026-02-08 before:2026-02-14");
+
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer xoxp-test-token");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            messages: {
+              total: 1,
+              matches: [],
+            },
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "search",
+      "deploy",
+      "--after",
+      "1w",
+      "--before",
+      "1d",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr.length).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(true);
+    expect(isRecord(parsed.data)).toBe(true);
+    if (!isRecord(parsed.data)) {
+      return;
+    }
+
+    expect(parsed.data.query).toBe("deploy after:2026-02-08 before:2026-02-14");
+  });
+
+  test("returns invalid argument for unsupported relative --after value", async () => {
+    const result = await runCliWithBuffer([
+      "messages",
+      "search",
+      "deploy",
+      "--after",
+      "2w",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr.length).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(false);
+    if (isRecord(parsed.error) === false) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.hint).toContain("1d, 1w, 30d, 90d");
   });
 
   test("returns invalid argument for bot token", async () => {
