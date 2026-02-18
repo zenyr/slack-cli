@@ -140,6 +140,67 @@ describe("attachment client path", () => {
     }
   });
 
+  test("fetchFileInfo maps transport rate limit to Slack HTTP error", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () => {
+        return new Response("", {
+          status: 429,
+          headers: {
+            "retry-after": "11",
+          },
+        });
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+
+    await expect(client.fetchFileInfo("F123")).rejects.toMatchObject({
+      code: "SLACK_HTTP_ERROR",
+      message: "Slack API rate limit reached.",
+      hint: "Retry later or narrow query scope.",
+      status: 429,
+      retryAfterSeconds: 11,
+    });
+  });
+
+  test("fetchFileInfo maps auth-related API failure to Slack auth error", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () => {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: "invalid_auth",
+            needed: "files:read",
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+
+    await expect(client.fetchFileInfo("F123")).rejects.toMatchObject({
+      code: "SLACK_AUTH_ERROR",
+      message: "Slack authentication failed: invalid_auth.",
+      hint: "Use a valid token with required scopes in SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
+      details: "files:read",
+    });
+  });
+
   test("fetchFileText downloads private URL and maps response", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
@@ -202,6 +263,37 @@ describe("attachment client path", () => {
     });
   });
 
+  test("fetchFileText maps transport failure to Slack HTTP error", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () => {
+        return new Response("unauthorized", {
+          status: 403,
+          headers: {
+            "content-type": "text/plain",
+          },
+        });
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+
+    await expect(client.fetchFileText("https://files.slack.test/F123", 1024)).rejects.toMatchObject(
+      {
+        code: "SLACK_HTTP_ERROR",
+        message: "Slack file download failed with status 403.",
+        hint: "Verify file visibility and token scopes for private file download.",
+        status: 403,
+      },
+    );
+  });
+
   test("fetchFileBinary downloads private URL and maps base64 payload", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
@@ -262,6 +354,37 @@ describe("attachment client path", () => {
 
     await expect(client.fetchFileBinary("https://files.slack.test/F123", 5)).rejects.toMatchObject({
       code: "SLACK_CONFIG_ERROR",
+    });
+  });
+
+  test("fetchFileBinary maps transport failure to Slack HTTP error", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () => {
+        return new Response(new Uint8Array([1, 2]), {
+          status: 404,
+          headers: {
+            "content-type": "application/octet-stream",
+          },
+        });
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+
+    globalThis.fetch = mockedFetch;
+
+    const client = createSlackWebApiClient();
+
+    await expect(
+      client.fetchFileBinary("https://files.slack.test/F123", 1024),
+    ).rejects.toMatchObject({
+      code: "SLACK_HTTP_ERROR",
+      message: "Slack file download failed with status 404.",
+      hint: "Verify file visibility and token scopes for private file download.",
+      status: 404,
     });
   });
 });
