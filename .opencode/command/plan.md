@@ -52,6 +52,19 @@ Main agent must:
 10. when all assigned units pass validation, merge approved worktree branches into main with conflict-safe ordering
 11. after merges and delegated post-merge validation pass, update `docs/feature-parity.md` boundary/status
 
+### Worktree Agent Launch Rule (PTY-first)
+
+- MUST launch each assigned worktree execution as independent PTY session with `notifyOnExit=true`.
+- Recommended launch shape from main context:
+  - `pty_spawn(command="bash", args=["-lc", "(cd ../worktree-N && opencode run \"todo.md 를 완수할 것\" -m openai/gpt-5.3-codex)"] , workdir=<main>, notifyOnExit=true)`
+- Maintain mapping table in transient note (`.opencode/plans/...`):
+  - worktree path
+  - unit id
+  - branch
+  - PTY session id
+  - state (`running|exited|validated|fix-loop`)
+- Never block on manual polling when PTY exit notifications can drive control flow.
+
 Validation execution rule:
 
 - Main agent MUST delegate implementation validation to `haiku` or `spark`.
@@ -361,6 +374,30 @@ Implementation note (recommended shell shape):
 
 Never accept completion from `todo.md` deletion alone.
 Never accept completion without stabilization gate + independent verification.
+
+## PTY Notify Control Loop (authoritative)
+
+Treat PTY exit notification as primary event source. `todo.md` presence checks are only secondary confirmation.
+
+1. Launch all assigned worktree agents with `notifyOnExit=true`.
+2. Wait for any PTY exit event.
+3. For each exited PTY:
+   - read full PTY output via `pty_read`
+   - check worktree `todo.md` deletion + `result.md` existence
+   - run stabilization gate and delegated validation
+4. If validation passes:
+   - delegate git commit in that worktree (only when explicit human approval is available)
+   - continue orchestration without intermediate user report
+5. If validation fails:
+   - regenerate precise corrective `todo.md`
+   - relaunch worktree PTY with `notifyOnExit=true`
+6. Repeat until all assigned units reach terminal success/abandon state.
+
+Non-negotiable:
+
+- No dead-time manual polling loops as primary mechanism.
+- Every completion candidate must include PTY output evidence + validator verdict.
+- Unless user explicitly requests status updates, do not emit per-unit progress chatter; continue loop autonomously.
 
 ## Runtime Artifact Hygiene (strict)
 
