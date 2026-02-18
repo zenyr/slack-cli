@@ -28,13 +28,13 @@ describe("attachment get command", () => {
     expect(parsed.error.message).toContain("<file-id>");
   });
 
-  test("returns metadata envelope using U1 client contract", async () => {
+  test("returns metadata envelope using i10 files.info client contract", async () => {
     const calls: string[] = [];
 
     const handler = createAttachmentGetHandler({
       env: {},
       createClient: () => ({
-        getAttachmentMetadata: async (fileId: string) => {
+        fetchFileInfo: async (fileId: string) => {
           calls.push(fileId);
           return {
             id: "F999",
@@ -42,7 +42,7 @@ describe("attachment get command", () => {
             mimetype: "text/plain",
             filetype: "text",
             size: 128,
-            url_private: "https://files.slack.com/files-pri/T123-F999/download",
+            urlPrivate: "https://files.slack.com/files-pri/T123-F999/download",
           };
         },
       }),
@@ -85,13 +85,16 @@ describe("attachment get command", () => {
     expect(result.data.file.mimetype).toBe("text/plain");
     expect(result.data.file.filetype).toBe("text");
     expect(result.data.file.size).toBe(128);
+    expect(result.data.file.url_private).toBe(
+      "https://files.slack.com/files-pri/T123-F999/download",
+    );
   });
 
   test("maps SLACK_API_ERROR to invalid argument with marker", async () => {
     const handler = createAttachmentGetHandler({
       env: {},
       createClient: () => ({
-        getAttachmentMetadata: async () => {
+        fetchFileInfo: async () => {
           throw createSlackClientError({
             code: "SLACK_API_ERROR",
             message: "Slack API request failed: file_not_found.",
