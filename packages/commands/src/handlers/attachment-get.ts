@@ -17,6 +17,19 @@ type SlackAttachmentMetadata = {
   url_private?: string;
 };
 
+type SlackFileInfoMetadata = {
+  id: string;
+  name: string;
+  mimetype?: string;
+  filetype?: string;
+  size?: number;
+  urlPrivate?: string;
+};
+
+type AttachmentMetadataClient = {
+  fetchFileInfo: (fileId: string) => Promise<SlackFileInfoMetadata>;
+};
+
 type CreateClientOptions = {
   token?: string;
   env?: Record<string, string | undefined>;
@@ -67,6 +80,21 @@ const mapSlackClientError = (error: unknown): CliResult => {
   }
 };
 
+const hasAttachmentMetadataClient = (value: unknown): value is AttachmentMetadataClient => {
+  return isRecord(value) && typeof value.fetchFileInfo === "function";
+};
+
+const mapFileMetadata = (value: SlackFileInfoMetadata): SlackAttachmentMetadata => {
+  return {
+    id: value.id,
+    name: value.name,
+    mimetype: value.mimetype,
+    filetype: value.filetype,
+    size: value.size,
+    url_private: value.urlPrivate,
+  };
+};
+
 const buildTextLines = (metadata: SlackAttachmentMetadata): string[] => {
   const lines = [`Attachment ${metadata.id}: ${metadata.name}`];
 
@@ -113,12 +141,7 @@ export const createAttachmentGetHandler = (
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
-      const getAttachmentMetadata =
-        isRecord(client) && typeof client.getAttachmentMetadata === "function"
-          ? client.getAttachmentMetadata
-          : undefined;
-
-      if (getAttachmentMetadata === undefined) {
+      if (!hasAttachmentMetadataClient(client)) {
         return createError(
           "INTERNAL_ERROR",
           "attachment get client contract is unavailable.",
@@ -127,7 +150,7 @@ export const createAttachmentGetHandler = (
         );
       }
 
-      const metadata = await getAttachmentMetadata(fileId);
+      const metadata = mapFileMetadata(await client.fetchFileInfo(fileId));
 
       return {
         ok: true,
