@@ -37,6 +37,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - **Progress**: Dedicated `users search` command surface wired (same parity behavior with `users.search` command identity)
   - **Progress**: Query-mode bounded auto-pagination delivered when `--cursor` is omitted
   - **Progress**: Deterministic guard for unsupported Edge token prefixes (`xoxc`/`xoxd`) in `messages search` path
+  - **Progress**: Edge-prefix guard now enforced regardless of token source/type classification
   - **Gap**: Edge API integration for Slack Connect users (xoxc/xoxd) deferred
   
 - [x] `messages search` - search messages workspace-wide
