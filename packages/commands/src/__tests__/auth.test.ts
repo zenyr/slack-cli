@@ -55,10 +55,14 @@ const createMockLayer = (
   };
 };
 
-const createAuthError = (code: string, message: string): Error & { code: string } => {
+const createAuthError = (
+  code: string,
+  message: string,
+  hint?: string,
+): Error & { code: string; hint?: string } => {
   const error = new Error(message);
 
-  return Object.assign(error, { code });
+  return Object.assign(error, { code, hint });
 };
 
 describe("auth handlers", () => {
@@ -210,6 +214,64 @@ describe("auth handlers", () => {
     expect(result.error.hint).toBe(
       "Use --token <token> or pipe token via stdin, for example: printf '<token>' | slack auth login --type <xoxp|xoxb>.",
     );
+  });
+
+  test("maps auth login prefix mismatch config error to invalid argument with hint", async () => {
+    const message = "Login token prefix does not match declared token type.";
+    const hint = "Use matching token type and prefix (xoxp -> xoxp..., xoxb -> xoxb...).";
+    const handler = createAuthLoginHandler({
+      getAuthLayer: async () => {
+        return {
+          ...createMockLayer(),
+          login: async () => {
+            throw createAuthError("AUTH_CONFIG_ERROR", message, hint);
+          },
+        };
+      },
+    });
+
+    const result = await handler(
+      createRequest(["auth", "login"], [], { type: "xoxp", token: "xoxb-token-mismatch" }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.login");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe(message);
+    expect(result.error.hint).toBe(hint);
+  });
+
+  test("maps auth login token type mismatch config error to invalid argument with hint", async () => {
+    const message = "Login token type is invalid.";
+    const hint = "Use token type xoxp or xoxb.";
+    const handler = createAuthLoginHandler({
+      getAuthLayer: async () => {
+        return {
+          ...createMockLayer(),
+          login: async () => {
+            throw createAuthError("AUTH_CONFIG_ERROR", message, hint);
+          },
+        };
+      },
+    });
+
+    const result = await handler(
+      createRequest(["auth", "login"], [], { type: "xoxb", token: "xoxb-valid-prefix" }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("auth.login");
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toBe(message);
+    expect(result.error.hint).toBe(hint);
   });
 
   test("validates auth use target argument", async () => {
