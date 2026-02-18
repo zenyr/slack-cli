@@ -62,8 +62,9 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - **Org equiv**: `conversations_add_message` tool (core path)
   - **Status**: Runtime wiring complete (`chat.postMessage`, markdown path, policy enforcement, integration tests)
   - **Progress**: `--thread-ts` boundary contract + client payload forwarding delivered
+  - **Progress**: Advanced boolean controls delivered (`--unfurl-links[=<bool>]`, `--unfurl-media[=<bool>]`, `--reply-broadcast[=<bool>]`)
   - **Progress**: Markdown conversion utility + channel policy utility integrated in command execution with coverage
-  - **Gap**: Non-boundary enhancements deferred (advanced mark-read/unfurl controls)
+  - **Gap**: Non-boundary mark-read behavior remains deferred
 
 ### Utilities (4 commands)
 - [x] `help` - CLI/namespace help
@@ -208,11 +209,12 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - **Delivered in merge set**:
   - `messages post` command wiring + base `chat.postMessage` integration
   - `--thread-ts` option validation + runtime/client forwarding (`thread_ts`)
+  - Advanced boolean controls delivered (`--unfurl-links[=<bool>]`, `--unfurl-media[=<bool>]`, `--reply-broadcast[=<bool>]`)
   - Request/response validation + error mapping coverage
   - Markdown conversion utility and channel policy utility wired into runtime with dedicated tests
-- **Remaining gap**: advanced mark-read/unfurl controls (deferred; non-boundary)
+- **Remaining gap**: mark-read behavior only (deferred; non-boundary)
 - **Complexity**: High (blocks conversion, policy enforcement, multi-step)
-- **Smallest unit**: advanced mark-read/unfurl controls hardening in `messages post` runtime
+- **Smallest unit**: mark-read option behavior hardening in `messages post` runtime
 
 #### `reactions add/remove` Commands
 - **Org tools**: `reactions_add`, `reactions_remove`
