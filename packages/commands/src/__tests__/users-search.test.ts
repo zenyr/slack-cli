@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { isRecord, parseJsonOutput, runCliWithBuffer } from "./test-utils";
+import { createUsersSearchHandler } from "../handlers/users-search";
 
 describe("users search command", () => {
   const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
@@ -304,5 +305,135 @@ describe("users search command", () => {
       "users search --limit must be a positive integer. Received: 0",
     );
     expect(parsed.error.hint).toBe("Use --limit with a positive integer, e.g. --limit=25.");
+  });
+
+  test("returns invalid argument for xoxc edge token before users API call", async () => {
+    const handler = createUsersSearchHandler({
+      env: {},
+      resolveToken: () => ({
+        token: "xoxc-edge-test",
+        source: "store:active",
+      }),
+      createClient: () => {
+        throw new Error("createClient should not be called for xoxc token");
+      },
+    });
+
+    const result = await handler({
+      commandPath: ["users", "search"],
+      positionals: ["alice"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("edge API tokens");
+    expect(result.error.hint).toContain("not yet supported");
+  });
+
+  test("returns invalid argument for xoxd edge token before users API call", async () => {
+    const handler = createUsersSearchHandler({
+      env: {},
+      resolveToken: () => ({
+        token: "xoxd-edge-test",
+        source: "store:fallback",
+      }),
+      createClient: () => {
+        throw new Error("createClient should not be called for xoxd token");
+      },
+    });
+
+    const result = await handler({
+      commandPath: ["users", "search"],
+      positionals: ["alice"],
+      options: {},
+      flags: {
+        json: true,
+        help: false,
+        version: false,
+      },
+      context: {
+        version: "1.2.3",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("edge API tokens");
+    expect(result.error.hint).toContain("not yet supported");
+  });
+
+  test("preserves xoxb users search behavior", async () => {
+    delete process.env[XOXP_ENV_KEY];
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    const mockedFetch = async (input: string | URL | Request, init?: RequestInit) => {
+      const requestUrl = input instanceof URL ? input.toString() : String(input);
+      expect(requestUrl).toContain("/users.list");
+      expect(requestUrl).toContain("limit=200");
+
+      const headers = new Headers(init?.headers);
+      expect(headers.get("Authorization")).toBe("Bearer xoxb-test-token");
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          members: [
+            {
+              id: "U123",
+              name: "carol",
+              deleted: false,
+              is_bot: false,
+              is_admin: false,
+              profile: {
+                display_name: "Carol",
+                real_name: "Carol Park",
+              },
+            },
+          ],
+          response_metadata: {
+            next_cursor: "",
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    };
+
+    globalThis.fetch = mockedFetch as typeof fetch;
+
+    const result = await runCliWithBuffer(["users", "search", "carol", "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr.length).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.command).toBe("users.search");
+    if (!isRecord(parsed.data)) {
+      return;
+    }
+
+    expect(parsed.data.count).toBe(1);
   });
 });
