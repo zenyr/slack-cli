@@ -36,8 +36,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - **Status**: Query/search semantics + explicit pagination controls implemented (`--cursor`, `--limit`)
   - **Progress**: Dedicated `users search` command surface wired (same parity behavior with `users.search` command identity)
   - **Progress**: Query-mode bounded auto-pagination delivered when `--cursor` is omitted
-  - **Progress**: Deterministic guard for unsupported Edge token prefixes (`xoxc`/`xoxd`) in `messages search` path
-  - **Progress**: Edge-prefix guard now enforced regardless of token source/type classification
+  - **Progress**: Command-scoped validation labels aligned (`users search` vs `users list`) for `--cursor`/`--limit` errors
   - **Gap**: Edge API integration for Slack Connect users (xoxc/xoxd) deferred
   
 - [x] `messages search` - search messages workspace-wide
@@ -45,6 +44,8 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - **Status**: Boundary contract implemented (`--channel`, `--user`, `--after`, `--before`, `--threads`)
   - **Progress**: Slack permalink URL shortcut extraction/normalization delivered (`/archives/<channel-id>/p<message-ts>`)
   - **Progress**: Flexible date parsing delivered (`YYYY-MM-DD` + bounded relative forms `1d/1w/30d/90d`)
+  - **Progress**: Deterministic guard for unsupported Edge token prefixes (`xoxc`/`xoxd`) in `messages search` path
+  - **Progress**: Edge-prefix guard now enforced regardless of token source/type classification
 
 - [x] `messages history` - fetch channel history with pagination
   - **Org equiv**: `conversations_history` tool
