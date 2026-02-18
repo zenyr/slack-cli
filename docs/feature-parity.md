@@ -52,6 +52,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 - [x] `messages post` - post plain text messages
   - **Org equiv**: `conversations_add_message` tool (core path)
   - **Status**: Runtime wiring complete (`chat.postMessage`, markdown path, policy enforcement, integration tests)
+  - **Progress**: `--thread-ts` boundary contract + client payload forwarding delivered
   - **Progress**: Markdown conversion utility + channel policy utility integrated in command execution with coverage
   - **Gap**: Non-boundary enhancements deferred (advanced mark-read/unfurl controls)
 
@@ -192,14 +193,15 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - Auto mark-read option (env-based)
   - Unfurling control
 - **Dependencies**: Channel resolution, markdown parser
-- **Current state**: Core plain-text post path merged (`messages post` command + handler + client tests)
+- **Current state**: Boundary contract merged (`messages post` command + handler + client tests, including `--thread-ts`)
 - **Delivered in merge set**:
   - `messages post` command wiring + base `chat.postMessage` integration
+  - `--thread-ts` option validation + runtime/client forwarding (`thread_ts`)
   - Request/response validation + error mapping coverage
   - Markdown conversion utility and channel policy utility wired into runtime with dedicated tests
-- **Remaining gap**: `thread_ts` support + advanced mark-read/unfurl controls (deferred; non-boundary)
+- **Remaining gap**: advanced mark-read/unfurl controls (deferred; non-boundary)
 - **Complexity**: High (blocks conversion, policy enforcement, multi-step)
-- **Smallest unit**: `thread_ts` support in `messages post` contract + wiring
+- **Smallest unit**: advanced mark-read/unfurl controls hardening in `messages post` runtime
 
 #### `reactions add/remove` Commands
 - **Org tools**: `reactions_add`, `reactions_remove`
@@ -343,7 +345,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 
 **Current maturity**: 🚲++ **Bicycle Complete (read)** + 🏍️ **Motorcycle Bootstrapped (write core)** + 🏍️+ **Motorcycle+ Complete (usergroups management + me actions)**
 
-**Next milestone**: 🏍️ **Motorcycle** write-path completion (`messages post --thread-ts`) + users search Edge API parity
+**Next milestone**: users search Edge API parity (Slack Connect user coverage)
 
 **Future milestones**: 
 - 🏍️ **Motorcycle**: Write APIs (post, reactions) + threads
@@ -377,7 +379,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 
 ### Iteration 2 - Motorcycle 🏍️ (Write APIs)
 
-**Goal**: Enable write operations (post messages, reactions)
+**Goal**: Enable write operations (post messages, reactions, thread posting)
 
 **Units**:
 1. `messages post` - Basic plain text posting (core) ✅
@@ -385,7 +387,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 3. `messages post` - Channel policy utility wiring complete in runtime ✅
 4. `reactions add` - Add reaction command wiring ✅
 5. `reactions remove` - Remove path command wiring + validation complete ✅
-6. `messages post` - `thread_ts` support (deferred follow-up unit)
+6. `messages post` - `thread_ts` support ✅
 
 **Dependencies**: Channel resolution (can use inline API calls, cache not required yet)
 
