@@ -504,6 +504,7 @@ describe("messages replies command", () => {
             listChannels: async () => ({ channels: [] }),
             listUsers: async () => ({ users: [] }),
             searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+            getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
             fetchChannelHistory: async () => ({
               channel: "",
               messages: [],

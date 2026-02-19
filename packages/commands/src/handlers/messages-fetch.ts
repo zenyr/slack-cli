@@ -6,13 +6,17 @@ import type {
   ResolvedSlackToken,
   SlackMessage,
   SlackRepliesWebApiClient,
+  SlackUsersInfoWebApiClient,
   SlackWebApiClient,
 } from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
+import type { UserLookup } from "../users/resolve";
+import { formatUser, resolveUserIds } from "../users/resolve";
 
 const COMMAND_ID = "messages.fetch";
-const USAGE_HINT = "Usage: slack messages fetch <message-url> [--thread[=<bool>]] [--json]";
+const USAGE_HINT =
+  "Usage: slack messages fetch <message-url> [--thread[=<bool>]] [--resolve-users[=<bool>]] [--json]";
 const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 
 type CreateClientOptions = {
@@ -20,7 +24,9 @@ type CreateClientOptions = {
   env?: Record<string, string | undefined>;
 };
 
-type MessagesFetchClient = SlackWebApiClient & SlackRepliesWebApiClient;
+type MessagesFetchClient = SlackWebApiClient &
+  SlackRepliesWebApiClient &
+  SlackUsersInfoWebApiClient;
 
 type MessagesFetchHandlerDeps = {
   createClient: (options?: CreateClientOptions) => MessagesFetchClient;
@@ -40,8 +46,9 @@ const isCliErrorResult = (value: unknown): value is CliResult => {
   return typeof value === "object" && value !== null && "ok" in value;
 };
 
-const toMessageLine = (message: SlackMessage): string => {
-  const user = message.user === undefined ? "unknown" : message.user;
+const toMessageLine = (message: SlackMessage, lookup?: UserLookup): string => {
+  const user =
+    lookup !== undefined ? formatUser(message.user, lookup) : (message.user ?? "unknown");
   return `${message.ts} ${user} ${message.text}`;
 };
 
@@ -67,6 +74,33 @@ const readThreadOption = (options: CliOptions): boolean | CliResult => {
   return createError(
     "INVALID_ARGUMENT",
     `messages fetch --thread must be boolean when provided with '=...'. Received: ${rawValue}`,
+    `${BOOLEAN_OPTION_VALUES_HINT} ${USAGE_HINT}`,
+    COMMAND_ID,
+  );
+};
+
+export const readResolveUsersOption = (options: CliOptions): boolean | CliResult => {
+  const rawValue = options["resolve-users"];
+  if (rawValue === undefined) {
+    return false;
+  }
+
+  if (typeof rawValue === "boolean") {
+    return rawValue;
+  }
+
+  const normalized = rawValue.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+    return true;
+  }
+
+  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+    return false;
+  }
+
+  return createError(
+    "INVALID_ARGUMENT",
+    `messages fetch --resolve-users must be boolean when provided with '=...'. Received: ${rawValue}`,
     `${BOOLEAN_OPTION_VALUES_HINT} ${USAGE_HINT}`,
     COMMAND_ID,
   );
@@ -148,12 +182,16 @@ const resolveMessageFromPermalink = async (
   }
 };
 
-const buildSingleMessageLines = (channel: string, message: SlackMessage): string[] => {
+const buildSingleMessageLines = (
+  channel: string,
+  message: SlackMessage,
+  lookup?: UserLookup,
+): string[] => {
   const threadRoot = message.threadTs === undefined ? message.ts : message.threadTs;
   return [
     `Message ${message.ts} in ${channel}`,
     `Thread root: ${threadRoot}`,
-    toMessageLine(message),
+    toMessageLine(message, lookup),
   ];
 };
 
@@ -163,11 +201,12 @@ const buildThreadLines = (
   targetTs: string,
   messages: SlackMessage[],
   nextCursor?: string,
+  lookup?: UserLookup,
 ): string[] => {
   const lines: string[] = [`Thread ${threadTs} in ${channel} (target ${targetTs})`];
 
   for (const message of messages) {
-    lines.push(toMessageLine(message));
+    lines.push(toMessageLine(message, lookup));
   }
 
   if (nextCursor !== undefined) {
@@ -224,6 +263,11 @@ export const createMessagesFetchHandler = (
       return threadModeOrError;
     }
 
+    const resolveUsersOrError = readResolveUsersOption(request.options);
+    if (isCliErrorResult(resolveUsersOrError)) {
+      return resolveUsersOrError;
+    }
+
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
@@ -238,6 +282,14 @@ export const createMessagesFetchHandler = (
       }
 
       if (!threadModeOrError) {
+        let lookup: UserLookup | undefined;
+        let resolvedUsers: Record<string, { username: string; displayName?: string }> | undefined;
+        if (resolveUsersOrError) {
+          const resolved = await resolveUserIds(client, [messageOrError]);
+          lookup = resolved.lookup;
+          resolvedUsers = resolved.resolvedUsers;
+        }
+
         return {
           ok: true,
           command: COMMAND_ID,
@@ -246,8 +298,9 @@ export const createMessagesFetchHandler = (
             channel: permalink.channel,
             ts: messageOrError.ts,
             message: messageOrError,
+            ...(resolvedUsers !== undefined ? { resolvedUsers } : {}),
           },
-          textLines: buildSingleMessageLines(permalink.channel, messageOrError),
+          textLines: buildSingleMessageLines(permalink.channel, messageOrError, lookup),
         };
       }
 
@@ -258,6 +311,14 @@ export const createMessagesFetchHandler = (
         ts: threadTs,
         limit: 200,
       });
+
+      let lookup: UserLookup | undefined;
+      let resolvedUsers: Record<string, { username: string; displayName?: string }> | undefined;
+      if (resolveUsersOrError) {
+        const resolved = await resolveUserIds(client, replies.messages);
+        lookup = resolved.lookup;
+        resolvedUsers = resolved.resolvedUsers;
+      }
 
       return {
         ok: true,
@@ -270,6 +331,7 @@ export const createMessagesFetchHandler = (
           message: messageOrError,
           messages: replies.messages,
           next_cursor: replies.nextCursor,
+          ...(resolvedUsers !== undefined ? { resolvedUsers } : {}),
         },
         textLines: buildThreadLines(
           permalink.channel,
@@ -277,6 +339,7 @@ export const createMessagesFetchHandler = (
           messageOrError.ts,
           replies.messages,
           replies.nextCursor,
+          lookup,
         ),
       };
     } catch (error) {

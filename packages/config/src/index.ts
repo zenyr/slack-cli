@@ -111,12 +111,12 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages fetch",
-    args: "<message-url> [--thread[=<bool>]] [--json]",
+    args: "<message-url> [--thread[=<bool>]] [--resolve-users[=<bool>]] [--json]",
     description: "Fetch one message or full thread from permalink",
   },
   {
     name: "messages history",
-    args: "<channel-id> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--json]",
+    args: "<channel-id> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]] [--json]",
     description: "Fetch channel message history",
   },
   {
@@ -141,7 +141,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages replies",
-    args: "<channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--json]",
+    args: "<channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
     description: "Fetch thread message replies",
   },
   {

@@ -1,7 +1,10 @@
 import { createError } from "../errors";
 import type { ResolvedSlackToken, SlackMessage, SlackWebApiClient } from "../slack";
 import { createSlackWebApiClient, isSlackClientError, resolveSlackToken } from "../slack";
+import type { SlackUsersInfoWebApiClient } from "../slack/types";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
+import type { UserLookup } from "../users/resolve";
+import { formatUser, resolveUserIds } from "../users/resolve";
 
 const COMMAND_ID = "messages.history";
 
@@ -11,7 +14,7 @@ type CreateClientOptions = {
 };
 
 type MessagesHistoryHandlerDeps = {
-  createClient: (options?: CreateClientOptions) => SlackWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackWebApiClient & SlackUsersInfoWebApiClient;
   resolveToken: (
     env?: Record<string, string | undefined>,
   ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
@@ -24,19 +27,21 @@ const defaultDeps: MessagesHistoryHandlerDeps = {
   env: process.env,
 };
 
-const toTextLine = (message: SlackMessage): string => {
-  const user = message.user === undefined ? "unknown" : message.user;
+const toTextLine = (message: SlackMessage, lookup?: UserLookup): string => {
+  const user =
+    lookup !== undefined ? formatUser(message.user, lookup) : (message.user ?? "unknown");
   return `${message.ts} ${user} ${message.text}`;
 };
 
 const buildTextLines = (
   channel: string,
   result: { messages: SlackMessage[]; nextCursor?: string },
+  lookup?: UserLookup,
 ) => {
   const lines: string[] = [];
 
   for (const message of result.messages) {
-    lines.push(toTextLine(message));
+    lines.push(toTextLine(message, lookup));
   }
 
   if (result.nextCursor !== undefined) {
@@ -218,6 +223,34 @@ const parseIncludeActivityOption = (options: CliOptions): boolean | CliResult =>
   );
 };
 
+// NOTE: Duplicated from messages-fetch to avoid circular dependency.
+const readResolveUsersOption = (options: CliOptions): boolean | CliResult => {
+  const rawValue = options["resolve-users"];
+  if (rawValue === undefined) {
+    return false;
+  }
+
+  if (typeof rawValue === "boolean") {
+    return rawValue;
+  }
+
+  const normalized = rawValue.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+    return true;
+  }
+
+  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+    return false;
+  }
+
+  return createError(
+    "INVALID_ARGUMENT",
+    `messages history --resolve-users must be boolean when provided with '=...'. Received: ${rawValue}`,
+    "Use boolean value: true|false|1|0|yes|no|on|off.",
+    COMMAND_ID,
+  );
+};
+
 const hasEdgeTokenPrefix = (token: string): boolean => {
   return token.startsWith("xoxc") || token.startsWith("xoxd");
 };
@@ -357,6 +390,11 @@ export const createMessagesHistoryHandler = (
       return includeActivityOrError;
     }
 
+    const resolveUsersOrError = readResolveUsersOption(request.options);
+    if (isCliErrorResult(resolveUsersOrError)) {
+      return resolveUsersOrError;
+    }
+
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
       if (hasEdgeTokenPrefix(resolvedToken.token)) {
@@ -395,6 +433,14 @@ export const createMessagesHistoryHandler = (
 
       const data = await client.fetchChannelHistory(query);
 
+      let lookup: UserLookup | undefined;
+      let resolvedUsers: Record<string, { username: string; displayName?: string }> | undefined;
+      if (resolveUsersOrError) {
+        const resolved = await resolveUserIds(client, data.messages);
+        lookup = resolved.lookup;
+        resolvedUsers = resolved.resolvedUsers;
+      }
+
       return {
         ok: true,
         command: COMMAND_ID,
@@ -402,8 +448,9 @@ export const createMessagesHistoryHandler = (
           messages: data.messages,
           next_cursor: data.nextCursor,
           channel: data.channel,
+          ...(resolvedUsers !== undefined ? { resolvedUsers } : {}),
         },
-        textLines: buildTextLines(channelIdOrError, data),
+        textLines: buildTextLines(channelIdOrError, data, lookup),
       };
     } catch (error) {
       return mapSlackClientError(error);

@@ -267,6 +267,7 @@ describe("messages history command", () => {
             listChannels: async () => ({ channels: [] }),
             listUsers: async () => ({ users: [] }),
             searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+            getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
             fetchChannelHistory: async () => {
               throw createSlackClientError(clientErrorArgs);
             },
@@ -386,6 +387,7 @@ describe("messages history command", () => {
         listChannels: async () => ({ channels: [] }),
         listUsers: async () => ({ users: [] }),
         searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
         fetchChannelHistory: async (params) => {
           expect(params.includeActivity).toBe(true);
           return {
@@ -430,6 +432,7 @@ describe("--oldest/--latest time expressions", () => {
           }),
           listUsers: async () => ({ users: [] }),
           searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+          getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
           fetchChannelHistory: async (params) => {
             expect(params.channel).toBe("C123");
             expect(params.oldest).toBe(expectedOldest);
@@ -474,6 +477,7 @@ describe("--oldest/--latest time expressions", () => {
           listChannels: async () => ({ channels: [] }),
           listUsers: async () => ({ users: [] }),
           searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+          getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
           fetchChannelHistory: async (params) => {
             expect(params.channel).toBe("C456");
             expect(params.oldest).toBeUndefined();
@@ -518,6 +522,7 @@ describe("--oldest/--latest time expressions", () => {
           listChannels: async () => ({ channels: [] }),
           listUsers: async () => ({ users: [] }),
           searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+          getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
           fetchChannelHistory: async (params) => {
             expect(params.oldest).toBe(expectedOldest);
             expect(params.latest).toBe(expectedLatest);
@@ -556,6 +561,7 @@ describe("--oldest/--latest time expressions", () => {
         listChannels: async () => ({ channels: [] }),
         listUsers: async () => ({ users: [] }),
         searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
         fetchChannelHistory: async () => ({ channel: "", messages: [], nextCursor: undefined }),
       }),
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
@@ -592,6 +598,7 @@ describe("--oldest/--latest time expressions", () => {
         listChannels: async () => ({ channels: [] }),
         listUsers: async () => ({ users: [] }),
         searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
         fetchChannelHistory: async (params) => {
           expect(params.latest).toBe("1700000000.123456");
           return {
@@ -630,6 +637,7 @@ describe("channel identifier resolution", () => {
         listChannels: async () => ({ channels: [] }),
         listUsers: async () => ({ users: [] }),
         searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
         fetchChannelHistory: async (params) => {
           expect(params.channel).toBe("C789");
           expect(params.limit).toBe(50);
@@ -672,6 +680,7 @@ describe("channel identifier resolution", () => {
         }),
         listUsers: async () => ({ users: [] }),
         searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
         fetchChannelHistory: async (params) => {
           expect(params.channel).toBe("C123ABC");
           return {
@@ -719,6 +728,7 @@ describe("channel identifier resolution", () => {
         }),
         listUsers: async () => ({ users: [] }),
         searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
         fetchChannelHistory: async () => ({
           channel: "",
           messages: [],
@@ -760,6 +770,7 @@ describe("channel identifier resolution", () => {
         listChannels: async () => ({ channels: [] }),
         listUsers: async () => ({ users: [] }),
         searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
         fetchChannelHistory: async () => ({
           channel: "",
           messages: [],
@@ -799,6 +810,7 @@ describe("channel identifier resolution", () => {
         listChannels: async () => ({ channels: [] }),
         listUsers: async () => ({ users: [] }),
         searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
         fetchChannelHistory: async () => ({
           channel: "",
           messages: [],
@@ -839,6 +851,7 @@ describe("channel identifier resolution", () => {
         listChannels: async () => ({ channels: [] }),
         listUsers: async () => ({ users: [] }),
         searchMessages: async () => ({ query: "", total: 0, messages: [] }),
+        getUsersByIds: async () => ({ users: [], missingUserIds: [] }),
         fetchChannelHistory: async () => ({
           channel: "",
           messages: [],

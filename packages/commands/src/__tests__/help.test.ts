@@ -80,7 +80,7 @@ describe("help command", () => {
     expect(
       result.stdout.some((line) =>
         line.includes(
-          "replies <channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--json]",
+          "replies <channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
         ),
       ),
     ).toBe(true);
