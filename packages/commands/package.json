@@ -12,6 +12,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@exodus/slack-block-builder": "github:ExodusMovement/slack-block-builder",
     "@zenyr/slack-cli-auth": "workspace:*",
     "@zenyr/slack-cli-config": "workspace:*"
   }

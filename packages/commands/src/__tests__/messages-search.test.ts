@@ -399,6 +399,24 @@ describe("messages search command", () => {
         token: "xoxb-test",
         source: "SLACK_MCP_XOXB_TOKEN",
       }),
+      createClient: () => ({
+        listChannels: async () => ({
+          channels: [],
+        }),
+        listUsers: async () => ({
+          users: [],
+        }),
+        searchMessages: async () => {
+          throw createSlackClientError({
+            code: "SLACK_AUTH_ERROR",
+            message: "Slack authentication failed: invalid_auth.",
+          });
+        },
+        fetchChannelHistory: async () => ({
+          channel: "",
+          messages: [],
+        }),
+      }),
     });
 
     const result = await handler({
@@ -421,7 +439,7 @@ describe("messages search command", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("user token");
+    expect(result.error.message).toContain("invalid_auth");
   });
 
   test("returns invalid argument for unclassified xoxc edge token", async () => {
@@ -456,8 +474,8 @@ describe("messages search command", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("edge API tokens");
-    expect(result.error.hint).toContain("not yet supported");
+    expect(result.error.message).toContain("does not support edge API tokens");
+    expect(result.error.hint).toContain("Edge API token path is not yet supported");
   });
 
   test("returns invalid argument for unclassified xoxd edge token", async () => {
@@ -492,8 +510,8 @@ describe("messages search command", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("edge API tokens");
-    expect(result.error.hint).toContain("not yet supported");
+    expect(result.error.message).toContain("does not support edge API tokens");
+    expect(result.error.hint).toContain("Edge API token path is not yet supported");
   });
 
   test("returns invalid argument for xoxc edge token classified as xoxp", async () => {
@@ -529,8 +547,8 @@ describe("messages search command", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("edge API tokens");
-    expect(result.error.hint).toContain("not yet supported");
+    expect(result.error.message).toContain("does not support edge API tokens");
+    expect(result.error.hint).toContain("Edge API token path is not yet supported");
   });
 
   test("returns invalid argument for xoxd edge token classified as xoxp", async () => {
@@ -566,8 +584,8 @@ describe("messages search command", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("edge API tokens");
-    expect(result.error.hint).toContain("not yet supported");
+    expect(result.error.message).toContain("does not support edge API tokens");
+    expect(result.error.hint).toContain("Edge API token path is not yet supported");
   });
 
   const deterministicSlackErrorCases = [

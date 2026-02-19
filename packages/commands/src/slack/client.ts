@@ -270,6 +270,15 @@ const mapUserGroup = (value: unknown): SlackUserGroup | undefined => {
   };
 };
 
+const SEARCH_TEXT_TRUNCATE_LENGTH = 120;
+
+const truncateText = (text: string, maxLength: number): string => {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength)}…`;
+};
+
 const mapSearchMessage = (value: unknown): SlackSearchMessage | undefined => {
   if (!isRecord(value)) {
     return undefined;
@@ -287,7 +296,7 @@ const mapSearchMessage = (value: unknown): SlackSearchMessage | undefined => {
     channelName: channel === undefined ? undefined : readString(channel, "name"),
     userId: readString(value, "user"),
     username: readString(value, "username"),
-    text,
+    text: truncateText(text, SEARCH_TEXT_TRUNCATE_LENGTH),
     ts,
     permalink: readString(value, "permalink"),
   };
@@ -447,17 +456,23 @@ export const createSlackWebApiClient = (
 
   const callApiPost = async (
     method: string,
-    payload: URLSearchParams,
+    payload: URLSearchParams | Record<string, unknown>,
   ): Promise<Record<string, unknown>> => {
     const token = (await getResolvedToken()).token;
     const url = buildMethodUrl(baseUrl, method);
+    const isFormPayload = payload instanceof URLSearchParams;
+    const body = isFormPayload ? payload.toString() : JSON.stringify(payload);
+    const contentType = isFormPayload
+      ? "application/x-www-form-urlencoded"
+      : "application/json; charset=utf-8";
+
     const response = await fetchImpl(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Type": contentType,
       },
-      body: payload.toString(),
+      body,
     });
 
     if (response.status === 429) {
@@ -735,7 +750,7 @@ export const createSlackWebApiClient = (
 
     const params = new URLSearchParams({
       query: normalizedQuery,
-      count: "20",
+      count: "5",
     });
     const payload = await callApi("search.messages", params);
     const messagesContainer = readRecord(payload, "messages");
@@ -956,22 +971,41 @@ export const createSlackWebApiClient = (
   };
 
   const postMessage = async (params: SlackPostMessageParams): Promise<SlackPostMessageResult> => {
-    const payload = new URLSearchParams({
-      channel: params.channel,
-      text: params.text,
-    });
-    if (params.threadTs !== undefined) {
-      payload.set("thread_ts", params.threadTs);
-    }
-    if (params.unfurlLinks !== undefined) {
-      payload.set("unfurl_links", params.unfurlLinks ? "true" : "false");
-    }
-    if (params.unfurlMedia !== undefined) {
-      payload.set("unfurl_media", params.unfurlMedia ? "true" : "false");
-    }
-    if (params.replyBroadcast !== undefined) {
-      payload.set("reply_broadcast", params.replyBroadcast ? "true" : "false");
-    }
+    const hasBlockPayload =
+      (params.blocks !== undefined && params.blocks.length > 0) ||
+      (params.attachments !== undefined && params.attachments.length > 0);
+
+    const payload = hasBlockPayload
+      ? {
+          channel: params.channel,
+          text: params.text,
+          thread_ts: params.threadTs,
+          unfurl_links: params.unfurlLinks,
+          unfurl_media: params.unfurlMedia,
+          reply_broadcast: params.replyBroadcast,
+          blocks: params.blocks,
+          attachments: params.attachments,
+        }
+      : (() => {
+          const formPayload = new URLSearchParams({
+            channel: params.channel,
+            text: params.text,
+          });
+          if (params.threadTs !== undefined) {
+            formPayload.set("thread_ts", params.threadTs);
+          }
+          if (params.unfurlLinks !== undefined) {
+            formPayload.set("unfurl_links", params.unfurlLinks ? "true" : "false");
+          }
+          if (params.unfurlMedia !== undefined) {
+            formPayload.set("unfurl_media", params.unfurlMedia ? "true" : "false");
+          }
+          if (params.replyBroadcast !== undefined) {
+            formPayload.set("reply_broadcast", params.replyBroadcast ? "true" : "false");
+          }
+          return formPayload;
+        })();
+
     const payloadData = await callApiPost("chat.postMessage", payload);
     const channel = readString(payloadData, "channel") ?? params.channel;
     const ts = readString(payloadData, "ts");
@@ -1019,15 +1053,32 @@ export const createSlackWebApiClient = (
   const postEphemeral = async (
     params: SlackPostEphemeralParams,
   ): Promise<SlackPostEphemeralResult> => {
-    const payload = new URLSearchParams({
-      channel: params.channel,
-      user: params.user,
-      text: params.text,
-    });
+    const hasBlockPayload =
+      (params.blocks !== undefined && params.blocks.length > 0) ||
+      (params.attachments !== undefined && params.attachments.length > 0);
 
-    if (params.threadTs !== undefined) {
-      payload.set("thread_ts", params.threadTs);
-    }
+    const payload = hasBlockPayload
+      ? {
+          channel: params.channel,
+          user: params.user,
+          text: params.text,
+          thread_ts: params.threadTs,
+          blocks: params.blocks,
+          attachments: params.attachments,
+        }
+      : (() => {
+          const formPayload = new URLSearchParams({
+            channel: params.channel,
+            user: params.user,
+            text: params.text,
+          });
+
+          if (params.threadTs !== undefined) {
+            formPayload.set("thread_ts", params.threadTs);
+          }
+
+          return formPayload;
+        })();
 
     const payloadData = await callApiPost("chat.postEphemeral", payload);
     const channel = readString(payloadData, "channel") ?? params.channel;

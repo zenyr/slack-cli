@@ -102,6 +102,74 @@ export const resolveSlackToken = async (
   }
 };
 
+// Resolve the alternate token type directly from env or store without mutating active type.
+const resolveAlternateToken = async (
+  alternateType: "xoxp" | "xoxb",
+  env: Record<string, string | undefined>,
+): Promise<ResolvedSlackToken | undefined> => {
+  const envKey = alternateType === "xoxp" ? XOXP_ENV_KEY : XOXB_ENV_KEY;
+  const envSource = alternateType === "xoxp" ? "SLACK_MCP_XOXP_TOKEN" : "SLACK_MCP_XOXB_TOKEN";
+  const envToken = readNonEmptyEnv(env, envKey);
+  if (envToken !== undefined) {
+    return { token: envToken, source: envSource, tokenType: alternateType };
+  }
+  return undefined;
+};
+
+const isRetryableTokenError = (error: unknown): boolean => {
+  if (!isRecord(error)) {
+    return false;
+  }
+  const code = readString(error, "code");
+  return code === "SLACK_AUTH_ERROR" || code === "SLACK_API_ERROR";
+};
+
+// Throws SLACK_CONFIG_ERROR if the token uses an unsupported edge prefix (xoxc/xoxd).
+export const assertNoEdgeToken = (token: string, commandId: string): void => {
+  if (token.startsWith("xoxc") || token.startsWith("xoxd")) {
+    throw createSlackClientError({
+      code: "SLACK_CONFIG_ERROR",
+      message: `${commandId} does not support edge API tokens (xoxc/xoxd).`,
+      hint: "Use SLACK_MCP_XOXP_TOKEN with a user token (xoxp). Edge API token path is not yet supported.",
+    });
+  }
+};
+
+// Try fn with the resolved token. On auth/scope failure, retry once with the
+// alternate token type (xoxp <-> xoxb). Store is never mutated; no restore needed.
+export const withTokenFallback = async <T>(
+  preferredType: "xoxp" | "xoxb",
+  env: Record<string, string | undefined>,
+  fn: (token: ResolvedSlackToken) => Promise<T>,
+  resolveToken: (
+    env: Record<string, string | undefined>,
+  ) => Promise<ResolvedSlackToken> | ResolvedSlackToken = resolveSlackToken,
+): Promise<T> => {
+  const primaryToken = await resolveToken(env);
+
+  try {
+    return await fn(primaryToken);
+  } catch (primaryError) {
+    if (!isRetryableTokenError(primaryError)) {
+      throw primaryError;
+    }
+
+    // Primary failed with auth/scope error — try alternate type if different
+    const alternateType = preferredType === "xoxp" ? "xoxb" : "xoxp";
+    if (primaryToken.tokenType === alternateType) {
+      throw primaryError;
+    }
+
+    const alternateToken = await resolveAlternateToken(alternateType, env);
+    if (alternateToken === undefined) {
+      throw primaryError;
+    }
+
+    // Retry with alternate token; throw alternate error if also fails
+    return await fn(alternateToken);
+  }
+};
+
 export const resolveSlackTokenFromEnv = (
   env: Record<string, string | undefined> = process.env,
 ): ResolvedSlackToken => {

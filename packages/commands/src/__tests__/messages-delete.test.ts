@@ -107,14 +107,14 @@ describe("messages delete command", () => {
 
         const body = String(init?.body);
         const params = new URLSearchParams(body);
-        expect(params.get("channel")).toBe("C077NSRSCUR");
-        expect(params.get("ts")).toBe("1771461608.515959");
+        expect(params.get("channel")).toBe("C12345678");
+        expect(params.get("ts")).toBe("1700000000.123456");
 
         return new Response(
           JSON.stringify({
             ok: true,
-            channel: "C077NSRSCUR",
-            ts: "1771461608.515959",
+            channel: "C12345678",
+            ts: "1700000000.123456",
           }),
           { status: 200 },
         );
@@ -128,7 +128,7 @@ describe("messages delete command", () => {
     const result = await runCliWithBuffer([
       "messages",
       "delete",
-      "https://flex-cv82520.slack.com/archives/C077NSRSCUR/p1771461608515959",
+      "https://acme.slack.com/archives/C12345678/p1700000000123456",
       "--json",
     ]);
 
@@ -139,7 +139,7 @@ describe("messages delete command", () => {
       return;
     }
 
-    expect(parsed.data.channel).toBe("C077NSRSCUR");
-    expect(parsed.data.ts).toBe("1771461608.515959");
+    expect(parsed.data.channel).toBe("C12345678");
+    expect(parsed.data.ts).toBe("1700000000.123456");
   });
 });

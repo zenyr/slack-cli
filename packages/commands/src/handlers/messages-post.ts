@@ -1,15 +1,16 @@
 import { createError } from "../errors";
+import { buildBlocksFromMarkdown } from "../messages-post/block-builder";
 import { convertMarkdownToSlackMrkdwn } from "../messages-post/markdown";
 import { evaluatePostChannelPolicy } from "../messages-post/policy";
 import { createSlackWebApiClient } from "../slack/client";
-import { resolveSlackToken } from "../slack/token";
+import { resolveSlackToken, withTokenFallback } from "../slack/token";
 import type { ResolvedSlackToken, SlackPostWebApiClient } from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post";
 const USAGE_HINT =
-  "Usage: slack messages post <channel-id> <text> [--thread-ts=<ts>] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
+  "Usage: slack messages post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
 const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 
 type CreateClientOptions = {
@@ -19,16 +20,16 @@ type CreateClientOptions = {
 
 type MessagesPostHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
-  resolveToken: (
-    env?: Record<string, string | undefined>,
-  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
   env: Record<string, string | undefined>;
+  resolveToken: (
+    env: Record<string, string | undefined>,
+  ) => Promise<ResolvedSlackToken> | ResolvedSlackToken;
 };
 
 const defaultDeps: MessagesPostHandlerDeps = {
   createClient: createSlackWebApiClient,
-  resolveToken: resolveSlackToken,
   env: process.env,
+  resolveToken: resolveSlackToken,
 };
 
 const mapSlackClientError = (error: unknown): CliResult => {
@@ -118,7 +119,7 @@ const readThreadTsOption = (options: CliOptions): string | undefined | CliResult
 
 const readOptionalBooleanOption = (
   options: CliOptions,
-  optionName: "unfurl-links" | "unfurl-media" | "reply-broadcast",
+  optionName: "unfurl-links" | "unfurl-media" | "reply-broadcast" | "blocks",
 ): boolean | undefined | CliResult => {
   const rawValue = options[optionName];
   if (rawValue === undefined) {
@@ -195,6 +196,11 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       return replyBroadcastOrError;
     }
 
+    const blocksOrError = readOptionalBooleanOption(request.options, "blocks");
+    if (isCliErrorResult(blocksOrError)) {
+      return blocksOrError;
+    }
+
     const postPolicy = evaluatePostChannelPolicy(channelId, deps.env);
     if (postPolicy.allowed === false) {
       return createError(
@@ -206,31 +212,41 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
     }
 
     const mrkdwnText = convertMarkdownToSlackMrkdwn(text);
+    const shouldBuildBlocks = blocksOrError === true;
+    const blockPayload = shouldBuildBlocks ? buildBlocksFromMarkdown(text) : undefined;
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
-      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
-      const postMessagePayload = {
-        channel: channelId,
-        text: mrkdwnText,
-        threadTs: threadTsOrError,
-        unfurlLinks: unfurlLinksOrError,
-        unfurlMedia: unfurlMediaOrError,
-        replyBroadcast: replyBroadcastOrError,
-      };
-      const data = await client.postMessage(postMessagePayload);
+      return await withTokenFallback(
+        "xoxb",
+        deps.env,
+        async (resolvedToken) => {
+          const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
+          const postMessagePayload = {
+            channel: channelId,
+            text: mrkdwnText,
+            threadTs: threadTsOrError,
+            blocks: blockPayload?.blocks,
+            attachments: blockPayload?.attachments,
+            unfurlLinks: unfurlLinksOrError,
+            unfurlMedia: unfurlMediaOrError,
+            replyBroadcast: replyBroadcastOrError,
+          };
+          const data = await client.postMessage(postMessagePayload);
 
-      return {
-        ok: true,
-        command: COMMAND_ID,
-        message: `Message posted to ${data.channel}.`,
-        data: {
-          channel: data.channel,
-          ts: data.ts,
-          message: data.message,
+          return {
+            ok: true,
+            command: COMMAND_ID,
+            message: `Message posted to ${data.channel}.`,
+            data: {
+              channel: data.channel,
+              ts: data.ts,
+              message: data.message,
+            },
+            textLines: [`Posted message to ${data.channel} at ${data.ts}.`],
+          };
         },
-        textLines: [`Posted message to ${data.channel} at ${data.ts}.`],
-      };
+        deps.resolveToken,
+      );
     } catch (error) {
       return mapSlackClientError(error);
     }

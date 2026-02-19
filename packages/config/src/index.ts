@@ -105,14 +105,19 @@ export const COMMANDS: CliCommand[] = [
     description: "Search messages",
   },
   {
+    name: "messages fetch",
+    args: "<message-url> [--thread[=<bool>]] [--json]",
+    description: "Fetch one message or full thread from permalink",
+  },
+  {
     name: "messages history",
     args: "<channel-id> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--json]",
     description: "Fetch channel message history",
   },
   {
     name: "messages post",
-    args: "<channel-id> <text> [--thread-ts=<ts>] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
-    description: "Post plain text message to channel",
+    args: "<channel-id> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+    description: "Post message to channel (markdown auto-converted to mrkdwn)",
   },
   {
     name: "messages post-ephemeral",

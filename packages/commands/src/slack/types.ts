@@ -212,6 +212,8 @@ export type SlackPostMessageParams = {
   unfurlLinks?: boolean;
   unfurlMedia?: boolean;
   replyBroadcast?: boolean;
+  blocks?: Record<string, unknown>[];
+  attachments?: Record<string, unknown>[];
 };
 
 export type SlackPostMessageResult = {
@@ -235,6 +237,8 @@ export type SlackPostEphemeralParams = {
   user: string;
   text: string;
   threadTs?: string;
+  blocks?: Record<string, unknown>[];
+  attachments?: Record<string, unknown>[];
 };
 
 export type SlackPostEphemeralResult = {

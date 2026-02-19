@@ -67,9 +67,12 @@ const renderRootHelp = (groups: CommandGroup[]): string[] => {
 
   const entries = groups.map((group) => {
     if (group.subcommands.length > 0) {
+      const subNames = group.subcommands
+        .map((cmd) => splitCommandName(cmd.name).slice(1).join(" "))
+        .join("|");
       return {
         label: group.name,
-        description: `${group.name} commands`,
+        description: subNames,
       };
     }
 
@@ -82,7 +85,7 @@ const renderRootHelp = (groups: CommandGroup[]): string[] => {
 
     return {
       label: group.name,
-      description: "Command",
+      description: "",
     };
   });
 
@@ -93,24 +96,26 @@ const renderRootHelp = (groups: CommandGroup[]): string[] => {
 
   lines.push("");
   lines.push("Global options:");
-  lines.push("  --help, -h               Show help");
-  lines.push("  --version, -v            Show version");
-  lines.push("  --json                   Print JSON output");
+  lines.push("  --help, -h    Show help");
+  lines.push("  --version, -v Show version");
+  lines.push("  --json        Print JSON output");
 
   return lines;
 };
 
 const renderNamespaceHelp = (group: CommandGroup): string[] => {
   if (group.subcommands.length === 0 && group.standalone !== undefined) {
-    const commandLine = toCommandLine(group.standalone.name, group.standalone.args);
+    const tokens = splitCommandName(group.standalone.name);
+    const argsStr = group.standalone.args.trim();
+    const usageParts = [CLI_NAME, ...tokens, ...(argsStr.length > 0 ? [argsStr] : [])];
 
     return [
-      `${CLI_NAME} ${group.name} - command help`,
+      `${CLI_NAME} ${group.name}`,
       "",
       "Usage:",
-      `  ${CLI_NAME} ${commandLine.replace(`${group.name} `, "")}`,
+      `  ${usageParts.join(" ")}`,
       "",
-      `Description: ${group.standalone.description}`,
+      group.standalone.description,
     ];
   }
 
@@ -127,7 +132,7 @@ const renderNamespaceHelp = (group: CommandGroup): string[] => {
 
   const maxWidth = Math.max(...subcommandEntries.map((entry) => entry.label.length), 0) + 2;
   const lines: string[] = [
-    `${CLI_NAME} ${group.name} - ${group.name} commands`,
+    `${CLI_NAME} ${group.name}`,
     "",
     "Usage:",
     `  ${CLI_NAME} ${group.name} <command> [options]`,

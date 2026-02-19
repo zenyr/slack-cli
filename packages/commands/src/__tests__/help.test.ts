@@ -38,7 +38,7 @@ describe("help command", () => {
     const result = await runCliWithBuffer(["auth", "--help"]);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.some((line) => line.includes("auth commands"))).toBe(true);
+    expect(result.stdout.some((line) => line.includes("slack auth"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("check"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("whoami"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("login"))).toBe(true);
@@ -52,9 +52,7 @@ describe("help command", () => {
     const result = await runCliWithBuffer(["channels"]);
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.some((line) => line.includes("slack channels - channels commands"))).toBe(
-      true,
-    );
+    expect(result.stdout.some((line) => line.includes("slack channels"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("list"))).toBe(true);
     expect(result.stderr.length).toBe(0);
   });
@@ -66,7 +64,7 @@ describe("help command", () => {
     expect(
       result.stdout.some((line) =>
         line.includes(
-          "post <channel-id> <text> [--thread-ts=<ts>] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+          "post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
         ),
       ),
     ).toBe(true);

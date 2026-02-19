@@ -1,6 +1,7 @@
 import { createError } from "../errors";
 import type { ResolvedSlackToken, SlackWebApiClient } from "../slack";
-import { createSlackWebApiClient, isSlackClientError, resolveSlackToken } from "../slack";
+import { createSlackWebApiClient, isSlackClientError } from "../slack";
+import { assertNoEdgeToken, resolveSlackToken, withTokenFallback } from "../slack/token";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.search";
@@ -12,16 +13,16 @@ type CreateClientOptions = {
 
 type MessagesSearchHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackWebApiClient;
-  resolveToken: (
-    env?: Record<string, string | undefined>,
-  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
   env: Record<string, string | undefined>;
+  resolveToken: (
+    env: Record<string, string | undefined>,
+  ) => Promise<ResolvedSlackToken> | ResolvedSlackToken;
 };
 
 const defaultDeps: MessagesSearchHandlerDeps = {
   createClient: createSlackWebApiClient,
-  resolveToken: resolveSlackToken,
   env: process.env,
+  resolveToken: resolveSlackToken,
 };
 
 const formatSuccessLines = (query: string, total: number, count: number): string[] => {
@@ -40,10 +41,6 @@ const RELATIVE_DATE_TO_DAYS: Record<string, number> = {
   "1w": 7,
   "30d": 30,
   "90d": 90,
-};
-
-const hasEdgeTokenPrefix = (token: string): boolean => {
-  return token.startsWith("xoxc") || token.startsWith("xoxd");
 };
 
 type UrlShortcutNormalization =
@@ -337,44 +334,30 @@ export const createMessagesSearchHandler = (
     ].join(" ");
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
-      if (hasEdgeTokenPrefix(resolvedToken.token)) {
-        return createError(
-          "INVALID_ARGUMENT",
-          "messages search does not support edge API tokens (xoxc/xoxd).",
-          "Use SLACK_MCP_XOXP_TOKEN with a user token (xoxp). Edge API token path is not yet supported for messages search.",
-          COMMAND_ID,
-        );
-      }
+      return await withTokenFallback(
+        "xoxp",
+        deps.env,
+        async (resolvedToken) => {
+          assertNoEdgeToken(resolvedToken.token, COMMAND_ID);
 
-      if (
-        resolvedToken.tokenType === "xoxb" ||
-        resolvedToken.source === "SLACK_MCP_XOXB_TOKEN" ||
-        resolvedToken.source === "env:SLACK_MCP_XOXB_TOKEN"
-      ) {
-        return createError(
-          "INVALID_ARGUMENT",
-          "messages search requires user token (xoxp).",
-          "Set SLACK_MCP_XOXP_TOKEN. Bot tokens cannot call search.messages.",
-          COMMAND_ID,
-        );
-      }
+          const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
+          const data = await client.searchMessages(filteredQuery);
 
-      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
-      const data = await client.searchMessages(filteredQuery);
-
-      return {
-        ok: true,
-        command: COMMAND_ID,
-        message: "Messages search completed",
-        data,
-        textLines: formatSuccessLinesWithFilters(
-          data.query,
-          data.total,
-          data.messages.length,
-          filterParts,
-        ),
-      };
+          return {
+            ok: true,
+            command: COMMAND_ID,
+            message: "Messages search completed",
+            data,
+            textLines: formatSuccessLinesWithFilters(
+              data.query,
+              data.total,
+              data.messages.length,
+              filterParts,
+            ),
+          };
+        },
+        deps.resolveToken,
+      );
     } catch (error) {
       return mapSlackErrorToCliResult(error);
     }

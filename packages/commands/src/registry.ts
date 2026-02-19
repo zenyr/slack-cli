@@ -1,6 +1,7 @@
 import { attachmentGetHandler } from "./handlers/attachment-get";
 import { helpHandler } from "./handlers/help";
 import { messagesDeleteHandler } from "./handlers/messages-delete";
+import { messagesFetchHandler } from "./handlers/messages-fetch";
 import { messagesHistoryHandler } from "./handlers/messages-history";
 import { messagesPostHandler } from "./handlers/messages-post";
 import { messagesPostEphemeralHandler } from "./handlers/messages-post-ephemeral";
@@ -136,6 +137,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-search",
     path: ["messages", "search"],
     execute: messagesSearchHandler,
+  },
+  {
+    id: "messages-fetch",
+    path: ["messages", "fetch"],
+    execute: messagesFetchHandler,
   },
   {
     id: "messages-history",
