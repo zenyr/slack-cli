@@ -405,6 +405,10 @@ describe("messages post command", () => {
           channel: "C999",
           messageTs: "1700000002.000100",
         }),
+        updateMessage: async () => ({
+          channel: "C999",
+          ts: "1700000002.000100",
+        }),
       }),
     });
 
@@ -460,6 +464,10 @@ describe("messages post command", () => {
         postEphemeral: async () => ({
           channel: "C123",
           messageTs: "1700000002.000100",
+        }),
+        updateMessage: async () => ({
+          channel: "C123",
+          ts: "1700000002.000100",
         }),
       }),
     });
@@ -594,6 +602,10 @@ describe("messages post command", () => {
             postEphemeral: async () => ({
               channel: "C123",
               messageTs: "1700000002.000100",
+            }),
+            updateMessage: async () => ({
+              channel: "C123",
+              ts: "1700000002.000100",
             }),
           }),
           resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),

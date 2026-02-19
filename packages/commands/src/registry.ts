@@ -4,6 +4,7 @@ import { messagesDeleteHandler } from "./handlers/messages-delete";
 import { messagesHistoryHandler } from "./handlers/messages-history";
 import { messagesPostHandler } from "./handlers/messages-post";
 import { messagesPostEphemeralHandler } from "./handlers/messages-post-ephemeral";
+import { messagesUpdateHandler } from "./handlers/messages-update";
 import { reactionsAddHandler } from "./handlers/reactions-add";
 import { reactionsRemoveHandler } from "./handlers/reactions-remove";
 import { resourcesHandler } from "./handlers/resources";
@@ -155,6 +156,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-delete",
     path: ["messages", "delete"],
     execute: messagesDeleteHandler,
+  },
+  {
+    id: "messages-update",
+    path: ["messages", "update"],
+    execute: messagesUpdateHandler,
   },
   {
     id: "messages-replies",

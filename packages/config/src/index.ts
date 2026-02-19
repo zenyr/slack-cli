@@ -121,8 +121,13 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages delete",
-    args: "<channel-id> <timestamp> [--json]",
-    description: "Delete message by channel and timestamp",
+    args: "<message-url> [--json] OR <channel-id> <timestamp> [--json]",
+    description: "Delete message by URL or channel and timestamp",
+  },
+  {
+    name: "messages update",
+    args: "<message-url> <text> [--json] OR <channel-id> <timestamp> <text> [--json]",
+    description: "Update message text by URL or channel and timestamp",
   },
   {
     name: "messages replies",

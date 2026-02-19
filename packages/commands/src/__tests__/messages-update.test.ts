@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 
 import { isRecord, parseJsonOutput, runCliWithBuffer } from "./test-utils";
 
-describe("messages delete command", () => {
+describe("messages update command", () => {
   const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
   const originalFetch = globalThis.fetch;
   const originalXoxpToken = process.env[XOXP_ENV_KEY];
@@ -17,8 +17,8 @@ describe("messages delete command", () => {
     }
   });
 
-  test("returns missing argument when channel id is absent", async () => {
-    const result = await runCliWithBuffer(["messages", "delete", "--json"]);
+  test("returns missing argument when message target is absent", async () => {
+    const result = await runCliWithBuffer(["messages", "update", "--json"]);
 
     expect(result.exitCode).toBe(2);
     const parsed = parseJsonOutput(result.stdout);
@@ -31,28 +31,13 @@ describe("messages delete command", () => {
     expect(parsed.error.message).toContain("<channel-id>");
   });
 
-  test("returns invalid argument when timestamp format is invalid", async () => {
-    const result = await runCliWithBuffer(["messages", "delete", "C123", "not-a-ts", "--json"]);
-
-    expect(result.exitCode).toBe(2);
-    const parsed = parseJsonOutput(result.stdout);
-    expect(isRecord(parsed)).toBe(true);
-    if (!isRecord(parsed) || !isRecord(parsed.error)) {
-      return;
-    }
-
-    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
-    expect(parsed.error.message).toContain("seconds.fraction");
-  });
-
-  test("deletes message and returns payload with --json", async () => {
+  test("updates message with channel and timestamp", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
     const mockedFetch: typeof fetch = Object.assign(
       async (input: string | URL | Request, init?: RequestInit) => {
         const requestUrl = input instanceof URL ? input.toString() : String(input);
-        expect(requestUrl).toContain("/chat.delete");
-        expect(init?.method).toBe("POST");
+        expect(requestUrl).toContain("/chat.update");
 
         const headers = new Headers(init?.headers);
         expect(headers.get("Authorization")).toBe("Bearer xoxp-test-token");
@@ -61,6 +46,7 @@ describe("messages delete command", () => {
         const params = new URLSearchParams(body);
         expect(params.get("channel")).toBe("C123");
         expect(params.get("ts")).toBe("1700000001.000100");
+        expect(params.get("text")).toBe("Read *docs*");
 
         return new Response(
           JSON.stringify({
@@ -79,9 +65,11 @@ describe("messages delete command", () => {
 
     const result = await runCliWithBuffer([
       "messages",
-      "delete",
+      "update",
       "C123",
       "1700000001.000100",
+      "Read",
+      "**docs**",
       "--json",
     ]);
 
@@ -92,23 +80,24 @@ describe("messages delete command", () => {
       return;
     }
 
-    expect(parsed.command).toBe("messages.delete");
+    expect(parsed.command).toBe("messages.update");
     expect(parsed.data.channel).toBe("C123");
     expect(parsed.data.ts).toBe("1700000001.000100");
   });
 
-  test("deletes message from canonical permalink", async () => {
+  test("updates message from canonical permalink", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
     const mockedFetch: typeof fetch = Object.assign(
       async (input: string | URL | Request, init?: RequestInit) => {
         const requestUrl = input instanceof URL ? input.toString() : String(input);
-        expect(requestUrl).toContain("/chat.delete");
+        expect(requestUrl).toContain("/chat.update");
 
         const body = String(init?.body);
         const params = new URLSearchParams(body);
         expect(params.get("channel")).toBe("C077NSRSCUR");
         expect(params.get("ts")).toBe("1771461608.515959");
+        expect(params.get("text")).toBe("done");
 
         return new Response(
           JSON.stringify({
@@ -127,8 +116,9 @@ describe("messages delete command", () => {
 
     const result = await runCliWithBuffer([
       "messages",
-      "delete",
+      "update",
       "https://flex-cv82520.slack.com/archives/C077NSRSCUR/p1771461608515959",
+      "done",
       "--json",
     ]);
 

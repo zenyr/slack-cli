@@ -30,6 +30,8 @@ import type {
   SlackRepliesWebApiClient,
   SlackSearchMessage,
   SlackSearchMessagesResult,
+  SlackUpdateMessageParams,
+  SlackUpdateMessageResult,
   SlackUpdateUsergroupParams,
   SlackUser,
   SlackUserGroup,
@@ -1045,6 +1047,33 @@ export const createSlackWebApiClient = (
     };
   };
 
+  const updateMessage = async (
+    params: SlackUpdateMessageParams,
+  ): Promise<SlackUpdateMessageResult> => {
+    const payload = new URLSearchParams({
+      channel: params.channel,
+      ts: params.ts,
+      text: params.text,
+    });
+    const payloadData = await callApiPost("chat.update", payload);
+    const channel = readString(payloadData, "channel") ?? params.channel;
+    const ts = readString(payloadData, "ts");
+
+    if (ts === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack API returned malformed update message payload.",
+        hint: "Verify token scopes and channel access for chat.update.",
+      });
+    }
+
+    return {
+      channel,
+      ts,
+      message: mapMessage(readRecord(payloadData, "message")),
+    };
+  };
+
   const normalizeReactionParams = (params: SlackReactionParams): SlackReactionParams => {
     const channel = params.channel.trim();
     const timestamp = params.timestamp.trim();
@@ -1158,6 +1187,7 @@ export const createSlackWebApiClient = (
     postMessage,
     deleteMessage,
     postEphemeral,
+    updateMessage,
     addReaction,
     removeReaction,
   };
