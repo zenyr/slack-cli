@@ -55,6 +55,11 @@ export const COMMANDS: CliCommand[] = [
     description: "List users",
   },
   {
+    name: "users get",
+    args: "<user-id> [user-id ...] [--json]",
+    description: "Get users by ID (batch supported)",
+  },
+  {
     name: "users search",
     args: "[<query>] [--cursor=<cursor>] [--limit=<n>] [--json]",
     description: "Search users",

@@ -41,6 +41,7 @@ import type {
   SlackUsergroupsWebApiClient,
   SlackUsergroupUsersListParams,
   SlackUsergroupUsersListResult,
+  SlackUsersInfoWebApiClient,
   SlackWebApiClient,
 } from "./types";
 import {
@@ -357,6 +358,7 @@ export const createSlackWebApiClient = (
   options: CreateSlackWebApiClientOptions = {},
 ): SlackWebApiClient &
   SlackAttachmentWebApiClient &
+  SlackUsersInfoWebApiClient &
   SlackUsergroupsWebApiClient &
   SlackAuthWebApiClient &
   SlackUsergroupsUsersListWebApiClient &
@@ -562,6 +564,79 @@ export const createSlackWebApiClient = (
     return {
       users,
       nextCursor: readNextCursor(payload),
+    };
+  };
+
+  const isUserNotFoundSlackError = (error: unknown): boolean => {
+    if (!isRecord(error)) {
+      return false;
+    }
+
+    const code = readString(error, "code");
+    const message = readString(error, "message")?.toLowerCase() ?? "";
+
+    if (code !== "SLACK_API_ERROR") {
+      return false;
+    }
+
+    return message.includes("user_not_found") || message.includes("users_not_found");
+  };
+
+  const fetchUserById = async (userId: string): Promise<SlackUser | undefined> => {
+    try {
+      const payload = await callApi("users.info", new URLSearchParams({ user: userId }));
+      const mapped = mapUser(readRecord(payload, "user"));
+      if (mapped === undefined) {
+        throw createSlackClientError({
+          code: "SLACK_RESPONSE_ERROR",
+          message: "Slack API returned malformed users.info payload.",
+          hint: "Verify token scopes and user visibility for users.info.",
+        });
+      }
+
+      return mapped;
+    } catch (error) {
+      if (isUserNotFoundSlackError(error)) {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  const getUsersByIds = async (
+    userIds: string[],
+  ): Promise<{ users: SlackUser[]; missingUserIds: string[] }> => {
+    const uniqueUserIds = Array.from(
+      new Set(userIds.map((value) => value.trim()).filter((value) => value.length > 0)),
+    );
+
+    const users: SlackUser[] = [];
+    const missingUserIds: string[] = [];
+    const concurrency = 8;
+
+    for (let index = 0; index < uniqueUserIds.length; index += concurrency) {
+      const chunk = uniqueUserIds.slice(index, index + concurrency);
+      const results = await Promise.all(
+        chunk.map(async (userId) => {
+          const user = await fetchUserById(userId);
+          return { userId, user };
+        }),
+      );
+
+      for (const result of results) {
+        if (result.user === undefined) {
+          missingUserIds.push(result.userId);
+          continue;
+        }
+
+        users.push(result.user);
+      }
+    }
+
+    return {
+      users,
+      missingUserIds,
     };
   };
 
@@ -1223,6 +1298,7 @@ export const createSlackWebApiClient = (
   return {
     listChannels,
     listUsers,
+    getUsersByIds,
     listUsergroups,
     getCurrentUserId,
     listUsergroupUsers,

@@ -72,6 +72,11 @@ export type SlackListUsersOptions = {
   cursor?: string;
 };
 
+export type SlackGetUsersByIdsResult = {
+  users: SlackUser[];
+  missingUserIds: string[];
+};
+
 export type SlackUserGroup = {
   id: string;
   handle: string;
@@ -319,6 +324,10 @@ export type SlackWebApiClient = {
     cursor?: string;
     includeActivity?: boolean;
   }) => Promise<SlackChannelHistoryResult>;
+};
+
+export type SlackUsersInfoWebApiClient = {
+  getUsersByIds: (userIds: string[]) => Promise<SlackGetUsersByIdsResult>;
 };
 
 export type SlackAttachmentWebApiClient = {

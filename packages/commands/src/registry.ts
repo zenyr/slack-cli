@@ -18,6 +18,7 @@ import {
   channelsListHandler,
   messagesRepliesHandler,
   messagesSearchHandler,
+  usersGetHandler,
   usersListHandler,
   usersSearchHandler,
 } from "./handlers/stubs";
@@ -87,6 +88,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "users-list",
     path: ["users", "list"],
     execute: usersListHandler,
+  },
+  {
+    id: "users-get",
+    path: ["users", "get"],
+    execute: usersGetHandler,
   },
   {
     id: "users-search",

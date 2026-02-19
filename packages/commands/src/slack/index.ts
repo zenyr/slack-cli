@@ -11,6 +11,7 @@ export type {
   SlackClientError,
   SlackClientErrorCode,
   SlackFileMetadata,
+  SlackGetUsersByIdsResult,
   SlackListChannelsOptions,
   SlackListChannelsResult,
   SlackListUsersResult,
@@ -20,6 +21,7 @@ export type {
   SlackTokenSource,
   SlackTokenType,
   SlackUser,
+  SlackUsersInfoWebApiClient,
   SlackWebApiClient,
 } from "./types";
 export { createSlackClientError, isSlackClientError } from "./utils";

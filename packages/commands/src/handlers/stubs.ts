@@ -8,5 +8,6 @@ export {
 export { channelsListHandler } from "./channels-list";
 export { messagesRepliesHandler } from "./messages-replies";
 export { messagesSearchHandler } from "./messages-search";
+export { usersGetHandler } from "./users-get";
 export { usersListHandler } from "./users-list";
 export { usersSearchHandler } from "./users-search";
