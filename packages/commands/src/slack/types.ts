@@ -37,6 +37,26 @@ export type SlackChannel = {
   memberCount?: number;
 };
 
+export type SlackChannelInfo = {
+  id: string;
+  name: string;
+  isPrivate: boolean;
+  isArchived: boolean;
+  memberCount?: number;
+  topic?: string;
+  purpose?: string;
+  creator?: string;
+  created?: number;
+};
+
+export type SlackChannelInfoResult = {
+  channel: SlackChannelInfo;
+};
+
+export type SlackChannelInfoWebApiClient = {
+  fetchChannelInfo: (channelId: string) => Promise<SlackChannelInfoResult>;
+};
+
 export type SlackChannelType = "public" | "private" | "im" | "mpim";
 
 export type SlackChannelsSort = "name" | "popularity";
@@ -334,4 +354,32 @@ export type SlackAttachmentWebApiClient = {
   fetchFileInfo: (fileId: string) => Promise<SlackFileMetadata>;
   fetchFileText: (urlPrivate: string, maxBytes: number) => Promise<SlackFileText>;
   fetchFileBinary: (urlPrivate: string, maxBytes: number) => Promise<SlackFileBinary>;
+};
+
+export type SlackUserStatus = {
+  emoji: string;
+  text: string;
+  expiration: number;
+};
+
+export type SlackUserProfile = {
+  displayName?: string;
+  realName?: string;
+  email?: string;
+  status: SlackUserStatus;
+};
+
+export type SlackUserProfileGetResult = {
+  profile: SlackUserProfile;
+};
+
+export type SlackSetUserStatusParams = {
+  emoji: string;
+  text: string;
+  expiration?: number;
+};
+
+export type SlackUserProfileWebApiClient = {
+  getUserProfile: (userId?: string) => Promise<SlackUserProfileGetResult>;
+  setUserProfile: (params: SlackSetUserStatusParams) => Promise<SlackUserProfileGetResult>;
 };

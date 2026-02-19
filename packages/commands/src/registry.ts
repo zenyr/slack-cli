@@ -1,5 +1,6 @@
 import { attachmentGetHandler } from "./handlers/attachment-get";
 import { batchHandler } from "./handlers/batch";
+import { channelsInfoHandler } from "./handlers/channels-info";
 import { helpHandler } from "./handlers/help";
 import { messagesDeleteHandler } from "./handlers/messages-delete";
 import { messagesFetchHandler } from "./handlers/messages-fetch";
@@ -31,6 +32,9 @@ import { usergroupsMeJoinHandler } from "./handlers/usergroups-me-join";
 import { usergroupsMeLeaveHandler } from "./handlers/usergroups-me-leave";
 import { usergroupsUpdateHandler } from "./handlers/usergroups-update";
 import { usergroupsUsersUpdateHandler } from "./handlers/usergroups-users-update";
+import { usersStatusClearHandler } from "./handlers/users-status-clear";
+import { usersStatusGetHandler } from "./handlers/users-status-get";
+import { usersStatusSetHandler } from "./handlers/users-status-set";
 import { versionHandler } from "./handlers/version";
 import type { CommandStrategy } from "./types";
 
@@ -91,6 +95,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     execute: channelsListHandler,
   },
   {
+    id: "channels-info",
+    path: ["channels", "info"],
+    execute: channelsInfoHandler,
+  },
+  {
     id: "users-list",
     path: ["users", "list"],
     execute: usersListHandler,
@@ -104,6 +113,21 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "users-search",
     path: ["users", "search"],
     execute: usersSearchHandler,
+  },
+  {
+    id: "users-status-get",
+    path: ["users", "status", "get"],
+    execute: usersStatusGetHandler,
+  },
+  {
+    id: "users-status-set",
+    path: ["users", "status", "set"],
+    execute: usersStatusSetHandler,
+  },
+  {
+    id: "users-status-clear",
+    path: ["users", "status", "clear"],
+    execute: usersStatusClearHandler,
   },
   {
     id: "attachment-get",

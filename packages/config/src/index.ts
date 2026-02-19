@@ -50,6 +50,11 @@ export const COMMANDS: CliCommand[] = [
     description: "List channels",
   },
   {
+    name: "channels info",
+    args: "<channel-id> [--json]",
+    description: "Get channel info by ID",
+  },
+  {
     name: "users list",
     args: "[<query>] [--cursor=<cursor>] [--limit=<n>] [--json]",
     description: "List users",
@@ -63,6 +68,21 @@ export const COMMANDS: CliCommand[] = [
     name: "users search",
     args: "[<query>] [--cursor=<cursor>] [--limit=<n>] [--json]",
     description: "Search users",
+  },
+  {
+    name: "users status get",
+    args: "[user-id] [--json]",
+    description: "Get user status",
+  },
+  {
+    name: "users status set",
+    args: "<emoji> <text> [--expiration=<30m|1h|2h|4h|today|unix-ts>] [--json]",
+    description: "Set user status (xoxp only)",
+  },
+  {
+    name: "users status clear",
+    args: "[--json]",
+    description: "Clear user status (xoxp only)",
   },
   {
     name: "attachment get",

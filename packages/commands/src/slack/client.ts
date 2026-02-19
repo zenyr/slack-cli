@@ -5,6 +5,9 @@ import type {
   SlackAuthWebApiClient,
   SlackChannel,
   SlackChannelHistoryResult,
+  SlackChannelInfo,
+  SlackChannelInfoResult,
+  SlackChannelInfoWebApiClient,
   SlackChannelRepliesResult,
   SlackChannelType,
   SlackCreateUsergroupParams,
@@ -30,6 +33,7 @@ import type {
   SlackRepliesWebApiClient,
   SlackSearchMessage,
   SlackSearchMessagesResult,
+  SlackSetUserStatusParams,
   SlackUpdateMessageParams,
   SlackUpdateMessageResult,
   SlackUpdateUsergroupParams,
@@ -41,6 +45,9 @@ import type {
   SlackUsergroupsWebApiClient,
   SlackUsergroupUsersListParams,
   SlackUsergroupUsersListResult,
+  SlackUserProfile,
+  SlackUserProfileGetResult,
+  SlackUserProfileWebApiClient,
   SlackUsersInfoWebApiClient,
   SlackWebApiClient,
 } from "./types";
@@ -212,6 +219,33 @@ const mapChannel = (value: unknown): SlackChannel | undefined => {
   };
 };
 
+const mapChannelInfo = (value: unknown): SlackChannelInfo | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const id = readString(value, "id");
+  const name = readString(value, "name");
+  if (id === undefined || name === undefined) {
+    return undefined;
+  }
+
+  const topicRecord = readRecord(value, "topic");
+  const purposeRecord = readRecord(value, "purpose");
+
+  return {
+    id,
+    name,
+    isPrivate: readBoolean(value, "is_private") ?? false,
+    isArchived: readBoolean(value, "is_archived") ?? false,
+    memberCount: readNumber(value, "num_members"),
+    topic: topicRecord === undefined ? undefined : readString(topicRecord, "value"),
+    purpose: purposeRecord === undefined ? undefined : readString(purposeRecord, "value"),
+    creator: readString(value, "creator"),
+    created: readNumber(value, "created"),
+  };
+};
+
 const mapUser = (value: unknown): SlackUser | undefined => {
   if (!isRecord(value)) {
     return undefined;
@@ -268,6 +302,19 @@ const mapUserGroup = (value: unknown): SlackUserGroup | undefined => {
     description,
     userCount,
     users: users.length === 0 ? undefined : users,
+  };
+};
+
+const mapUserProfile = (value: unknown): SlackUserProfile | undefined => {
+  if (!isRecord(value)) return undefined;
+  const statusEmoji = readString(value, "status_emoji") ?? "";
+  const statusText = readString(value, "status_text") ?? "";
+  const statusExpiration = readNumber(value, "status_expiration") ?? 0;
+  return {
+    displayName: readString(value, "display_name"),
+    realName: readString(value, "real_name"),
+    email: readString(value, "email"),
+    status: { emoji: statusEmoji, text: statusText, expiration: statusExpiration },
   };
 };
 
@@ -365,7 +412,9 @@ export const createSlackWebApiClient = (
   SlackUsergroupsUpdateWebApiClient &
   SlackRepliesWebApiClient &
   SlackPostWebApiClient &
-  SlackReactionsWebApiClient => {
+  SlackReactionsWebApiClient &
+  SlackChannelInfoWebApiClient &
+  SlackUserProfileWebApiClient => {
   const fetchImpl = options.fetchImpl ?? fetch;
   const baseUrl = options.baseUrl ?? DEFAULT_SLACK_API_BASE_URL;
   const explicitToken = options.token;
@@ -546,6 +595,21 @@ export const createSlackWebApiClient = (
       channels,
       nextCursor: readNextCursor(payload),
     };
+  };
+
+  const fetchChannelInfo = async (channelId: string): Promise<SlackChannelInfoResult> => {
+    const params = new URLSearchParams({ channel: channelId });
+    const payload = await callApi("conversations.info", params);
+    const channelRaw = readRecord(payload, "channel");
+    const channel = mapChannelInfo(channelRaw);
+    if (channel === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "conversations.info response missing or malformed channel.",
+        hint: "Verify the channel ID and token scopes.",
+      });
+    }
+    return { channel };
   };
 
   const listUsers = async (options: SlackListUsersOptions = {}): Promise<SlackListUsersResult> => {
@@ -1295,8 +1359,47 @@ export const createSlackWebApiClient = (
     return readReactionResult(payloadData, normalized, "reactions.remove");
   };
 
+  const getUserProfile = async (userId?: string): Promise<SlackUserProfileGetResult> => {
+    const params = new URLSearchParams();
+    if (userId !== undefined && userId.length > 0) {
+      params.set("user", userId);
+    }
+    const payload = await callApi("users.profile.get", params);
+    const profile = mapUserProfile(readRecord(payload, "profile"));
+    if (profile === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack API returned malformed users.profile.get payload.",
+        hint: "Verify token scopes and user access for users.profile.get.",
+      });
+    }
+    return { profile };
+  };
+
+  const setUserProfile = async (
+    params: SlackSetUserStatusParams,
+  ): Promise<SlackUserProfileGetResult> => {
+    const payloadData = await callApiPost("users.profile.set", {
+      profile: {
+        status_emoji: params.emoji,
+        status_text: params.text,
+        status_expiration: params.expiration ?? 0,
+      },
+    });
+    const profile = mapUserProfile(readRecord(payloadData, "profile"));
+    if (profile === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack API returned malformed users.profile.set payload.",
+        hint: "Verify token scopes and user access for users.profile.set.",
+      });
+    }
+    return { profile };
+  };
+
   return {
     listChannels,
+    fetchChannelInfo,
     listUsers,
     getUsersByIds,
     listUsergroups,
@@ -1317,5 +1420,7 @@ export const createSlackWebApiClient = (
     updateMessage,
     addReaction,
     removeReaction,
+    getUserProfile,
+    setUserProfile,
   };
 };
