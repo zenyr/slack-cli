@@ -1,20 +1,20 @@
+import {
+  type CreateClientOptions,
+  isCliErrorResult,
+  mapSlackClientError,
+  readThreadTsOption,
+} from "./messages-shared";
 import { createError } from "../errors";
 import { convertMarkdownToSlackMrkdwn } from "../messages-post/markdown";
 import { evaluatePostChannelPolicy } from "../messages-post/policy";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
 import type { ResolvedSlackToken, SlackPostWebApiClient } from "../slack/types";
-import { isSlackClientError } from "../slack/utils";
-import type { CliOptions, CliResult, CommandRequest } from "../types";
+import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post-ephemeral";
 const USAGE_HINT =
   "Usage: slack messages post-ephemeral <channel-id> <user-id> <text> [--thread-ts=<ts>] [--json]";
-
-type CreateClientOptions = {
-  token?: string;
-  env?: Record<string, string | undefined>;
-};
 
 type MessagesPostEphemeralHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
@@ -28,91 +28,6 @@ const defaultDeps: MessagesPostEphemeralHandlerDeps = {
   createClient: createSlackWebApiClient,
   resolveToken: resolveSlackToken,
   env: process.env,
-};
-
-const isCliErrorResult = (value: unknown): value is CliResult => {
-  return typeof value === "object" && value !== null && "ok" in value;
-};
-
-const isValidSlackTimestamp = (value: string): boolean => {
-  return /^\d+\.\d+$/.test(value);
-};
-
-const readThreadTsOption = (options: CliOptions): string | undefined | CliResult => {
-  const rawThreadTs = options["thread-ts"];
-  if (rawThreadTs === undefined) {
-    return undefined;
-  }
-
-  if (rawThreadTs === true) {
-    return createError(
-      "INVALID_ARGUMENT",
-      "messages post-ephemeral --thread-ts requires a value. [MISSING_ARGUMENT]",
-      USAGE_HINT,
-      COMMAND_ID,
-    );
-  }
-
-  if (typeof rawThreadTs !== "string") {
-    return createError(
-      "INVALID_ARGUMENT",
-      "messages post-ephemeral --thread-ts requires a string timestamp value.",
-      USAGE_HINT,
-      COMMAND_ID,
-    );
-  }
-
-  const threadTs = rawThreadTs.trim();
-  if (threadTs.length === 0) {
-    return createError(
-      "INVALID_ARGUMENT",
-      "messages post-ephemeral --thread-ts value cannot be empty. [MISSING_ARGUMENT]",
-      USAGE_HINT,
-      COMMAND_ID,
-    );
-  }
-
-  if (!isValidSlackTimestamp(threadTs)) {
-    return createError(
-      "INVALID_ARGUMENT",
-      `messages post-ephemeral --thread-ts must match Slack timestamp format seconds.fraction. Received: ${threadTs}`,
-      USAGE_HINT,
-      COMMAND_ID,
-    );
-  }
-
-  return threadTs;
-};
-
-const mapSlackClientError = (error: unknown): CliResult => {
-  if (!isSlackClientError(error)) {
-    return createError(
-      "INTERNAL_ERROR",
-      "Unexpected runtime failure for messages.post-ephemeral.",
-      "Retry with --json for structured output.",
-      COMMAND_ID,
-    );
-  }
-
-  switch (error.code) {
-    case "SLACK_CONFIG_ERROR":
-      return createError("INVALID_ARGUMENT", error.message, error.hint, COMMAND_ID);
-    case "SLACK_AUTH_ERROR":
-      return createError(
-        "INVALID_ARGUMENT",
-        `${error.message} [AUTH_ERROR]`,
-        error.hint,
-        COMMAND_ID,
-      );
-    case "SLACK_API_ERROR": {
-      const reason =
-        error.details === undefined ? error.message : `${error.message} ${error.details}`;
-      return createError("INVALID_ARGUMENT", `${reason} [SLACK_API_ERROR]`, error.hint, COMMAND_ID);
-    }
-    case "SLACK_HTTP_ERROR":
-    case "SLACK_RESPONSE_ERROR":
-      return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID);
-  }
 };
 
 export const createMessagesPostEphemeralHandler = (
@@ -157,7 +72,12 @@ export const createMessagesPostEphemeralHandler = (
     const channel = rawChannel.trim();
     const user = rawUser.trim();
 
-    const threadTsOrError = readThreadTsOption(request.options);
+    const threadTsOrError = readThreadTsOption(
+      request.options,
+      "messages post-ephemeral",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
     if (isCliErrorResult(threadTsOrError)) {
       return threadTsOrError;
     }
@@ -198,7 +118,7 @@ export const createMessagesPostEphemeralHandler = (
         ],
       };
     } catch (error) {
-      return mapSlackClientError(error);
+      return mapSlackClientError(error, COMMAND_ID);
     }
   };
 };

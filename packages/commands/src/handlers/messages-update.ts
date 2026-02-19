@@ -1,20 +1,19 @@
+import {
+  type CreateClientOptions,
+  isValidSlackTimestamp,
+  mapSlackClientError,
+} from "./messages-shared";
 import { createError } from "../errors";
 import { parseSlackMessagePermalink } from "../messages/permalink";
 import { convertMarkdownToSlackMrkdwn } from "../messages-post/markdown";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
 import type { ResolvedSlackToken, SlackPostWebApiClient } from "../slack/types";
-import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.update";
 const USAGE_HINT =
   "Usage: slack messages update <channel-id> <timestamp> <text> [--json] or slack messages update <message-url> <text> [--json]";
-
-type CreateClientOptions = {
-  token?: string;
-  env?: Record<string, string | undefined>;
-};
 
 type MessagesUpdateHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
@@ -28,41 +27,6 @@ const defaultDeps: MessagesUpdateHandlerDeps = {
   createClient: createSlackWebApiClient,
   resolveToken: resolveSlackToken,
   env: process.env,
-};
-
-const isValidSlackTimestamp = (value: string): boolean => {
-  return /^\d+\.\d+$/.test(value);
-};
-
-const mapSlackClientError = (error: unknown): CliResult => {
-  if (!isSlackClientError(error)) {
-    return createError(
-      "INTERNAL_ERROR",
-      "Unexpected runtime failure for messages.update.",
-      "Retry with --json for structured output.",
-      COMMAND_ID,
-    );
-  }
-
-  switch (error.code) {
-    case "SLACK_CONFIG_ERROR":
-      return createError("INVALID_ARGUMENT", error.message, error.hint, COMMAND_ID);
-    case "SLACK_AUTH_ERROR":
-      return createError(
-        "INVALID_ARGUMENT",
-        `${error.message} [AUTH_ERROR]`,
-        error.hint,
-        COMMAND_ID,
-      );
-    case "SLACK_API_ERROR": {
-      const reason =
-        error.details === undefined ? error.message : `${error.message} ${error.details}`;
-      return createError("INVALID_ARGUMENT", `${reason} [SLACK_API_ERROR]`, error.hint, COMMAND_ID);
-    }
-    case "SLACK_HTTP_ERROR":
-    case "SLACK_RESPONSE_ERROR":
-      return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID);
-  }
 };
 
 const resolveTargetAndText = (
@@ -176,7 +140,7 @@ export const createMessagesUpdateHandler = (
         textLines: [`Updated message in ${data.channel} at ${data.ts}.`],
       };
     } catch (error) {
-      return mapSlackClientError(error);
+      return mapSlackClientError(error, COMMAND_ID);
     }
   };
 };
