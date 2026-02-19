@@ -14,7 +14,6 @@ Execution model:
 - Treat its content as runtime instruction set.
 - Do not edit this command file during normal `/plan` execution.
 - In this spec, `plan.md` command file means `.opencode/command/plan.md` only.
-- Never create or update repository-root `plan.md` as part of `/plan` runtime artifacts.
 
 Primary objective: migrate org worktree MCP server capabilities into main Slack CLI with logical, progressive delivery cadence:
 `unicycle -> bicycle -> motorcycle -> car`.
@@ -42,9 +41,8 @@ Main agent must:
 3. assign units to sibling worktrees (max 3 in parallel)
 4. create branch names per worktree from main base
 5. write root-level `todo.md` in each assigned sibling worktree (uncommitted)
-6. monitor completion via long-polling (`todo.md` deleted => worktree reports done)
-   - MUST prefer exit-on-event monitor process with `notifyOnExit=true`.
-   - Monitor process exits immediately when any assigned worktree `todo.md` is deleted.
+6. monitor completion via PTY exit notifications (`notifyOnExit=true`)
+   - Monitor exits immediately when any assigned worktree `todo.md` is deleted.
    - On exit notification, main agent identifies completed worktree(s), reads `result.md`, runs validation, then relaunches monitor for remaining worktrees.
 7. read sibling `result.md`
 8. delegate validation to `haiku` or `spark`
@@ -56,7 +54,7 @@ Main agent must:
 
 - MUST launch each assigned worktree execution as independent PTY session with `notifyOnExit=true`.
 - Recommended launch shape from main context:
-  - `pty_spawn(command="bash", args=["-lc", "(cd ../worktree-N && opencode run \"todo.md 를 완수할 것\" -m openai/gpt-5.3-codex)"] , workdir=<main>, notifyOnExit=true)`
+  - `pty_spawn(command="bash", args=["-lc", "(cd ../worktree-N && opencode run \".opencode/command/implement.md 에 따라 todo.md 를 완수할 것\" -m openai/gpt-5.3-codex)"] , workdir=<worktree>, notifyOnExit=true)`
 - Maintain mapping table in transient note (`.opencode/plans/...`):
   - worktree path
   - unit id
@@ -159,7 +157,6 @@ For each assigned sibling worktree:
 - Recommended pattern:
   - `feat/parity-i{iteration}-{unit-key}-wt{n}`
 - Record branch names in transient orchestration note under `.opencode/plans/` only.
-- Never create repository-root `plan.md` during `/plan` execution.
 
 ## Delegation Contract
 
@@ -222,7 +219,6 @@ For each assigned worktree, create `todo.md` containing:
 Optional supporting artifact:
 
 - Use transient note file under `.opencode/plans/` for orchestration visibility (for example `.opencode/plans/parity-i2.md`).
-- Repository-root `plan.md` is forbidden. Only `.opencode/command/plan.md` is the command definition file.
 
 ## `todo.md` Canonical Example
 
@@ -336,9 +332,10 @@ Never delete `todo.md` before commit completion and `result.md` sealed completio
 
 CRITICAL (terminal signal rule): deleting `todo.md` is a one-way terminal signal consumed by main orchestrator.
 Delete `todo.md` only in exactly one of these terminal moments:
+
 1. success terminal: all required work finished, verification passed, commit done, final `result.md` written.
 2. abandon terminal: unit is proven not completable now, final `result.md` documents explicit abandonment + blocker evidence.
-Paraphrase: if you are still working, still validating, still fixing, or still deciding, keep `todo.md`.
+   Paraphrase: if you are still working, still validating, still fixing, or still deciding, keep `todo.md`.
 
 ## If Blocked
 
@@ -349,32 +346,6 @@ Paraphrase: if you are still working, still validating, still fixing, or still d
 - Do not claim completion.
 ```
 
-## Long-Poll Orchestration Loop
-
-Main agent must run iterative monitor loop per assigned worktree:
-
-1. Spawn one monitor process from main context with `notifyOnExit=true`.
-2. Monitor process checks assigned worktree `todo.md` files and exits immediately when any file disappears.
-3. On exit notification, treat disappeared `todo.md` worktree(s) as candidate completion only.
-4. Run stabilization gate before validation:
-   - read `result.md` twice with short delay; content must be stable
-   - `completion_state` must exist as one of:
-     - success terminal: `status: done`, `phase: sealed`, `ready_for_pickup: true`
-     - abandon terminal: `status: abandoned`, `phase: terminal`, `ready_for_pickup: false`
-   - `git -C <worktree> status --short --branch` must satisfy unit clean-state rule
-5. Delegate verification of claimed outcome to `haiku` or `spark`.
-6. If stabilization + verification pass, accept unit and remove it from pending set.
-7. If either fails, write updated `todo.md` with precise gap-fix instructions and keep unit pending.
-8. Relaunch monitor process for remaining pending worktrees; repeat until pending set is empty.
-
-Implementation note (recommended shell shape):
-
-- `while all pending todo.md exist; do sleep <interval>; done; echo completion; exit 0`
-- This converts polling into event-like orchestration via process exit + `notifyOnExit`.
-
-Never accept completion from `todo.md` deletion alone.
-Never accept completion without stabilization gate + independent verification.
-
 ## PTY Notify Control Loop (authoritative)
 
 Treat PTY exit notification as primary event source. `todo.md` presence checks are only secondary confirmation.
@@ -384,11 +355,18 @@ Treat PTY exit notification as primary event source. `todo.md` presence checks a
 3. For each exited PTY:
    - read full PTY output via `pty_read`
    - check worktree `todo.md` deletion + `result.md` existence
-   - run stabilization gate and delegated validation
-4. If validation passes:
+   - run stabilization gate:
+     - read `result.md` twice with short delay; content must be stable
+     - `completion_state` must exist as one of:
+       - success terminal: `status: done`, `phase: sealed`, `ready_for_pickup: true`
+       - abandon terminal: `status: abandoned`, `phase: terminal`, `ready_for_pickup: false`
+     - `git -C <worktree> status --short --branch` must satisfy unit clean-state rule
+   - delegate verification of claimed outcome to `haiku` or `spark`
+4. If stabilization + verification pass:
+   - accept unit and remove it from pending set
    - delegate git commit in that worktree (only when explicit human approval is available)
    - continue orchestration without intermediate user report
-5. If validation fails:
+5. If either fails:
    - regenerate precise corrective `todo.md`
    - relaunch worktree PTY with `notifyOnExit=true`
 6. Repeat until all assigned units reach terminal success/abandon state.
@@ -398,12 +376,14 @@ Non-negotiable:
 - No dead-time manual polling loops as primary mechanism.
 - Every completion candidate must include PTY output evidence + validator verdict.
 - Unless user explicitly requests status updates, do not emit per-unit progress chatter; continue loop autonomously.
+- Never accept completion from `todo.md` deletion alone.
 
 ## Runtime Artifact Hygiene (strict)
 
-- During active orchestration (while any assigned worktree still has `todo.md`), do not create or update repository-root `plan.md`.
+- All runtime orchestration artifacts must remain uncommitted.
 - If plan snapshot is needed, write only to `.opencode/plans/` (already ignored) and treat as transient.
-- Keep all runtime orchestration artifacts uncommitted.
+- Never create or update repository-root `plan.md` at any point during `/plan` execution.
+- `todo.md` and `result.md` are signaling artifacts; ensure repository ignore rules include both at root level.
 
 ## Merge Readiness Validation Rule
 
@@ -414,7 +394,7 @@ Before merging any completed worktree branch:
    - required verification command outcomes
    - clean commit topology evidence from `result.md`
 2. Only merge branches with validator verdict `pass`.
-3. If validator verdict is `fail`, regenerate corrective `todo.md` and re-enter long-poll loop.
+3. If validator verdict is `fail`, regenerate corrective `todo.md` and re-enter PTY notify loop.
 
 After merge to main:
 
@@ -440,15 +420,6 @@ After all assigned branches are merged and delegated post-merge validation passe
 3. Commit remaining main-worktree changes in logical units (avoid one mega commit when docs/process and code fixes are separable).
 4. Commit messages must be English, concise, and why-focused.
 5. Do not push unless explicitly requested.
-
-## Shared Ignore Hygiene
-
-Ensure repository ignore rules include root-level transient orchestration files:
-
-- `todo.md`
-- `result.md`
-
-These files are signaling artifacts and must remain uncommitted.
 
 ## Planning Quality Bar
 
