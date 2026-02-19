@@ -19,7 +19,11 @@ const writeLines = (lines: string[], writer: (line: string) => void): void => {
 export const renderCliResult = (result: CliResult, json: boolean, io: CliIo): number => {
   if (json) {
     io.stdout(JSON.stringify(result, null, 2));
-    return result.ok ? 0 : exitCodeForError(result.error.code);
+    if (!result.ok) {
+      return exitCodeForError(result.error.code);
+    }
+
+    return result.exitCodeOverride ?? 0;
   }
 
   if (result.ok) {
@@ -29,7 +33,7 @@ export const renderCliResult = (result: CliResult, json: boolean, io: CliIo): nu
       io.stdout(result.message);
     }
 
-    return 0;
+    return result.exitCodeOverride ?? 0;
   }
 
   io.stderr(result.error.message);

@@ -15,11 +15,6 @@ export const CLI_NAME = "slack";
 
 export const COMMANDS: CliCommand[] = [
   {
-    name: "batch",
-    args: '"<command arg...>" ["<command arg...>" ...] [--stop-on-error[=<bool>]] [--json]',
-    description: "Run multiple commands in one process",
-  },
-  {
     name: "help",
     args: "",
     description: "Show this help message",
@@ -168,6 +163,11 @@ export const COMMANDS: CliCommand[] = [
     name: "tools",
     args: "[--json]",
     description: "List referenced MCP tools from spec",
+  },
+  {
+    name: "batch",
+    args: '"<command arg...>" ["<command arg...>" ...] [--stop-on-error[=<bool>]] [--fail-on-error[=<bool>]] [--json]',
+    description: "Run multiple commands in one process",
   },
   {
     name: "version",

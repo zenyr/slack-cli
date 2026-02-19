@@ -4,7 +4,7 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "batch";
 const USAGE_HINT =
-  'Usage: slack batch "command arg..." "command arg..." [--stop-on-error] [--json]';
+  'Usage: slack batch "command arg..." "command arg..." [--stop-on-error[=<bool>]] [--fail-on-error[=<bool>]] [--json]';
 const MAX_BATCH_COMMANDS = 50;
 
 type BatchEntry = {
@@ -87,7 +87,10 @@ const tokenizeCommand = (rawCommand: string): string[] | string => {
   return tokens;
 };
 
-const readBooleanOption = (value: string | boolean | undefined): boolean | string => {
+const readBooleanOption = (
+  value: string | boolean | undefined,
+  optionName: string,
+): boolean | string => {
   if (value === undefined) {
     return false;
   }
@@ -121,7 +124,7 @@ const readBooleanOption = (value: string | boolean | undefined): boolean | strin
     return false;
   }
 
-  return "batch --stop-on-error must be boolean. Use true|false|1|0|yes|no|on|off.";
+  return `batch --${optionName} must be boolean. Use true|false|1|0|yes|no|on|off.`;
 };
 
 const setBatchTokenOverride = async (): Promise<(() => void) | undefined> => {
@@ -132,10 +135,8 @@ const setBatchTokenOverride = async (): Promise<(() => void) | undefined> => {
 
     if (resolved.tokenType === "xoxb") {
       process.env.SLACK_MCP_XOXB_TOKEN = resolved.token;
-      delete process.env.SLACK_MCP_XOXP_TOKEN;
     } else {
       process.env.SLACK_MCP_XOXP_TOKEN = resolved.token;
-      delete process.env.SLACK_MCP_XOXB_TOKEN;
     }
 
     return () => {
@@ -191,9 +192,14 @@ export const batchHandler = async (request: CommandRequest): Promise<CliResult> 
     );
   }
 
-  const stopOnErrorOrMessage = readBooleanOption(request.options["stop-on-error"]);
+  const stopOnErrorOrMessage = readBooleanOption(request.options["stop-on-error"], "stop-on-error");
   if (typeof stopOnErrorOrMessage === "string") {
     return createError("INVALID_ARGUMENT", stopOnErrorOrMessage, USAGE_HINT, COMMAND_ID);
+  }
+
+  const failOnErrorOrMessage = readBooleanOption(request.options["fail-on-error"], "fail-on-error");
+  if (typeof failOnErrorOrMessage === "string") {
+    return createError("INVALID_ARGUMENT", failOnErrorOrMessage, USAGE_HINT, COMMAND_ID);
   }
 
   const rawCommands = request.positionals;
@@ -292,6 +298,7 @@ export const batchHandler = async (request: CommandRequest): Promise<CliResult> 
       succeeded: successCount,
       failed: failedCount,
       stopOnError: stopOnErrorOrMessage,
+      failOnError: failOnErrorOrMessage,
       results: entries.map((entry) => ({
         index: entry.index,
         raw: entry.raw,
@@ -301,5 +308,6 @@ export const batchHandler = async (request: CommandRequest): Promise<CliResult> 
       })),
     },
     textLines: buildTextLines(entries),
+    exitCodeOverride: failOnErrorOrMessage && failedCount > 0 ? 2 : 0,
   };
 };

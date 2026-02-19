@@ -38,6 +38,7 @@ export type CliSuccess = {
   message?: string;
   data?: unknown;
   textLines?: string[];
+  exitCodeOverride?: number;
 };
 
 export type CliFailure = {
