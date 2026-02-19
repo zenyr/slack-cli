@@ -76,16 +76,6 @@ Print CLI version.
 
 ---
 
-### `slack batch`
-
-```
-slack batch "<command arg...>" "<command arg...>" [--stop-on-error[=<bool>]] [--json]
-```
-
-Run multiple commands in one process.
-
----
-
 ### `slack resources [--json]`
 
 List MCP-style resources.
@@ -104,6 +94,16 @@ Resources:
 List referenced MCP tools from spec.
 
 Tools: `conversations_history`, `conversations_replies`, `conversations_add_message`, `conversations_search_messages`, `channels_list`, `reactions_add`, `reactions_remove`, `attachment_get_data`, `users_search`, `usergroups_list`, `usergroups_create`, `usergroups_update`, `usergroups_users_update`, `usergroups_me`
+
+---
+
+### `slack batch`
+
+```
+slack batch "<command arg...>" "<command arg...>" [--stop-on-error[=<bool>]] [--fail-on-error[=<bool>]] [--json]
+```
+
+Run multiple commands in one process.
 
 ---
 

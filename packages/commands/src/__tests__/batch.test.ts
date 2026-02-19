@@ -77,6 +77,29 @@ describe("batch command", () => {
     expect(parsed.data.failed).toBe(1);
   });
 
+  test("returns non-zero when --fail-on-error is true and a subcommand fails", async () => {
+    const result = await runCliWithBuffer([
+      "batch",
+      "version",
+      "unknown command",
+      "--fail-on-error=true",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr.length).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data)) {
+      return;
+    }
+
+    expect(parsed.data.total).toBe(2);
+    expect(parsed.data.succeeded).toBe(1);
+    expect(parsed.data.failed).toBe(1);
+  });
+
   test("rejects nested batch command", async () => {
     const result = await runCliWithBuffer(["batch", 'batch "version"', "--json"]);
 
