@@ -11,6 +11,7 @@ describe("help command", () => {
 
     // Top-level namespaces should be present
     expect(result.stdout.some((line) => line.includes("help"))).toBe(true);
+    expect(result.stdout.some((line) => line.includes("batch"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("auth"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("channels"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("users"))).toBe(true);

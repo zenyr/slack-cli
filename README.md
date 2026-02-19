@@ -76,6 +76,16 @@ Print CLI version.
 
 ---
 
+### `slack batch`
+
+```
+slack batch "<command arg...>" "<command arg...>" [--stop-on-error[=<bool>]] [--json]
+```
+
+Run multiple commands in one process.
+
+---
+
 ### `slack resources [--json]`
 
 List MCP-style resources.
