@@ -48,6 +48,17 @@ describe("help command", () => {
     expect(result.stderr.length).toBe(0);
   });
 
+  test("namespace token without help flag routes to namespace help", async () => {
+    const result = await runCliWithBuffer(["channels"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.some((line) => line.includes("slack channels - channels commands"))).toBe(
+      true,
+    );
+    expect(result.stdout.some((line) => line.includes("list"))).toBe(true);
+    expect(result.stderr.length).toBe(0);
+  });
+
   test("messages namespace help includes supported search and replies options", async () => {
     const result = await runCliWithBuffer(["messages", "--help"]);
 

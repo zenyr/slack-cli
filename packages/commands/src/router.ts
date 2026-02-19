@@ -36,6 +36,14 @@ const matchCommand = (
   return bestMatch;
 };
 
+const hasNamespace = (token: string, registry: CommandStrategy[]): boolean => {
+  if (token.length === 0) {
+    return false;
+  }
+
+  return registry.some((strategy) => strategy.path[0] === token);
+};
+
 export const routeCli = async (
   parsed: ParsedArgv,
   context: CliContext,
@@ -79,6 +87,25 @@ export const routeCli = async (
 
   const matchedCommand = matchCommand(parsed.tokens, registry);
   if (matchedCommand === undefined) {
+    const namespaceToken = parsed.tokens[0] ?? "";
+    const shouldRouteToNamespaceHelp =
+      parsed.tokens.length === 1 && hasNamespace(namespaceToken, registry);
+
+    if (shouldRouteToNamespaceHelp) {
+      const helpCommand = registry.find((strategy) => strategy.id === "help");
+      if (helpCommand === undefined) {
+        return createError("INTERNAL_ERROR", "help command is not registered");
+      }
+
+      return await helpCommand.execute({
+        commandPath: ["help"],
+        positionals: [namespaceToken],
+        options: parsed.options,
+        flags: parsed.flags,
+        context,
+      });
+    }
+
     const command = parsed.tokens[0] ?? "";
     return createError(
       "UNKNOWN_COMMAND",
