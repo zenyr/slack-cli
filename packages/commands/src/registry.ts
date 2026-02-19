@@ -1,14 +1,20 @@
 import { attachmentGetHandler } from "./handlers/attachment-get";
 import { batchHandler } from "./handlers/batch";
 import { channelsInfoHandler } from "./handlers/channels-info";
+import { channelsSearchHandler } from "./handlers/channels-search";
 import { helpHandler } from "./handlers/help";
+import { messagesContextHandler } from "./handlers/messages-context";
 import { messagesDeleteHandler } from "./handlers/messages-delete";
 import { messagesFetchHandler } from "./handlers/messages-fetch";
 import { messagesHistoryHandler } from "./handlers/messages-history";
+import { messagesPinHandler } from "./handlers/messages-pin";
+import { messagesPinsHandler } from "./handlers/messages-pins";
 import { messagesPostHandler } from "./handlers/messages-post";
 import { messagesPostEphemeralHandler } from "./handlers/messages-post-ephemeral";
+import { messagesUnpinHandler } from "./handlers/messages-unpin";
 import { messagesUpdateHandler } from "./handlers/messages-update";
 import { reactionsAddHandler } from "./handlers/reactions-add";
+import { reactionsListHandler } from "./handlers/reactions-list";
 import { reactionsRemoveHandler } from "./handlers/reactions-remove";
 import { resourcesHandler } from "./handlers/resources";
 import {
@@ -100,6 +106,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     execute: channelsInfoHandler,
   },
   {
+    id: "channels-search",
+    path: ["channels", "search"],
+    execute: channelsSearchHandler,
+  },
+  {
     id: "users-list",
     path: ["users", "list"],
     execute: usersListHandler,
@@ -185,6 +196,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     execute: messagesHistoryHandler,
   },
   {
+    id: "messages-context",
+    path: ["messages", "context"],
+    execute: messagesContextHandler,
+  },
+  {
     id: "messages-post",
     path: ["messages", "post"],
     execute: messagesPostHandler,
@@ -210,6 +226,21 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     execute: messagesRepliesHandler,
   },
   {
+    id: "messages-pin",
+    path: ["messages", "pin"],
+    execute: messagesPinHandler,
+  },
+  {
+    id: "messages-unpin",
+    path: ["messages", "unpin"],
+    execute: messagesUnpinHandler,
+  },
+  {
+    id: "messages-pins",
+    path: ["messages", "pins"],
+    execute: messagesPinsHandler,
+  },
+  {
     id: "reactions-add",
     path: ["reactions", "add"],
     execute: reactionsAddHandler,
@@ -218,5 +249,10 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "reactions-remove",
     path: ["reactions", "remove"],
     execute: reactionsRemoveHandler,
+  },
+  {
+    id: "reactions-list",
+    path: ["reactions", "list"],
+    execute: reactionsListHandler,
   },
 ];

@@ -15,20 +15,28 @@ import type {
   SlackDeleteMessageResult,
   SlackFileBinary,
   SlackFileMetadata,
+  SlackGetReactionsResult,
   SlackListChannelsOptions,
   SlackListChannelsResult,
+  SlackListPinsResult,
   SlackListUsergroupsOptions,
   SlackListUsergroupsResult,
   SlackListUsersOptions,
   SlackListUsersResult,
   SlackMessage,
+  SlackPinnedItem,
+  SlackPinParams,
+  SlackPinResult,
+  SlackPinsWebApiClient,
   SlackPostEphemeralParams,
   SlackPostEphemeralResult,
   SlackPostMessageParams,
   SlackPostMessageResult,
   SlackPostWebApiClient,
+  SlackReactionDetail,
   SlackReactionParams,
   SlackReactionResult,
+  SlackReactionsGetWebApiClient,
   SlackReactionsWebApiClient,
   SlackRepliesWebApiClient,
   SlackSearchMessage,
@@ -413,8 +421,10 @@ export const createSlackWebApiClient = (
   SlackRepliesWebApiClient &
   SlackPostWebApiClient &
   SlackReactionsWebApiClient &
+  SlackReactionsGetWebApiClient &
   SlackChannelInfoWebApiClient &
-  SlackUserProfileWebApiClient => {
+  SlackUserProfileWebApiClient &
+  SlackPinsWebApiClient => {
   const fetchImpl = options.fetchImpl ?? fetch;
   const baseUrl = options.baseUrl ?? DEFAULT_SLACK_API_BASE_URL;
   const explicitToken = options.token;
@@ -1038,6 +1048,7 @@ export const createSlackWebApiClient = (
     latest?: string;
     cursor?: string;
     includeActivity?: boolean;
+    inclusive?: boolean;
   }): Promise<SlackChannelHistoryResult> => {
     const payload = new URLSearchParams({ channel: params.channel });
     if (params.limit !== undefined) {
@@ -1051,6 +1062,9 @@ export const createSlackWebApiClient = (
     }
     if (params.cursor !== undefined) {
       payload.set("cursor", params.cursor);
+    }
+    if (params.inclusive === true) {
+      payload.set("inclusive", "true");
     }
 
     const payloadData = await callApi("conversations.history", payload);
@@ -1359,6 +1373,99 @@ export const createSlackWebApiClient = (
     return readReactionResult(payloadData, normalized, "reactions.remove");
   };
 
+  const getReactions = async (params: {
+    channel: string;
+    timestamp: string;
+  }): Promise<SlackGetReactionsResult> => {
+    const channel = params.channel.trim();
+    const timestamp = params.timestamp.trim();
+
+    if (channel.length === 0) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: "Reaction channel is empty.",
+        hint: "Provide non-empty channel id for reactions.get.",
+      });
+    }
+
+    if (timestamp.length === 0) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: "Reaction timestamp is empty.",
+        hint: "Provide non-empty message timestamp for reactions.get.",
+      });
+    }
+
+    if (!/^\d+\.\d+$/.test(timestamp)) {
+      throw createSlackClientError({
+        code: "SLACK_CONFIG_ERROR",
+        message: `Reaction timestamp is invalid: ${timestamp}.`,
+        hint: "Use Slack message timestamp format: 1700000000.000000.",
+      });
+    }
+
+    const queryParams = new URLSearchParams({ channel, timestamp, full: "true" });
+    const payloadData = await callApi("reactions.get", queryParams);
+    const message = readRecord(payloadData, "message");
+
+    const rawReactions = message === undefined ? undefined : readArray(message, "reactions");
+    const reactions: SlackReactionDetail[] = (rawReactions ?? []).flatMap((item) => {
+      if (!isRecord(item)) {
+        return [];
+      }
+      const name = readString(item, "name");
+      const count = readNumber(item, "count");
+      if (name === undefined || count === undefined) {
+        return [];
+      }
+      const rawUsers = readArray(item, "users") ?? [];
+      const users = rawUsers.filter((u): u is string => typeof u === "string");
+      return [{ name, count, users }];
+    });
+
+    return { channel, ts: timestamp, reactions };
+  };
+
+  const addPin = async (params: SlackPinParams): Promise<SlackPinResult> => {
+    const payload = new URLSearchParams({
+      channel: params.channel,
+      timestamp: params.timestamp,
+    });
+    await callApiPost("pins.add", payload);
+    return { channel: params.channel, ts: params.timestamp };
+  };
+
+  const removePin = async (params: SlackPinParams): Promise<SlackPinResult> => {
+    const payload = new URLSearchParams({
+      channel: params.channel,
+      timestamp: params.timestamp,
+    });
+    await callApiPost("pins.remove", payload);
+    return { channel: params.channel, ts: params.timestamp };
+  };
+
+  const listPins = async (channel: string): Promise<SlackListPinsResult> => {
+    const queryParams = new URLSearchParams({ channel });
+    const payloadData = await callApi("pins.list", queryParams);
+    const rawItems = readArray(payloadData, "items") ?? [];
+    const items: SlackPinnedItem[] = [];
+    for (const item of rawItems) {
+      if (!isRecord(item)) continue;
+      const type = readString(item, "type") ?? "message";
+      const pinnedItem: SlackPinnedItem = {
+        type,
+        channel,
+        createdBy: readString(item, "created_by"),
+        created: readNumber(item, "created"),
+      };
+      if (type === "message") {
+        pinnedItem.message = mapMessage(readRecord(item, "message"));
+      }
+      items.push(pinnedItem);
+    }
+    return { channel, items };
+  };
+
   const getUserProfile = async (userId?: string): Promise<SlackUserProfileGetResult> => {
     const params = new URLSearchParams();
     if (userId !== undefined && userId.length > 0) {
@@ -1420,6 +1527,10 @@ export const createSlackWebApiClient = (
     updateMessage,
     addReaction,
     removeReaction,
+    getReactions,
+    addPin,
+    removePin,
+    listPins,
     getUserProfile,
     setUserProfile,
   };

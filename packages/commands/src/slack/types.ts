@@ -332,6 +332,25 @@ export type SlackReactionsWebApiClient = {
   removeReaction: (params: SlackReactionParams) => Promise<SlackReactionResult>;
 };
 
+export type SlackReactionDetail = {
+  name: string;
+  count: number;
+  users: string[];
+};
+
+export type SlackGetReactionsResult = {
+  channel: string;
+  ts: string;
+  reactions: SlackReactionDetail[];
+};
+
+export type SlackReactionsGetWebApiClient = {
+  getReactions: (params: {
+    channel: string;
+    timestamp: string;
+  }) => Promise<SlackGetReactionsResult>;
+};
+
 export type SlackWebApiClient = {
   listChannels: (options: SlackListChannelsOptions) => Promise<SlackListChannelsResult>;
   listUsers: (options?: SlackListUsersOptions) => Promise<SlackListUsersResult>;
@@ -343,11 +362,41 @@ export type SlackWebApiClient = {
     latest?: string;
     cursor?: string;
     includeActivity?: boolean;
+    inclusive?: boolean;
   }) => Promise<SlackChannelHistoryResult>;
 };
 
 export type SlackUsersInfoWebApiClient = {
   getUsersByIds: (userIds: string[]) => Promise<SlackGetUsersByIdsResult>;
+};
+
+export type SlackPinParams = {
+  channel: string;
+  timestamp: string;
+};
+
+export type SlackPinResult = {
+  channel: string;
+  ts: string;
+};
+
+export type SlackPinnedItem = {
+  type: string;
+  channel: string;
+  message?: SlackMessage;
+  createdBy?: string;
+  created?: number;
+};
+
+export type SlackListPinsResult = {
+  channel: string;
+  items: SlackPinnedItem[];
+};
+
+export type SlackPinsWebApiClient = {
+  addPin: (params: SlackPinParams) => Promise<SlackPinResult>;
+  removePin: (params: SlackPinParams) => Promise<SlackPinResult>;
+  listPins: (channel: string) => Promise<SlackListPinsResult>;
 };
 
 export type SlackAttachmentWebApiClient = {

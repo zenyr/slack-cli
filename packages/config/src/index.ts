@@ -55,6 +55,11 @@ export const COMMANDS: CliCommand[] = [
     description: "Get channel info by ID",
   },
   {
+    name: "channels search",
+    args: "<query> [--type <public|private|im|mpim>] [--json]",
+    description: "Search channels by name",
+  },
+  {
     name: "users list",
     args: "[<query>] [--cursor=<cursor>] [--limit=<n>] [--json]",
     description: "List users",
@@ -140,6 +145,11 @@ export const COMMANDS: CliCommand[] = [
     description: "Fetch channel message history",
   },
   {
+    name: "messages context",
+    args: "<message-url> [--before=<n>] [--after=<n>] [--resolve-users[=<bool>]] [--json]",
+    description: "Fetch messages surrounding a permalink",
+  },
+  {
     name: "messages post",
     args: "<channel-id> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
     description: "Post message to channel (markdown auto-converted to mrkdwn)",
@@ -165,6 +175,21 @@ export const COMMANDS: CliCommand[] = [
     description: "Fetch thread message replies",
   },
   {
+    name: "messages pin",
+    args: "<channel-id> <timestamp> [--json]",
+    description: "Pin a message",
+  },
+  {
+    name: "messages unpin",
+    args: "<channel-id> <timestamp> [--json]",
+    description: "Unpin a message",
+  },
+  {
+    name: "messages pins",
+    args: "<channel-id> [--json]",
+    description: "List pinned messages in channel",
+  },
+  {
     name: "reactions add",
     args: "<channel-id> <timestamp> <emoji-name> [--json]",
     description: "Add reaction emoji to message",
@@ -173,6 +198,11 @@ export const COMMANDS: CliCommand[] = [
     name: "reactions remove",
     args: "<channel-id> <timestamp> <emoji-name> [--json]",
     description: "Remove reaction emoji from message",
+  },
+  {
+    name: "reactions list",
+    args: "<channel-id> <timestamp> [--json]",
+    description: "List reactions on a message",
   },
   {
     name: "resources",
