@@ -124,6 +124,16 @@ List users. Optional positional `<query>` for filtering.
 
 ---
 
+### `slack users get`
+
+```
+slack users get <user-id> [user-id ...] [--json]
+```
+
+Get users by user ID. Supports batch lookup in one call.
+
+---
+
 ### `slack users search`
 
 ```

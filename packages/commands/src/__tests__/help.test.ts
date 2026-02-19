@@ -98,6 +98,9 @@ describe("help command", () => {
       ),
     ).toBe(true);
     expect(
+      result.stdout.some((line) => line.includes("get <user-id> [user-id ...] [--json]")),
+    ).toBe(true);
+    expect(
       result.stdout.some((line) =>
         line.includes("search [<query>] [--cursor=<cursor>] [--limit=<n>] [--json]"),
       ),
