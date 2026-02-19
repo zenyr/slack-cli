@@ -1,7 +1,9 @@
 import { attachmentGetHandler } from "./handlers/attachment-get";
 import { helpHandler } from "./handlers/help";
+import { messagesDeleteHandler } from "./handlers/messages-delete";
 import { messagesHistoryHandler } from "./handlers/messages-history";
 import { messagesPostHandler } from "./handlers/messages-post";
+import { messagesPostEphemeralHandler } from "./handlers/messages-post-ephemeral";
 import { reactionsAddHandler } from "./handlers/reactions-add";
 import { reactionsRemoveHandler } from "./handlers/reactions-remove";
 import { resourcesHandler } from "./handlers/resources";
@@ -143,6 +145,16 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-post",
     path: ["messages", "post"],
     execute: messagesPostHandler,
+  },
+  {
+    id: "messages-post-ephemeral",
+    path: ["messages", "post-ephemeral"],
+    execute: messagesPostEphemeralHandler,
+  },
+  {
+    id: "messages-delete",
+    path: ["messages", "delete"],
+    execute: messagesDeleteHandler,
   },
   {
     id: "messages-replies",

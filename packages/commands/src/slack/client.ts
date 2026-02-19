@@ -8,6 +8,8 @@ import type {
   SlackChannelRepliesResult,
   SlackChannelType,
   SlackCreateUsergroupParams,
+  SlackDeleteMessageParams,
+  SlackDeleteMessageResult,
   SlackFileBinary,
   SlackFileMetadata,
   SlackListChannelsOptions,
@@ -17,6 +19,8 @@ import type {
   SlackListUsersOptions,
   SlackListUsersResult,
   SlackMessage,
+  SlackPostEphemeralParams,
+  SlackPostEphemeralResult,
   SlackPostMessageParams,
   SlackPostMessageResult,
   SlackPostWebApiClient,
@@ -985,6 +989,62 @@ export const createSlackWebApiClient = (
     };
   };
 
+  const deleteMessage = async (
+    params: SlackDeleteMessageParams,
+  ): Promise<SlackDeleteMessageResult> => {
+    const payload = new URLSearchParams({
+      channel: params.channel,
+      ts: params.ts,
+    });
+    const payloadData = await callApiPost("chat.delete", payload);
+    const channel = readString(payloadData, "channel") ?? params.channel;
+    const ts = readString(payloadData, "ts");
+
+    if (ts === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack API returned malformed delete message payload.",
+        hint: "Verify token scopes and channel access for chat.delete.",
+      });
+    }
+
+    return {
+      channel,
+      ts,
+    };
+  };
+
+  const postEphemeral = async (
+    params: SlackPostEphemeralParams,
+  ): Promise<SlackPostEphemeralResult> => {
+    const payload = new URLSearchParams({
+      channel: params.channel,
+      user: params.user,
+      text: params.text,
+    });
+
+    if (params.threadTs !== undefined) {
+      payload.set("thread_ts", params.threadTs);
+    }
+
+    const payloadData = await callApiPost("chat.postEphemeral", payload);
+    const channel = readString(payloadData, "channel") ?? params.channel;
+    const messageTs = readString(payloadData, "message_ts");
+
+    if (messageTs === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "Slack API returned malformed post ephemeral payload.",
+        hint: "Verify token scopes and channel access for chat.postEphemeral.",
+      });
+    }
+
+    return {
+      channel,
+      messageTs,
+    };
+  };
+
   const normalizeReactionParams = (params: SlackReactionParams): SlackReactionParams => {
     const channel = params.channel.trim();
     const timestamp = params.timestamp.trim();
@@ -1096,6 +1156,8 @@ export const createSlackWebApiClient = (
     fetchChannelHistory,
     fetchMessageReplies,
     postMessage,
+    deleteMessage,
+    postEphemeral,
     addReaction,
     removeReaction,
   };

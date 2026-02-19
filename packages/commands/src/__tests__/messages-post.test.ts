@@ -397,6 +397,14 @@ describe("messages post command", () => {
             },
           };
         },
+        deleteMessage: async () => ({
+          channel: "C999",
+          ts: "1700000002.000100",
+        }),
+        postEphemeral: async () => ({
+          channel: "C999",
+          messageTs: "1700000002.000100",
+        }),
       }),
     });
 
@@ -445,6 +453,14 @@ describe("messages post command", () => {
             },
           };
         },
+        deleteMessage: async () => ({
+          channel: "C123",
+          ts: "1700000002.000100",
+        }),
+        postEphemeral: async () => ({
+          channel: "C123",
+          messageTs: "1700000002.000100",
+        }),
       }),
     });
 
@@ -571,6 +587,14 @@ describe("messages post command", () => {
             postMessage: async () => {
               throw createSlackClientError(clientErrorArgs);
             },
+            deleteMessage: async () => ({
+              channel: "C123",
+              ts: "1700000002.000100",
+            }),
+            postEphemeral: async () => ({
+              channel: "C123",
+              messageTs: "1700000002.000100",
+            }),
           }),
           resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
         });

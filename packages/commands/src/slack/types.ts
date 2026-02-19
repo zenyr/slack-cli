@@ -220,6 +220,28 @@ export type SlackPostMessageResult = {
   message?: SlackMessage;
 };
 
+export type SlackDeleteMessageParams = {
+  channel: string;
+  ts: string;
+};
+
+export type SlackDeleteMessageResult = {
+  channel: string;
+  ts: string;
+};
+
+export type SlackPostEphemeralParams = {
+  channel: string;
+  user: string;
+  text: string;
+  threadTs?: string;
+};
+
+export type SlackPostEphemeralResult = {
+  channel: string;
+  messageTs: string;
+};
+
 export type SlackReactionParams = {
   channel: string;
   timestamp: string;
@@ -259,6 +281,8 @@ export type SlackRepliesWebApiClient = {
 
 export type SlackPostWebApiClient = {
   postMessage: (params: SlackPostMessageParams) => Promise<SlackPostMessageResult>;
+  deleteMessage: (params: SlackDeleteMessageParams) => Promise<SlackDeleteMessageResult>;
+  postEphemeral: (params: SlackPostEphemeralParams) => Promise<SlackPostEphemeralResult>;
 };
 
 export type SlackReactionsWebApiClient = {

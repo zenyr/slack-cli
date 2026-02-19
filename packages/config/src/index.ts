@@ -115,6 +115,16 @@ export const COMMANDS: CliCommand[] = [
     description: "Post plain text message to channel",
   },
   {
+    name: "messages post-ephemeral",
+    args: "<channel-id> <user-id> <text> [--thread-ts=<ts>] [--json]",
+    description: "Post ephemeral message to channel user",
+  },
+  {
+    name: "messages delete",
+    args: "<channel-id> <timestamp> [--json]",
+    description: "Delete message by channel and timestamp",
+  },
+  {
     name: "messages replies",
     args: "<channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--json]",
     description: "Fetch thread message replies",
