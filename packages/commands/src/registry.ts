@@ -1,4 +1,5 @@
 import { attachmentGetHandler } from "./handlers/attachment-get";
+import { batchHandler } from "./handlers/batch";
 import { helpHandler } from "./handlers/help";
 import { messagesDeleteHandler } from "./handlers/messages-delete";
 import { messagesFetchHandler } from "./handlers/messages-fetch";
@@ -34,6 +35,11 @@ import { versionHandler } from "./handlers/version";
 import type { CommandStrategy } from "./types";
 
 export const COMMAND_REGISTRY: CommandStrategy[] = [
+  {
+    id: "batch",
+    path: ["batch"],
+    execute: batchHandler,
+  },
   {
     id: "help",
     path: ["help"],

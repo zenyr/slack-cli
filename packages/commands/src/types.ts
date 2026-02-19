@@ -17,6 +17,7 @@ export type ParsedArgv = {
 
 export type CliContext = {
   version: string;
+  runSubcommand?: (argv: string[]) => Promise<CliResult>;
 };
 
 export type CliErrorCode =

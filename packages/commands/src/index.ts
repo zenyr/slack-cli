@@ -15,8 +15,26 @@ export const runCli = async (argv: string[], options: RunCliOptions = {}): Promi
   const io = options.io ?? DEFAULT_IO;
   const parsed = parseArgv(argv);
 
+  const runSubcommand = async (subArgv: string[]) => {
+    return await routeCli(
+      parseArgv(subArgv),
+      {
+        version,
+        runSubcommand,
+      },
+      COMMAND_REGISTRY,
+    );
+  };
+
   try {
-    const result = await routeCli(parsed, { version }, COMMAND_REGISTRY);
+    const result = await routeCli(
+      parsed,
+      {
+        version,
+        runSubcommand,
+      },
+      COMMAND_REGISTRY,
+    );
     return renderCliResult(result, parsed.flags.json, io);
   } catch (_error) {
     const result = createError(
