@@ -57,6 +57,15 @@ export type SlackChannelInfoWebApiClient = {
   fetchChannelInfo: (channelId: string) => Promise<SlackChannelInfoResult>;
 };
 
+export type SlackChannelJoinResult = {
+  channel: SlackChannel;
+};
+
+export type SlackChannelJoinWebApiClient = {
+  joinChannel: (channelId: string) => Promise<SlackChannelJoinResult>;
+  leaveChannel: (channelId: string) => Promise<{ ok: boolean }>;
+};
+
 export type SlackChannelType = "public" | "private" | "im" | "mpim";
 
 export type SlackChannelsSort = "name" | "popularity";

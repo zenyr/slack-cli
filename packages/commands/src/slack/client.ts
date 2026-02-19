@@ -8,6 +8,8 @@ import type {
   SlackChannelInfo,
   SlackChannelInfoResult,
   SlackChannelInfoWebApiClient,
+  SlackChannelJoinResult,
+  SlackChannelJoinWebApiClient,
   SlackChannelRepliesResult,
   SlackChannelType,
   SlackCreateUsergroupParams,
@@ -423,6 +425,7 @@ export const createSlackWebApiClient = (
   SlackReactionsWebApiClient &
   SlackReactionsGetWebApiClient &
   SlackChannelInfoWebApiClient &
+  SlackChannelJoinWebApiClient &
   SlackUserProfileWebApiClient &
   SlackPinsWebApiClient => {
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -620,6 +623,27 @@ export const createSlackWebApiClient = (
       });
     }
     return { channel };
+  };
+
+  const joinChannel = async (channelId: string): Promise<SlackChannelJoinResult> => {
+    const payload = new URLSearchParams({ channel: channelId });
+    const payloadData = await callApiPost("conversations.join", payload);
+    const channelRaw = readRecord(payloadData, "channel");
+    const channel = mapChannel(channelRaw);
+    if (channel === undefined) {
+      throw createSlackClientError({
+        code: "SLACK_RESPONSE_ERROR",
+        message: "conversations.join response missing or malformed channel.",
+        hint: "Verify the channel ID and token scopes (requires xoxp).",
+      });
+    }
+    return { channel };
+  };
+
+  const leaveChannel = async (channelId: string): Promise<{ ok: boolean }> => {
+    const payload = new URLSearchParams({ channel: channelId });
+    await callApiPost("conversations.leave", payload);
+    return { ok: true };
   };
 
   const listUsers = async (options: SlackListUsersOptions = {}): Promise<SlackListUsersResult> => {
@@ -1507,6 +1531,8 @@ export const createSlackWebApiClient = (
   return {
     listChannels,
     fetchChannelInfo,
+    joinChannel,
+    leaveChannel,
     listUsers,
     getUsersByIds,
     listUsergroups,

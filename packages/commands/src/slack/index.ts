@@ -8,6 +8,8 @@ export type {
   SlackChannelInfo,
   SlackChannelInfoResult,
   SlackChannelInfoWebApiClient,
+  SlackChannelJoinResult,
+  SlackChannelJoinWebApiClient,
   SlackChannelRepliesResult,
   SlackChannelsSort,
   SlackChannelType,

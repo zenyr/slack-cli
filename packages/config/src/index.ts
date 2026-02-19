@@ -60,6 +60,16 @@ export const COMMANDS: CliCommand[] = [
     description: "Search channels by name",
   },
   {
+    name: "channels join",
+    args: "<channel-id> [--json]",
+    description: "Join a channel (xoxp only)",
+  },
+  {
+    name: "channels leave",
+    args: "<channel-id> [--json]",
+    description: "Leave a channel (xoxp only)",
+  },
+  {
     name: "users list",
     args: "[<query>] [--cursor=<cursor>] [--limit=<n>] [--json]",
     description: "List users",

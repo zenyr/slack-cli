@@ -1,6 +1,8 @@
 import { attachmentGetHandler } from "./handlers/attachment-get";
 import { batchHandler } from "./handlers/batch";
 import { channelsInfoHandler } from "./handlers/channels-info";
+import { channelsJoinHandler } from "./handlers/channels-join";
+import { channelsLeaveHandler } from "./handlers/channels-leave";
 import { channelsSearchHandler } from "./handlers/channels-search";
 import { helpHandler } from "./handlers/help";
 import { messagesContextHandler } from "./handlers/messages-context";
@@ -109,6 +111,16 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "channels-search",
     path: ["channels", "search"],
     execute: channelsSearchHandler,
+  },
+  {
+    id: "channels-join",
+    path: ["channels", "join"],
+    execute: channelsJoinHandler,
+  },
+  {
+    id: "channels-leave",
+    path: ["channels", "leave"],
+    execute: channelsLeaveHandler,
   },
   {
     id: "users-list",
