@@ -31,10 +31,10 @@ export const runCli = async (argv: string[], options: RunCliOptions = {}): Promi
   const parsed = parseArgv(argv);
 
   // When --blocks is a bare flag (true) and stdin is available, use stdin as the blocks text.
-  if (parsed.options["blocks"] === true) {
+  if (parsed.options.blocks === true) {
     const stdinText = await readStdin();
     if (stdinText !== undefined) {
-      parsed.options["blocks"] = stdinText;
+      parsed.options.blocks = stdinText;
     }
   }
 

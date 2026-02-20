@@ -126,7 +126,7 @@ export const readBlocksOption = (
   usageHint: string,
   commandId: string,
 ): BlocksPayload | undefined | CliResult => {
-  const raw = options["blocks"];
+  const raw = options.blocks;
 
   if (raw === undefined) {
     return undefined;
