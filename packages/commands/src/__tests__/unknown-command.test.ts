@@ -10,4 +10,13 @@ describe("unknown command handling", () => {
     expect(result.stdout.length).toBe(0);
     expect(result.stderr[0]).toBe("Unknown command: nope");
   });
+
+  test("returns namespace-scoped hint for unknown subcommand", async () => {
+    const result = await runCliWithBuffer(["auth", "foo"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stdout.length).toBe(0);
+    expect(result.stderr[0]).toBe("Unknown command: auth foo");
+    expect(result.stderr[1]).toBe("Run 'slack auth --help' to see available subcommands.");
+  });
 });

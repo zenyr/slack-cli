@@ -88,6 +88,7 @@ export const routeCli = async (
   const matchedCommand = matchCommand(parsed.tokens, registry);
   if (matchedCommand === undefined) {
     const namespaceToken = parsed.tokens[0] ?? "";
+    const attemptedCommand = parsed.tokens.join(" ").trim();
     const shouldRouteToNamespaceHelp =
       parsed.tokens.length === 1 && hasNamespace(namespaceToken, registry);
 
@@ -104,6 +105,15 @@ export const routeCli = async (
         flags: parsed.flags,
         context,
       });
+    }
+
+    if (hasNamespace(namespaceToken, registry)) {
+      return createError(
+        "UNKNOWN_COMMAND",
+        `Unknown command: ${attemptedCommand}`,
+        `Run '${CLI_NAME} ${namespaceToken} --help' to see available subcommands.`,
+        namespaceToken,
+      );
     }
 
     const command = parsed.tokens[0] ?? "";
