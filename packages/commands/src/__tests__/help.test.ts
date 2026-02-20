@@ -63,13 +63,14 @@ describe("help command", () => {
 
     expect(result.exitCode).toBe(0);
     expect(
-      result.stdout.some((line) =>
-        line.includes(
-          "replies <channel-id(required,non-empty)> <thread-ts(required,non-empty)>",
-        ) &&
-        line.includes(
-          "[--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
-        ),
+      result.stdout.some(
+        (line) =>
+          line.includes(
+            "replies <channel-id(required,non-empty)> <thread-ts(required,non-empty)>",
+          ) &&
+          line.includes(
+            "[--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
+          ),
       ),
     ).toBe(true);
     expect(result.stdout.some((line) => line.includes("search <query> [--channel"))).toBe(true);
@@ -139,7 +140,9 @@ describe("help command", () => {
     ).toBe(true);
     expect(
       result.stdout.some((line) =>
-        line.includes("users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]"),
+        line.includes(
+          "users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]",
+        ),
       ),
     ).toBe(true);
     expect(result.stderr.length).toBe(0);

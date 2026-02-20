@@ -65,7 +65,9 @@ describe("usergroups me join command", () => {
     }
 
     const lines = parsed.textLines.filter((line): line is string => typeof line === "string");
-    const joinLine = lines.find((line) => line.includes("me join <usergroup-id(required,non-empty)> [--json]"));
+    const joinLine = lines.find((line) =>
+      line.includes("me join <usergroup-id(required,non-empty)> [--json]"),
+    );
     expect(joinLine).toBeDefined();
   });
 
@@ -255,7 +257,9 @@ describe("usergroups me join command", () => {
     expect(parsed.ok).toBe(false);
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toContain("MISSING_ARGUMENT");
-    expect(parsed.error.hint).toBe("Usage: slack usergroups me join <usergroup-id(required,non-empty)> [--json]");
+    expect(parsed.error.hint).toBe(
+      "Usage: slack usergroups me join <usergroup-id(required,non-empty)> [--json]",
+    );
   });
 
   test("returns invalid argument when extra positional arguments are provided", async () => {

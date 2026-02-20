@@ -186,7 +186,11 @@ export const createUsergroupsGetHandler = (
     }
 
     try {
-      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await client.listUsergroups({
         includeUsers: includeUsersParsed.value,

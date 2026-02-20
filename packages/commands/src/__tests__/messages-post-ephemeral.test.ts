@@ -30,7 +30,13 @@ describe("messages post-ephemeral command", () => {
   });
 
   test("returns missing argument when user id is absent", async () => {
-    const result = await runCliWithBuffer(["messages", "post-ephemeral", "C123", "--json", "--xoxb"]);
+    const result = await runCliWithBuffer([
+      "messages",
+      "post-ephemeral",
+      "C123",
+      "--json",
+      "--xoxb",
+    ]);
 
     expect(result.exitCode).toBe(2);
     const parsed = parseJsonOutput(result.stdout);

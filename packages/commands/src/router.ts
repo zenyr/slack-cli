@@ -238,7 +238,10 @@ export const routeCli = async (
     ...parsed.positionalsFromDoubleDash,
   ];
 
-  if (matchedCommand.requiresExplicitTokenType === true && context.tokenTypeOverride === undefined) {
+  if (
+    matchedCommand.requiresExplicitTokenType === true &&
+    context.tokenTypeOverride === undefined
+  ) {
     const commandName = matchedCommand.path.join(" ");
     return createError(
       "INVALID_ARGUMENT",

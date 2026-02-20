@@ -66,7 +66,9 @@ describe("usergroups users update command", () => {
 
     const lines = parsed.textLines.filter((line): line is string => typeof line === "string");
     const updateLine = lines.find((line) =>
-      line.includes("users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]"),
+      line.includes(
+        "users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]",
+      ),
     );
     expect(updateLine).toBeDefined();
   });

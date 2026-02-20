@@ -146,7 +146,11 @@ export const createChannelsSearchHandler = (
         return createError("INVALID_ARGUMENT", regexOrError, undefined, COMMAND_ID);
       }
 
-      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await client.listChannels({ types, limit: 999 });
 

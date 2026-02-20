@@ -243,7 +243,11 @@ export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDe
     const shouldAutoPaginateQuery = queryParts.length > 0 && cursorOrError === undefined;
 
     try {
-      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await listUsersWithOptionalAutoPagination(
         client,
