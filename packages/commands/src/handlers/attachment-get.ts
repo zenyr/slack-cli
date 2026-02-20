@@ -1,23 +1,30 @@
+import { randomBytes } from "node:crypto";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
 import type { ResolvedSlackToken } from "../slack/types";
 import { isRecord, isSlackClientError } from "../slack/utils";
-import type { CliResult, CommandRequest } from "../types";
+import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "attachment.get";
-const USAGE_HINT = "Usage: slack attachment get <file-id(required,non-empty)> [--json]";
-const ATTACHMENT_TOOL_ENV_KEY = "SLACK_MCP_ATTACHMENT_TOOL";
-const MAX_ATTACHMENT_TEXT_BYTES = 5 * 1024 * 1024;
+const USAGE_HINT =
+  "Usage: slack attachment get <file-id(required,non-empty)> [--save[=<bool>]] [--json]";
+const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
+const MAX_ATTACHMENT_DOWNLOAD_BYTES = 256 * 1024 * 1024;
+const TEMP_DIR_PREFIX = "slack-attachment-";
+const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
-type SlackAttachmentMetadata = {
+type SlackAttachmentOutputMetadata = {
   id: string;
   name: string;
   mimetype?: string;
   filetype?: string;
   size?: number;
-  url_private?: string;
 };
 
 type SlackFileInfoMetadata = {
@@ -31,10 +38,6 @@ type SlackFileInfoMetadata = {
 
 type AttachmentMetadataClient = {
   fetchFileInfo: (fileId: string) => Promise<SlackFileInfoMetadata>;
-  fetchFileText: (
-    urlPrivate: string,
-    maxBytes: number,
-  ) => Promise<{ content: string; byteLength: number; contentType?: string }>;
   fetchFileBinary: (
     urlPrivate: string,
     maxBytes: number,
@@ -56,12 +59,53 @@ type AttachmentGetHandlerDeps = {
   resolveToken: (
     env?: Record<string, string | undefined>,
   ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
+  createTempDirectory: () => Promise<string>;
+  writeBinaryFile: (filePath: string, data: Uint8Array) => Promise<void>;
+  setPathPermissions: (filePath: string, mode: number) => Promise<void>;
+  generateUlid: () => string;
   env: Record<string, string | undefined>;
 };
 
 const defaultDeps: AttachmentGetHandlerDeps = {
   createClient: createSlackWebApiClient,
   resolveToken: resolveSlackToken,
+  createTempDirectory: async () => {
+    return await mkdtemp(join(tmpdir(), TEMP_DIR_PREFIX));
+  },
+  writeBinaryFile: async (filePath: string, data: Uint8Array) => {
+    await writeFile(filePath, data);
+  },
+  setPathPermissions: async (filePath: string, mode: number) => {
+    await chmod(filePath, mode);
+  },
+  generateUlid: () => {
+    const time = BigInt(Date.now());
+    const randomness = randomBytes(10);
+    let randomValue = 0n;
+
+    for (const byte of randomness) {
+      randomValue = (randomValue << 8n) | BigInt(byte);
+    }
+
+    const encodeBase32 = (value: bigint, length: number): string => {
+      let working = value;
+      let encoded = "";
+
+      for (let index = 0; index < length; index += 1) {
+        const characterIndex = Number(working & 31n);
+        const character = ULID_ALPHABET[characterIndex];
+        if (character === undefined) {
+          return "";
+        }
+        encoded = `${character}${encoded}`;
+        working >>= 5n;
+      }
+
+      return encoded;
+    };
+
+    return `${encodeBase32(time, 10)}${encodeBase32(randomValue, 16)}`;
+  },
   env: process.env,
 };
 
@@ -100,56 +144,48 @@ const hasAttachmentMetadataClient = (value: unknown): value is AttachmentMetadat
   return (
     isRecord(value) &&
     typeof value.fetchFileInfo === "function" &&
-    typeof value.fetchFileText === "function" &&
     typeof value.fetchFileBinary === "function"
   );
 };
 
-const isTextMimeType = (mimetype: string | undefined): boolean => {
-  if (mimetype === undefined) {
-    return true;
-  }
-
-  const normalized = mimetype.trim().toLowerCase();
-  if (normalized.length === 0) {
-    return true;
-  }
-
-  if (normalized.startsWith("text/")) {
-    return true;
-  }
-
-  return (
-    normalized === "application/json" ||
-    normalized === "application/xml" ||
-    normalized === "application/javascript" ||
-    normalized === "application/x-javascript" ||
-    normalized === "application/x-ndjson"
-  );
-};
-
-const isAttachmentToolEnabled = (env: Record<string, string | undefined>): boolean => {
-  const value = env[ATTACHMENT_TOOL_ENV_KEY];
-  if (value === undefined) {
+const readSaveOption = (options: CliOptions): boolean | CliResult => {
+  const rawValue = options.save;
+  if (rawValue === undefined) {
     return false;
   }
 
-  const normalized = value.trim().toLowerCase();
-  return normalized === "1" || normalized === "true";
+  if (typeof rawValue === "boolean") {
+    return rawValue;
+  }
+
+  const normalized = rawValue.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+    return true;
+  }
+
+  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+    return false;
+  }
+
+  return createError(
+    "INVALID_ARGUMENT",
+    `attachment get --save must be boolean when provided with '=...'. Received: ${rawValue}`,
+    `${BOOLEAN_OPTION_VALUES_HINT} ${USAGE_HINT}`,
+    COMMAND_ID,
+  );
 };
 
-const mapFileMetadata = (value: SlackFileInfoMetadata): SlackAttachmentMetadata => {
+const mapFileMetadata = (value: SlackFileInfoMetadata): SlackAttachmentOutputMetadata => {
   return {
     id: value.id,
     name: value.name,
     mimetype: value.mimetype,
     filetype: value.filetype,
     size: value.size,
-    url_private: value.urlPrivate,
   };
 };
 
-const buildTextLines = (metadata: SlackAttachmentMetadata): string[] => {
+const buildTextLines = (metadata: SlackAttachmentOutputMetadata): string[] => {
   const lines = [`Attachment ${metadata.id}: ${metadata.name}`];
 
   if (metadata.mimetype !== undefined && metadata.mimetype.length > 0) {
@@ -162,10 +198,6 @@ const buildTextLines = (metadata: SlackAttachmentMetadata): string[] => {
 
   if (metadata.size !== undefined) {
     lines.push(`Size: ${metadata.size}`);
-  }
-
-  if (metadata.url_private !== undefined && metadata.url_private.length > 0) {
-    lines.push(`Private URL: ${metadata.url_private}`);
   }
 
   return lines;
@@ -191,14 +223,9 @@ export const createAttachmentGetHandler = (
     }
 
     const fileId = rawFileId.trim();
-
-    if (!isAttachmentToolEnabled(deps.env)) {
-      return createError(
-        "INVALID_ARGUMENT",
-        "attachment get text path is disabled. [ATTACHMENT_TOOL_DISABLED]",
-        "Set SLACK_MCP_ATTACHMENT_TOOL=true to enable text content retrieval for attachment get.",
-        COMMAND_ID,
-      );
+    const saveToFileOrError = readSaveOption(request.options);
+    if (typeof saveToFileOrError !== "boolean") {
+      return saveToFileOrError;
     }
 
     try {
@@ -217,73 +244,60 @@ export const createAttachmentGetHandler = (
         );
       }
 
-      const metadata = mapFileMetadata(await client.fetchFileInfo(fileId));
-      if (metadata.url_private === undefined || metadata.url_private.trim().length === 0) {
+      const fileMetadata = await client.fetchFileInfo(fileId);
+      const outputMetadata = mapFileMetadata(fileMetadata);
+
+      if (saveToFileOrError === false) {
+        return {
+          ok: true,
+          command: COMMAND_ID,
+          message: `Attachment metadata loaded for ${outputMetadata.id}.`,
+          data: {
+            file: outputMetadata,
+            saved: false,
+          },
+          textLines: [
+            ...buildTextLines(outputMetadata),
+            "",
+            "Use --save to download this attachment.",
+          ],
+        };
+      }
+
+      if (fileMetadata.urlPrivate === undefined || fileMetadata.urlPrivate.trim().length === 0) {
         return createError(
           "INVALID_ARGUMENT",
-          "Attachment metadata does not include a private download URL. [ATTACHMENT_TEXT_UNAVAILABLE]",
+          "Attachment metadata does not include a private download URL. [ATTACHMENT_DOWNLOAD_UNAVAILABLE]",
           "Ensure file is accessible and files.info includes url_private.",
           COMMAND_ID,
         );
       }
 
-      if (isTextMimeType(metadata.mimetype)) {
-        if (metadata.size !== undefined && metadata.size > MAX_ATTACHMENT_TEXT_BYTES) {
-          return createError(
-            "INVALID_ARGUMENT",
-            `attachment get text path supports up to ${MAX_ATTACHMENT_TEXT_BYTES} bytes. Received: ${metadata.size}. [ATTACHMENT_TEXT_TOO_LARGE]`,
-            "Download a smaller text file or use another tool for larger/binary attachments.",
-            COMMAND_ID,
-          );
-        }
-
-        const textPayload = await client.fetchFileText(
-          metadata.url_private,
-          MAX_ATTACHMENT_TEXT_BYTES,
-        );
-        const textContentLines =
-          textPayload.content.length === 0 ? ["(empty)"] : textPayload.content.split("\n");
-
-        return {
-          ok: true,
-          command: COMMAND_ID,
-          message: `Attachment metadata and text loaded for ${metadata.id}.`,
-          data: {
-            file: metadata,
-            text: {
-              content: textPayload.content,
-              byte_length: textPayload.byteLength,
-              content_type: textPayload.contentType,
-            },
-          },
-          textLines: [...buildTextLines(metadata), "", "Text content:", ...textContentLines],
-        };
-      }
-
       const binaryPayload = await client.fetchFileBinary(
-        metadata.url_private,
-        MAX_ATTACHMENT_TEXT_BYTES,
+        fileMetadata.urlPrivate,
+        MAX_ATTACHMENT_DOWNLOAD_BYTES,
       );
+      const tempDirectoryPath = await deps.createTempDirectory();
+      await deps.setPathPermissions(tempDirectoryPath, 0o700);
+
+      const outputFilePath = join(tempDirectoryPath, deps.generateUlid());
+      const binaryContent = Buffer.from(binaryPayload.contentBase64, "base64");
+
+      await deps.writeBinaryFile(outputFilePath, binaryContent);
+      await deps.setPathPermissions(outputFilePath, 0o600);
 
       return {
         ok: true,
         command: COMMAND_ID,
-        message: `Attachment metadata and binary payload loaded for ${metadata.id}.`,
+        message: `Attachment metadata loaded and file saved for ${outputMetadata.id}.`,
         data: {
-          file: metadata,
-          binary: {
-            content_base64: binaryPayload.contentBase64,
-            byte_length: binaryPayload.byteLength,
-            content_type: binaryPayload.contentType,
-            encoding: binaryPayload.encoding,
-          },
+          file: outputMetadata,
+          saved: true,
+          saved_path: outputFilePath,
+          saved_bytes: binaryPayload.byteLength,
+          saved_content_type: binaryPayload.contentType,
         },
-        textLines: [
-          ...buildTextLines(metadata),
-          "",
-          `Binary content (${binaryPayload.encoding}):`,
-          binaryPayload.contentBase64,
-        ],
+        textLines: [...buildTextLines(outputMetadata), "", `Saved to: ${outputFilePath}`],
       };
     } catch (error) {
       return mapSlackClientError(error);

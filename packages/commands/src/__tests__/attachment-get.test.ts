@@ -17,15 +17,10 @@ describe("attachment get command", () => {
     details?: string;
   }) => {
     return createAttachmentGetHandler({
-      env: {
-        SLACK_MCP_ATTACHMENT_TOOL: "true",
-      },
+      env: {},
       createClient: () => ({
         fetchFileInfo: async () => {
           throw createSlackClientError(errorOptions);
-        },
-        fetchFileText: async () => {
-          throw new Error("should not be called");
         },
         fetchFileBinary: async () => {
           throw new Error("should not be called");
@@ -35,11 +30,14 @@ describe("attachment get command", () => {
     });
   };
 
-  const runAttachmentGet = async (handler: ReturnType<typeof createAttachmentGetHandler>) => {
+  const runAttachmentGet = async (
+    handler: ReturnType<typeof createAttachmentGetHandler>,
+    options: Record<string, string | boolean> = {},
+  ) => {
     return handler({
       commandPath: ["attachment", "get"],
       positionals: ["F404"],
-      options: {},
+      options,
       flags: {
         json: true,
         help: false,
@@ -76,13 +74,12 @@ describe("attachment get command", () => {
     expect(parsed.error.message).toContain("<file-id>");
   });
 
-  test("returns metadata envelope using i10 files.info client contract", async () => {
+  test("returns metadata only by default without private URL", async () => {
+    let fetchBinaryCalled = false;
     const calls: string[] = [];
 
     const handler = createAttachmentGetHandler({
-      env: {
-        SLACK_MCP_ATTACHMENT_TOOL: "true",
-      },
+      env: {},
       createClient: () => ({
         fetchFileInfo: async (fileId: string) => {
           calls.push(fileId);
@@ -95,16 +92,8 @@ describe("attachment get command", () => {
             urlPrivate: "https://files.slack.com/files-pri/T123-F999/download",
           };
         },
-        fetchFileText: async (urlPrivate: string, maxBytes: number) => {
-          expect(urlPrivate).toBe("https://files.slack.com/files-pri/T123-F999/download");
-          expect(maxBytes).toBe(5 * 1024 * 1024);
-          return {
-            content: "incident line 1\nincident line 2",
-            byteLength: 31,
-            contentType: "text/plain",
-          };
-        },
         fetchFileBinary: async () => {
+          fetchBinaryCalled = true;
           throw new Error("should not be called");
         },
       }),
@@ -132,13 +121,15 @@ describe("attachment get command", () => {
       return;
     }
 
-    expect(result.command).toBe("attachment.get");
     expect(calls).toEqual(["F999"]);
+    expect(fetchBinaryCalled).toBe(false);
+    expect(result.command).toBe("attachment.get");
     expect(isRecord(result.data)).toBe(true);
     if (!isRecord(result.data)) {
       return;
     }
 
+    expect(result.data.saved).toBe(false);
     expect(isRecord(result.data.file)).toBe(true);
     if (!isRecord(result.data.file)) {
       return;
@@ -149,29 +140,16 @@ describe("attachment get command", () => {
     expect(result.data.file.mimetype).toBe("text/plain");
     expect(result.data.file.filetype).toBe("text");
     expect(result.data.file.size).toBe(128);
-    expect(result.data.file.url_private).toBe(
-      "https://files.slack.com/files-pri/T123-F999/download",
-    );
-    expect(isRecord(result.data.text)).toBe(true);
-    if (!isRecord(result.data.text)) {
-      return;
-    }
-
-    expect(result.data.text.content).toBe("incident line 1\nincident line 2");
-    expect(result.data.text.byte_length).toBe(31);
-    expect(result.data.text.content_type).toBe("text/plain");
+    expect(result.data.file.url_private).toBeUndefined();
   });
 
-  test("returns deterministic INVALID_ARGUMENT when attachment tool env is disabled", async () => {
+  test("returns INVALID_ARGUMENT for invalid --save option value", async () => {
     const handler = createAttachmentGetHandler({
       env: {},
       createClient: () => ({
         fetchFileInfo: async () => {
           throw new Error("should not be called");
         },
-        fetchFileText: async () => {
-          throw new Error("should not be called");
-        },
         fetchFileBinary: async () => {
           throw new Error("should not be called");
         },
@@ -179,21 +157,7 @@ describe("attachment get command", () => {
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
     });
 
-    const result = await handler({
-      commandPath: ["attachment", "get"],
-      positionals: ["F999"],
-      options: {},
-      flags: {
-        json: true,
-        help: false,
-        version: false,
-        xoxp: false,
-        xoxb: false,
-      },
-      context: {
-        version: "1.2.3",
-      },
-    });
+    const result = await runAttachmentGet(handler, { save: "maybe" });
 
     expect(result.ok).toBe(false);
     if (result.ok) {
@@ -201,26 +165,22 @@ describe("attachment get command", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("ATTACHMENT_TOOL_DISABLED");
-    expect(result.error.hint).toContain("SLACK_MCP_ATTACHMENT_TOOL=true");
+    expect(result.error.message).toContain("--save");
+    expect(result.error.hint).toContain("true|false|1|0|yes|no|on|off");
   });
 
-  test("returns INVALID_ARGUMENT when metadata size exceeds text limit", async () => {
+  test("returns INVALID_ARGUMENT when --save is enabled and private URL is missing", async () => {
     const handler = createAttachmentGetHandler({
-      env: {
-        SLACK_MCP_ATTACHMENT_TOOL: "1",
-      },
+      env: {},
       createClient: () => ({
         fetchFileInfo: async () => {
           return {
-            id: "F-LARGE",
-            name: "huge-log.txt",
-            size: 6 * 1024 * 1024,
-            urlPrivate: "https://files.slack.com/files-pri/T123-F-LARGE/download",
+            id: "F-NO-URL",
+            name: "attachment.bin",
+            mimetype: "application/octet-stream",
+            filetype: "bin",
+            size: 16,
           };
-        },
-        fetchFileText: async () => {
-          throw new Error("should not be called");
         },
         fetchFileBinary: async () => {
           throw new Error("should not be called");
@@ -229,21 +189,7 @@ describe("attachment get command", () => {
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
     });
 
-    const result = await handler({
-      commandPath: ["attachment", "get"],
-      positionals: ["F-LARGE"],
-      options: {},
-      flags: {
-        json: true,
-        help: false,
-        version: false,
-        xoxp: false,
-        xoxb: false,
-      },
-      context: {
-        version: "1.2.3",
-      },
-    });
+    const result = await runAttachmentGet(handler, { save: true });
 
     expect(result.ok).toBe(false);
     if (result.ok) {
@@ -251,7 +197,77 @@ describe("attachment get command", () => {
     }
 
     expect(result.error.code).toBe("INVALID_ARGUMENT");
-    expect(result.error.message).toContain("ATTACHMENT_TEXT_TOO_LARGE");
+    expect(result.error.message).toContain("ATTACHMENT_DOWNLOAD_UNAVAILABLE");
+  });
+
+  test("saves attachment to generated temp path with hardened permissions", async () => {
+    const writeCalls: Array<{ filePath: string; data: Uint8Array }> = [];
+    const chmodCalls: Array<{ filePath: string; mode: number }> = [];
+
+    const handler = createAttachmentGetHandler({
+      env: {},
+      createClient: () => ({
+        fetchFileInfo: async () => {
+          return {
+            id: "F-BINARY",
+            name: "diagram.png",
+            mimetype: "image/png",
+            filetype: "png",
+            size: 256,
+            urlPrivate: "https://files.slack.com/files-pri/T123-F-BINARY/download",
+          };
+        },
+        fetchFileBinary: async (urlPrivate: string, maxBytes: number) => {
+          expect(urlPrivate).toBe("https://files.slack.com/files-pri/T123-F-BINARY/download");
+          expect(maxBytes).toBe(256 * 1024 * 1024);
+          return {
+            contentBase64: "AP9/",
+            byteLength: 3,
+            contentType: "image/png",
+            encoding: "base64",
+          };
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+      createTempDirectory: async () => "/tmp/slack-attachment-test-0001",
+      generateUlid: () => "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      writeBinaryFile: async (filePath: string, data: Uint8Array) => {
+        writeCalls.push({ filePath, data });
+      },
+      setPathPermissions: async (filePath: string, mode: number) => {
+        chmodCalls.push({ filePath, mode });
+      },
+    });
+
+    const result = await runAttachmentGet(handler, { save: true });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.command).toBe("attachment.get");
+    expect(writeCalls.length).toBe(1);
+    expect(writeCalls[0]?.filePath).toBe(
+      "/tmp/slack-attachment-test-0001/01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    );
+    expect(Array.from(writeCalls[0]?.data ?? [])).toEqual([0, 255, 127]);
+    expect(chmodCalls).toEqual([
+      { filePath: "/tmp/slack-attachment-test-0001", mode: 0o700 },
+      { filePath: "/tmp/slack-attachment-test-0001/01ARZ3NDEKTSV4RRFFQ69G5FAV", mode: 0o600 },
+    ]);
+
+    expect(isRecord(result.data)).toBe(true);
+    if (!isRecord(result.data)) {
+      return;
+    }
+
+    expect(result.data.saved).toBe(true);
+    expect(result.data.saved_path).toBe(
+      "/tmp/slack-attachment-test-0001/01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    );
+    expect(result.data.saved_bytes).toBe(3);
+    expect(result.data.saved_content_type).toBe("image/png");
   });
 
   test("maps SLACK_CONFIG_ERROR to INVALID_ARGUMENT without marker or details", async () => {
@@ -369,89 +385,9 @@ describe("attachment get command", () => {
     expect(result.error.hint).toBe("Retry after validation fix.");
   });
 
-  test("returns base64 payload for non-text MIME attachments", async () => {
-    const handler = createAttachmentGetHandler({
-      env: {
-        SLACK_MCP_ATTACHMENT_TOOL: "true",
-      },
-      createClient: () => ({
-        fetchFileInfo: async () => {
-          return {
-            id: "F-BINARY",
-            name: "diagram.png",
-            mimetype: "image/png",
-            filetype: "png",
-            size: 256,
-            urlPrivate: "https://files.slack.com/files-pri/T123-F-BINARY/download",
-          };
-        },
-        fetchFileText: async () => {
-          throw new Error("should not be called");
-        },
-        fetchFileBinary: async (urlPrivate: string, maxBytes: number) => {
-          expect(urlPrivate).toBe("https://files.slack.com/files-pri/T123-F-BINARY/download");
-          expect(maxBytes).toBe(5 * 1024 * 1024);
-          return {
-            contentBase64: "AP9/",
-            byteLength: 3,
-            contentType: "image/png",
-            encoding: "base64",
-          };
-        },
-      }),
-      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
-    });
-
-    const result = await handler({
-      commandPath: ["attachment", "get"],
-      positionals: ["F-BINARY"],
-      options: {},
-      flags: {
-        json: true,
-        help: false,
-        version: false,
-        xoxp: false,
-        xoxb: false,
-      },
-      context: {
-        version: "1.2.3",
-      },
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) {
-      return;
-    }
-
-    expect(result.command).toBe("attachment.get");
-    expect(isRecord(result.data)).toBe(true);
-    if (!isRecord(result.data)) {
-      return;
-    }
-
-    expect(isRecord(result.data.file)).toBe(true);
-    if (!isRecord(result.data.file)) {
-      return;
-    }
-
-    expect(result.data.file.id).toBe("F-BINARY");
-    expect(result.data.file.mimetype).toBe("image/png");
-    expect(isRecord(result.data.binary)).toBe(true);
-    if (!isRecord(result.data.binary)) {
-      return;
-    }
-
-    expect(result.data.binary.content_base64).toBe("AP9/");
-    expect(result.data.binary.byte_length).toBe(3);
-    expect(result.data.binary.content_type).toBe("image/png");
-    expect(result.data.binary.encoding).toBe("base64");
-  });
-
   test("returns internal error when attachment client contract is unavailable", async () => {
     const handler = createAttachmentGetHandler({
-      env: {
-        SLACK_MCP_ATTACHMENT_TOOL: "true",
-      },
+      env: {},
       createClient: () => ({ listChannels: async () => ({ channels: [] }) }),
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
     });

@@ -101,7 +101,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "attachment get",
-    args: "<file-id> [--json]",
+    args: "<file-id> [--save[=<bool>]] [--json]",
     description: "Get attachment metadata by file id",
   },
   {
