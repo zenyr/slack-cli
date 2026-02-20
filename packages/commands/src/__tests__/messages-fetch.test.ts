@@ -182,4 +182,77 @@ describe("messages fetch command", () => {
     expect(parsed.data.target_ts).toBe("1700000000.123456");
     expect(parsed.data.messages.length).toBe(2);
   });
+
+  test("fetches reply permalink with thread_ts query fallback", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    let historyCalls = 0;
+    let repliesCalls = 0;
+    const mockedFetch: typeof fetch = Object.assign(
+      async (input: string | URL | Request) => {
+        const requestUrl = input instanceof URL ? input.toString() : String(input);
+
+        if (requestUrl.includes("/conversations.history")) {
+          historyCalls += 1;
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              messages: [],
+            }),
+            { status: 200 },
+          );
+        }
+
+        repliesCalls += 1;
+        expect(requestUrl).toContain("/conversations.replies");
+        expect(requestUrl).toContain("channel=C12345678");
+        expect(requestUrl).toContain("ts=1699999900.000001");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [
+              {
+                type: "message",
+                user: "U111",
+                text: "root",
+                ts: "1699999900.000001",
+              },
+              {
+                type: "message",
+                user: "U222",
+                text: "reply target",
+                ts: "1700000000.123456",
+                thread_ts: "1699999900.000001",
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "fetch",
+      "https://acme.slack.com/archives/C12345678/p1700000000123456?thread_ts=1699999900.000001&cid=C12345678",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(historyCalls).toBe(1);
+    expect(repliesCalls).toBe(1);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !isRecord(parsed.data.message)) {
+      return;
+    }
+
+    expect(parsed.data.channel).toBe("C12345678");
+    expect(parsed.data.ts).toBe("1700000000.123456");
+    expect(parsed.data.message.text).toBe("reply target");
+  });
 });

@@ -23,6 +23,11 @@ type MessagesRepliesHandlerDeps = {
   env: Record<string, string | undefined>;
 };
 
+type RepliesPage = {
+  messages: SlackMessage[];
+  nextCursor?: string;
+};
+
 const defaultDeps: MessagesRepliesHandlerDeps = {
   createClient: createSlackWebApiClient,
   resolveToken: resolveSlackToken,
@@ -258,6 +263,70 @@ const mapSlackClientError = (error: unknown): CliResult => {
   }
 };
 
+const fetchRepliesWithAutoPagination = async (
+  client: SlackRepliesWebApiClient,
+  params: {
+    channel: string;
+    threadTs: string;
+    oldest?: string;
+    latest?: string;
+    limit?: number;
+    cursor?: string;
+  },
+): Promise<RepliesPage> => {
+  const requestedLimit = params.limit;
+  const hasExplicitCursor = params.cursor !== undefined;
+
+  if (hasExplicitCursor) {
+    return await client.fetchMessageReplies({
+      channel: params.channel,
+      ts: params.threadTs,
+      limit: requestedLimit ?? 100,
+      oldest: params.oldest,
+      latest: params.latest,
+      cursor: params.cursor,
+    });
+  }
+
+  const pageSize = requestedLimit === undefined ? 200 : Math.min(200, requestedLimit);
+  const mergedMessages: SlackMessage[] = [];
+  let cursor: string | undefined;
+  let nextCursor: string | undefined;
+
+  while (true) {
+    const page = await client.fetchMessageReplies({
+      channel: params.channel,
+      ts: params.threadTs,
+      limit: pageSize,
+      oldest: params.oldest,
+      latest: params.latest,
+      cursor,
+    });
+
+    mergedMessages.push(...page.messages);
+
+    if (requestedLimit !== undefined && mergedMessages.length >= requestedLimit) {
+      return {
+        messages: mergedMessages.slice(0, requestedLimit),
+        nextCursor: page.nextCursor,
+      };
+    }
+
+    if (page.nextCursor === undefined || page.nextCursor.length === 0) {
+      nextCursor = undefined;
+      break;
+    }
+
+    nextCursor = page.nextCursor;
+    cursor = page.nextCursor;
+  }
+
+  return {
+    messages: mergedMessages,
+    nextCursor,
+  };
+};
+
 export const createMessagesRepliesHandler = (
   depsOverrides: Partial<MessagesRepliesHandlerDeps> = {},
 ) => {
@@ -331,8 +400,6 @@ export const createMessagesRepliesHandler = (
       return resolveUsersOrError;
     }
 
-    const limit = limitOrError === undefined ? 100 : limitOrError;
-
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
       if (hasEdgeTokenPrefix(resolvedToken.token)) {
@@ -346,16 +413,14 @@ export const createMessagesRepliesHandler = (
 
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
 
-      const query = {
+      const data = await fetchRepliesWithAutoPagination(client, {
         channel,
-        ts: threadTs,
-        limit,
+        threadTs,
+        limit: limitOrError,
         oldest: oldestOrError,
         latest: latestOrError,
         cursor: cursorOrError,
-      };
-
-      const data = await client.fetchMessageReplies(query);
+      });
 
       let lookup: UserLookup | undefined;
       let resolvedUsers: Record<string, { username: string; displayName?: string }> | undefined;
@@ -371,7 +436,7 @@ export const createMessagesRepliesHandler = (
         data: {
           messages: data.messages,
           next_cursor: data.nextCursor,
-          channel: data.channel,
+          channel,
           thread_ts: threadTs,
           ...(resolvedUsers !== undefined ? { resolvedUsers } : {}),
         },

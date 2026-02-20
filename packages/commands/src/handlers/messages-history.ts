@@ -415,7 +415,7 @@ export const createMessagesHistoryHandler = (
       }
 
       // Process limit
-      let finalLimit = 100;
+      let finalLimit = 10;
       const finalOldest = oldestOrError;
 
       if (typeof limitOrError === "number") {

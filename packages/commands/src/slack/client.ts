@@ -337,6 +337,127 @@ const truncateText = (text: string, maxLength: number): string => {
   return `${text.slice(0, maxLength)}…`;
 };
 
+const toRecordArray = (value: unknown): Record<string, unknown>[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((entry): entry is Record<string, unknown> => isRecord(entry));
+};
+
+const renderRichTextElements = (elements: unknown): string => {
+  const renderedParts: string[] = [];
+
+  for (const element of toRecordArray(elements)) {
+    const type = readString(element, "type") ?? "";
+
+    if (type === "text") {
+      const text = readString(element, "text");
+      if (text !== undefined) {
+        renderedParts.push(text);
+      }
+      continue;
+    }
+
+    if (type === "emoji") {
+      const name = readString(element, "name");
+      if (name !== undefined) {
+        renderedParts.push(`:${name}:`);
+      }
+      continue;
+    }
+
+    if (type === "link") {
+      const text = readString(element, "text");
+      const url = readString(element, "url");
+      if (text !== undefined && text.length > 0) {
+        renderedParts.push(text);
+      } else if (url !== undefined) {
+        renderedParts.push(url);
+      }
+      continue;
+    }
+
+    if (type === "user") {
+      const userId = readString(element, "user_id");
+      if (userId !== undefined) {
+        renderedParts.push(`<@${userId}>`);
+      }
+      continue;
+    }
+
+    if (type === "channel") {
+      const channelId = readString(element, "channel_id");
+      if (channelId !== undefined) {
+        renderedParts.push(`<#${channelId}>`);
+      }
+      continue;
+    }
+
+    if (type === "usergroup") {
+      const usergroupId = readString(element, "usergroup_id");
+      if (usergroupId !== undefined) {
+        renderedParts.push(`<!subteam^${usergroupId}>`);
+      }
+      continue;
+    }
+
+    if (type === "rich_text_section") {
+      renderedParts.push(renderRichTextElements(readArray(element, "elements")));
+      continue;
+    }
+
+    if (type === "rich_text_quote" || type === "rich_text_preformatted") {
+      renderedParts.push(renderRichTextElements(readArray(element, "elements")));
+      renderedParts.push("\n");
+      continue;
+    }
+
+    if (type === "rich_text_list") {
+      const listItems = toRecordArray(readArray(element, "elements"));
+      for (const listItem of listItems) {
+        renderedParts.push(renderRichTextElements(readArray(listItem, "elements")));
+        renderedParts.push("\n");
+      }
+      continue;
+    }
+
+    const nestedElements = readArray(element, "elements");
+    if (nestedElements !== undefined) {
+      renderedParts.push(renderRichTextElements(nestedElements));
+    }
+  }
+
+  return renderedParts.join("");
+};
+
+const renderMessageTextFromBlocks = (blocks: Record<string, unknown>[]): string | undefined => {
+  if (blocks.length === 0) {
+    return undefined;
+  }
+
+  const blockTexts: string[] = [];
+
+  for (const block of blocks) {
+    const blockType = readString(block, "type") ?? "";
+    if (blockType !== "rich_text") {
+      continue;
+    }
+
+    const rendered = renderRichTextElements(readArray(block, "elements"));
+    const trimmed = rendered.trim();
+    if (trimmed.length > 0) {
+      blockTexts.push(trimmed);
+    }
+  }
+
+  if (blockTexts.length === 0) {
+    return undefined;
+  }
+
+  return blockTexts.join("\n");
+};
+
 const mapSearchMessage = (value: unknown): SlackSearchMessage | undefined => {
   if (!isRecord(value)) {
     return undefined;
@@ -367,16 +488,25 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
 
   const ts = readString(value, "ts");
   const text = readString(value, "text");
-  if (ts === undefined || text === undefined) {
+  const blocks = toRecordArray(readArray(value, "blocks"));
+  const renderedFromBlocks = renderMessageTextFromBlocks(blocks);
+  const resolvedText =
+    renderedFromBlocks !== undefined &&
+    (text === undefined || renderedFromBlocks.length > text.length)
+      ? renderedFromBlocks
+      : text;
+
+  if (ts === undefined || resolvedText === undefined) {
     return undefined;
   }
 
   return {
     type: readString(value, "type") ?? "message",
     user: readString(value, "user"),
-    text,
+    text: resolvedText,
     ts,
     threadTs: readString(value, "thread_ts"),
+    ...(blocks.length > 0 ? { blocks } : {}),
   };
 };
 
@@ -1278,11 +1408,23 @@ export const createSlackWebApiClient = (
   const updateMessage = async (
     params: SlackUpdateMessageParams,
   ): Promise<SlackUpdateMessageResult> => {
-    const payload = new URLSearchParams({
-      channel: params.channel,
-      ts: params.ts,
-      text: params.text,
-    });
+    const hasBlockPayload =
+      (params.blocks !== undefined && params.blocks.length > 0) ||
+      (params.attachments !== undefined && params.attachments.length > 0);
+
+    const payload = hasBlockPayload
+      ? {
+          channel: params.channel,
+          ts: params.ts,
+          text: params.text,
+          blocks: params.blocks,
+          attachments: params.attachments,
+        }
+      : new URLSearchParams({
+          channel: params.channel,
+          ts: params.ts,
+          text: params.text,
+        });
     const payloadData = await callApiPost("chat.update", payload);
     const channel = readString(payloadData, "channel") ?? params.channel;
     const ts = readString(payloadData, "ts");

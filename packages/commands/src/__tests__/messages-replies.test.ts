@@ -265,22 +265,41 @@ describe("messages replies command", () => {
   test("success response includes expected data fields", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
+    let callCount = 0;
     const mockedFetch: typeof fetch = Object.assign(
       async () => {
+        callCount += 1;
+        if (callCount === 1) {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              messages: [
+                {
+                  type: "message",
+                  user: "U001",
+                  text: "hello world",
+                  ts: "1700000001.000100",
+                },
+              ],
+              response_metadata: {
+                next_cursor: "cursor-abc",
+              },
+            }),
+            { status: 200 },
+          );
+        }
+
         return new Response(
           JSON.stringify({
             ok: true,
             messages: [
               {
                 type: "message",
-                user: "U001",
-                text: "hello world",
-                ts: "1700000001.000100",
+                user: "U002",
+                text: "second page",
+                ts: "1700000002.000100",
               },
             ],
-            response_metadata: {
-              next_cursor: "cursor-abc",
-            },
           }),
           { status: 200 },
         );
@@ -300,6 +319,7 @@ describe("messages replies command", () => {
     ]);
 
     expect(result.exitCode).toBe(0);
+    expect(callCount).toBe(2);
 
     const parsed = parseJsonOutput(result.stdout);
     expect(isRecord(parsed)).toBe(true);
@@ -316,8 +336,12 @@ describe("messages replies command", () => {
 
     expect(parsed.data.channel).toBe("C456");
     expect(parsed.data.thread_ts).toBe("1700000000.000000");
-    expect(parsed.data.next_cursor).toBe("cursor-abc");
+    expect(parsed.data.next_cursor).toBeUndefined();
     expect(Array.isArray(parsed.data.messages)).toBe(true);
+    if (!Array.isArray(parsed.data.messages)) {
+      return;
+    }
+    expect(parsed.data.messages.length).toBe(2);
   });
 
   test("returns message replies payload and cursor hint with --json", async () => {
@@ -431,6 +455,156 @@ describe("messages replies command", () => {
 
     expect(parsed.textLines).toContain("More replies available. Next cursor: next-cursor");
     expect(parsed.textLines).toContain("1700000002.000100 U001 that sounds good");
+  });
+
+  test("auto-paginates when --limit exceeds single page size", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    let callCount = 0;
+    const mockedFetch: typeof fetch = Object.assign(
+      async (input: string | URL | Request) => {
+        callCount += 1;
+        const requestUrl = input instanceof URL ? input.toString() : String(input);
+        expect(requestUrl).toContain("/conversations.replies");
+        expect(requestUrl).toContain("channel=C777");
+        expect(requestUrl).toContain("ts=1700000000.000000");
+        expect(requestUrl).toContain("limit=200");
+
+        if (callCount === 1) {
+          const firstPageMessages = Array.from({ length: 200 }, (_, index) => ({
+            type: "message",
+            user: "U001",
+            text: `page1-${index + 1}`,
+            ts: `1700000001.${String(index + 1).padStart(6, "0")}`,
+          }));
+
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              messages: firstPageMessages,
+              response_metadata: {
+                next_cursor: "cursor-page-2",
+              },
+            }),
+            { status: 200 },
+          );
+        }
+
+        expect(requestUrl).toContain("cursor=cursor-page-2");
+        const secondPageMessages = Array.from({ length: 100 }, (_, index) => ({
+          type: "message",
+          user: "U002",
+          text: `page2-${index + 1}`,
+          ts: `1700000002.${String(index + 1).padStart(6, "0")}`,
+        }));
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            messages: secondPageMessages,
+            response_metadata: {
+              next_cursor: "cursor-page-3",
+            },
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "replies",
+      "C777",
+      "1700000000.000000",
+      "--limit=250",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(callCount).toBe(2);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !Array.isArray(parsed.data.messages)) {
+      return;
+    }
+
+    expect(parsed.data.messages.length).toBe(250);
+    expect(parsed.data.next_cursor).toBe("cursor-page-3");
+  });
+
+  test("reconstructs message text from rich_text blocks when text is truncated", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const fullText =
+      "좋습니다. 질문하신 내용에 대해 정리해드리겠습니다. 라이센스, 성능, 호환성 순서로 답변드립니다.";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async () => {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [
+              {
+                type: "message",
+                user: "U001",
+                text: "좋습니다. 질문하신 내용에 대해 정리해드리겠습니다.",
+                ts: "1700000001.000100",
+                thread_ts: "1700000000.000000",
+                blocks: [
+                  {
+                    type: "rich_text",
+                    elements: [
+                      {
+                        type: "rich_text_section",
+                        elements: [
+                          {
+                            type: "text",
+                            text: fullText,
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "replies",
+      "C123",
+      "1700000000.000000",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !Array.isArray(parsed.data.messages)) {
+      return;
+    }
+
+    const first = parsed.data.messages[0];
+    expect(isRecord(first)).toBe(true);
+    if (!isRecord(first)) {
+      return;
+    }
+
+    expect(first.text).toBe(fullText);
   });
 
   const deterministicSlackErrorCases = [

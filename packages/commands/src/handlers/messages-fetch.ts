@@ -36,6 +36,11 @@ type MessagesFetchHandlerDeps = {
   env: Record<string, string | undefined>;
 };
 
+type RepliesPage = {
+  messages: SlackMessage[];
+  nextCursor?: string;
+};
+
 const defaultDeps: MessagesFetchHandlerDeps = {
   createClient: createSlackWebApiClient,
   resolveToken: resolveSlackToken,
@@ -155,28 +160,121 @@ const resolveMessageFromPermalink = async (
   client: MessagesFetchClient,
   channel: string,
   ts: string,
+  threadTsFromPermalink?: string,
 ): Promise<SlackMessage | CliResult> => {
-  try {
-    const bounds = buildTimestampBounds(ts);
-    const history = await client.fetchChannelHistory({
-      channel,
-      oldest: bounds.oldest,
-      latest: bounds.latest,
-      limit: 20,
-      includeActivity: true,
-    });
-    const message = history.messages.find((item) => item.ts === ts);
-
-    if (message === undefined) {
-      return createError(
-        "INVALID_ARGUMENT",
-        `messages fetch target not found in ${channel} at ${ts}.`,
-        "Message may be deleted or inaccessible with current token scope.",
-        COMMAND_ID,
-      );
+  const findMessageInHistory = async (): Promise<SlackMessage | undefined | CliResult> => {
+    try {
+      const bounds = buildTimestampBounds(ts);
+      const history = await client.fetchChannelHistory({
+        channel,
+        oldest: bounds.oldest,
+        latest: bounds.latest,
+        limit: 20,
+        includeActivity: true,
+      });
+      return history.messages.find((item) => item.ts === ts);
+    } catch (error) {
+      return mapSlackClientError(error);
     }
+  };
 
-    return message;
+  const findMessageInThreadReplies = async (
+    threadTs: string,
+  ): Promise<SlackMessage | undefined | CliResult> => {
+    const replyPageLimit = 200;
+    let cursor: string | undefined;
+
+    try {
+      while (true) {
+        const replies = await client.fetchMessageReplies({
+          channel,
+          ts: threadTs,
+          limit: replyPageLimit,
+          cursor,
+        });
+
+        const target = replies.messages.find((item) => item.ts === ts);
+        if (target !== undefined) {
+          return target;
+        }
+
+        if (replies.nextCursor === undefined || replies.nextCursor.length === 0) {
+          return undefined;
+        }
+
+        cursor = replies.nextCursor;
+      }
+    } catch (error) {
+      return mapSlackClientError(error);
+    }
+  };
+
+  const historyResult = await findMessageInHistory();
+  if (isCliErrorResult(historyResult)) {
+    return historyResult;
+  }
+  if (historyResult !== undefined) {
+    return historyResult;
+  }
+
+  if (threadTsFromPermalink !== undefined) {
+    const threadResult = await findMessageInThreadReplies(threadTsFromPermalink);
+    if (isCliErrorResult(threadResult)) {
+      return threadResult;
+    }
+    if (threadResult !== undefined) {
+      return threadResult;
+    }
+  }
+
+  return createError(
+    "INVALID_ARGUMENT",
+    `messages fetch target not found in ${channel} at ${ts}.`,
+    "Message may be deleted or inaccessible with current token scope.",
+    COMMAND_ID,
+  );
+};
+
+const resolveThreadTsForReplies = (message: SlackMessage, permalinkThreadTs?: string): string => {
+  if (permalinkThreadTs !== undefined) {
+    return permalinkThreadTs;
+  }
+
+  if (message.threadTs !== undefined) {
+    return message.threadTs;
+  }
+
+  return message.ts;
+};
+
+const fetchFullThreadReplies = async (
+  client: MessagesFetchClient,
+  channel: string,
+  threadTs: string,
+): Promise<RepliesPage | CliResult> => {
+  const mergedMessages: SlackMessage[] = [];
+  let cursor: string | undefined;
+
+  try {
+    while (true) {
+      const page = await client.fetchMessageReplies({
+        channel,
+        ts: threadTs,
+        limit: 200,
+        cursor,
+      });
+
+      mergedMessages.push(...page.messages);
+
+      if (page.nextCursor === undefined || page.nextCursor.length === 0) {
+        return {
+          messages: mergedMessages,
+          nextCursor: undefined,
+        };
+      }
+
+      cursor = page.nextCursor;
+    }
   } catch (error) {
     return mapSlackClientError(error);
   }
@@ -276,6 +374,7 @@ export const createMessagesFetchHandler = (
         client,
         permalink.channel,
         permalink.ts,
+        permalink.threadTs,
       );
       if (isCliErrorResult(messageOrError)) {
         return messageOrError;
@@ -304,18 +403,16 @@ export const createMessagesFetchHandler = (
         };
       }
 
-      const threadTs =
-        messageOrError.threadTs === undefined ? messageOrError.ts : messageOrError.threadTs;
-      const replies = await client.fetchMessageReplies({
-        channel: permalink.channel,
-        ts: threadTs,
-        limit: 200,
-      });
+      const threadTs = resolveThreadTsForReplies(messageOrError, permalink.threadTs);
+      const repliesOrError = await fetchFullThreadReplies(client, permalink.channel, threadTs);
+      if (isCliErrorResult(repliesOrError)) {
+        return repliesOrError;
+      }
 
       let lookup: UserLookup | undefined;
       let resolvedUsers: Record<string, { username: string; displayName?: string }> | undefined;
       if (resolveUsersOrError) {
-        const resolved = await resolveUserIds(client, replies.messages);
+        const resolved = await resolveUserIds(client, repliesOrError.messages);
         lookup = resolved.lookup;
         resolvedUsers = resolved.resolvedUsers;
       }
@@ -329,16 +426,16 @@ export const createMessagesFetchHandler = (
           target_ts: messageOrError.ts,
           thread_ts: threadTs,
           message: messageOrError,
-          messages: replies.messages,
-          next_cursor: replies.nextCursor,
+          messages: repliesOrError.messages,
+          next_cursor: repliesOrError.nextCursor,
           ...(resolvedUsers !== undefined ? { resolvedUsers } : {}),
         },
         textLines: buildThreadLines(
           permalink.channel,
           threadTs,
           messageOrError.ts,
-          replies.messages,
-          replies.nextCursor,
+          repliesOrError.messages,
+          repliesOrError.nextCursor,
           lookup,
         ),
       };

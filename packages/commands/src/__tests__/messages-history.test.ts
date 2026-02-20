@@ -437,7 +437,7 @@ describe("--oldest/--latest time expressions", () => {
             expect(params.channel).toBe("C123");
             expect(params.oldest).toBe(expectedOldest);
             expect(params.latest).toBeUndefined();
-            expect(params.limit).toBe(100);
+            expect(params.limit).toBe(10);
             return {
               channel: "C123",
               messages: [],

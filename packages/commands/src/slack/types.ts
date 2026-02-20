@@ -215,6 +215,7 @@ export type SlackMessage = {
   text: string;
   ts: string;
   threadTs?: string;
+  blocks?: Record<string, unknown>[];
 };
 
 export type SlackFileMetadata = {
@@ -284,6 +285,8 @@ export type SlackUpdateMessageParams = {
   channel: string;
   ts: string;
   text: string;
+  blocks?: Record<string, unknown>[];
+  attachments?: Record<string, unknown>[];
 };
 
 export type SlackUpdateMessageResult = {
