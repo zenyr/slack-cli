@@ -1,6 +1,13 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
-import type { SlackClientError, SlackUserGroup, SlackUsergroupsWebApiClient } from "../slack/types";
+import { resolveSlackToken } from "../slack/token";
+import type {
+  ResolvedSlackToken,
+  SlackClientError,
+  SlackUserGroup,
+  SlackUsergroupsWebApiClient,
+} from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
@@ -8,14 +15,25 @@ const COMMAND_ID = "usergroups.get";
 const USERGROUP_ID_PATTERN = /^S[A-Z0-9]+$/;
 const MAX_RENDERED_USER_IDS = 5;
 const USAGE_HINT =
-  "Usage: slack usergroups get <usergroup-id> [usergroup-id ...] [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]";
+  "Usage: slack usergroups get <usergroup-id(required,non-empty)> [usergroup-id ...] [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]";
+
+type CreateClientOptions = {
+  token?: string;
+  env?: Record<string, string | undefined>;
+};
 
 type UsergroupsGetHandlerDeps = {
-  createClient: () => SlackUsergroupsWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackUsergroupsWebApiClient;
+  resolveToken: (
+    env?: Record<string, string | undefined>,
+  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
+  env: Record<string, string | undefined>;
 };
 
 const defaultDeps: UsergroupsGetHandlerDeps = {
   createClient: createSlackWebApiClient,
+  resolveToken: resolveSlackToken,
+  env: process.env,
 };
 
 const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
@@ -168,7 +186,8 @@ export const createUsergroupsGetHandler = (
     }
 
     try {
-      const client = deps.createClient();
+      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await client.listUsergroups({
         includeUsers: includeUsersParsed.value,
         includeDisabled: includeDisabledParsed.value,

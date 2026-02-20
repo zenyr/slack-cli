@@ -70,6 +70,10 @@ const normalizeCommandTokens = (tokens: string[]): string[] => {
   return [normalizedFirstToken, ...tokens.slice(1)];
 };
 
+const isLikelyUrlToken = (token: string): boolean => {
+  return token.startsWith("http://") || token.startsWith("https://");
+};
+
 const resolveImplicitMessagesCommand = (
   tokens: string[],
   registry: CommandStrategy[],
@@ -86,7 +90,18 @@ const resolveImplicitMessagesCommand = (
   const implicitTokens = ["messages", ...tokens];
   const matched = matchCommand(implicitTokens, registry);
   if (matched === undefined || matched.path[0] !== "messages") {
-    return undefined;
+    const firstToken = tokens[0];
+    if (firstToken === undefined || !isLikelyUrlToken(firstToken)) {
+      return undefined;
+    }
+
+    const implicitFetchTokens = ["messages", "fetch", ...tokens];
+    const matchedFetch = matchCommand(implicitFetchTokens, registry);
+    if (matchedFetch === undefined || matchedFetch.id !== "messages-fetch") {
+      return undefined;
+    }
+
+    return matchedFetch;
   }
 
   return matched;
@@ -176,7 +191,10 @@ export const routeCli = async (
 
     const implicitMessagesMatch = resolveImplicitMessagesCommand(normalizedTokens, registry);
     if (implicitMessagesMatch !== undefined) {
-      const implicitTokens = ["messages", ...normalizedTokens];
+      const implicitTokens =
+        implicitMessagesMatch.id === "messages-fetch" && isLikelyUrlToken(normalizedTokens[0] ?? "")
+          ? ["messages", "fetch", ...normalizedTokens]
+          : ["messages", ...normalizedTokens];
       const positionals = [
         ...implicitTokens.slice(implicitMessagesMatch.path.length),
         ...parsed.positionalsFromDoubleDash,
@@ -219,6 +237,31 @@ export const routeCli = async (
     ...normalizedTokens.slice(matchedCommand.path.length),
     ...parsed.positionalsFromDoubleDash,
   ];
+
+  if (matchedCommand.requiresExplicitTokenType === true && context.tokenTypeOverride === undefined) {
+    const commandName = matchedCommand.path.join(" ");
+    return createError(
+      "INVALID_ARGUMENT",
+      `'${commandName}' requires explicit token type selection. [MISSING_ARGUMENT]`,
+      `Add --xoxp (user) or --xoxb (bot).`,
+      commandName,
+    );
+  }
+
+  // Validate --xoxp/--xoxb against command's allowed token types
+  if (context.tokenTypeOverride !== undefined && matchedCommand.allowedTokenTypes !== undefined) {
+    if (!matchedCommand.allowedTokenTypes.includes(context.tokenTypeOverride)) {
+      const commandName = matchedCommand.path.join(" ");
+      const requested = context.tokenTypeOverride;
+      const allowed = matchedCommand.allowedTokenTypes.join(" or ");
+      return createError(
+        "INVALID_ARGUMENT",
+        `'${commandName}' requires a ${allowed} token. --${requested} is not compatible.`,
+        `Remove --${requested} or use a compatible token type.`,
+        commandName,
+      );
+    }
+  }
 
   const request: CommandRequest = {
     commandPath: matchedCommand.path,

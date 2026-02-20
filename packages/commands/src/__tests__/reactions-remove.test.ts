@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { isRecord, parseJsonOutput, runCliWithBuffer } from "./test-utils";
 import { createReactionsRemoveHandler } from "../handlers/reactions-remove";
@@ -13,6 +13,8 @@ const createRequest = (positionals: string[]) => {
       json: true,
       help: false,
       version: false,
+      xoxp: false,
+      xoxb: false,
     },
     context: {
       version: "1.2.3",
@@ -21,8 +23,23 @@ const createRequest = (positionals: string[]) => {
 };
 
 describe("reactions remove handler", () => {
+  const XOXB_ENV_KEY = "SLACK_MCP_XOXB_TOKEN";
+  const originalXoxbToken = process.env[XOXB_ENV_KEY];
+
+  beforeEach(() => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+  });
+
+  afterEach(() => {
+    if (originalXoxbToken === undefined) {
+      delete process.env[XOXB_ENV_KEY];
+    } else {
+      process.env[XOXB_ENV_KEY] = originalXoxbToken;
+    }
+  });
+
   test("routes reactions remove command and returns INVALID_ARGUMENT for missing channel", async () => {
-    const result = await runCliWithBuffer(["reactions", "remove", "--json"]);
+    const result = await runCliWithBuffer(["reactions", "remove", "--json", "--xoxb"]);
 
     expect(result.exitCode).toBe(2);
     expect(result.stderr.length).toBe(0);
@@ -41,6 +58,27 @@ describe("reactions remove handler", () => {
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toContain("MISSING_ARGUMENT");
     expect(parsed.error.message).toContain("<channel-id>");
+  });
+
+  test("requires explicit token type selection", async () => {
+    const result = await runCliWithBuffer([
+      "reactions",
+      "remove",
+      "C123",
+      "1700000000.000001",
+      "eyes",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toContain("requires explicit token type selection");
   });
 
   test("help metadata exposes reactions remove args only", async () => {

@@ -4,6 +4,7 @@ import {
   isValidSlackTimestamp,
   mapSlackClientError,
   readBlocksOption,
+  resolveTokenForContext,
 } from "./messages-shared";
 import { createError } from "../errors";
 import { parseSlackMessagePermalink } from "../messages/permalink";
@@ -15,7 +16,7 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.update";
 const USAGE_HINT =
-  "Usage: slack messages update <channel-id> <timestamp> <text> [--blocks[=<json|bool>]] [--json] or slack messages update <message-url> <text> [--blocks[=<json|bool>]] [--json]";
+  "Usage: slack messages update <channel-id> <timestamp> <text(required,non-empty)> [--blocks[=<json|bool>]] [--json] or slack messages update <message-url> <text(required,non-empty)> [--blocks[=<json|bool>]] [--json]";
 
 type MessagesUpdateHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
@@ -133,7 +134,11 @@ export const createMessagesUpdateHandler = (
     }
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const data = await client.updateMessage({
         channel: targetOrError.channel,

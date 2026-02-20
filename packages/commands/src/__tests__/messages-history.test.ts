@@ -283,6 +283,8 @@ describe("messages history command", () => {
             json: true,
             help: false,
             version: false,
+            xoxp: false,
+            xoxb: false,
           },
           context: {
             version: "1.2.3",
@@ -363,6 +365,8 @@ describe("messages history command", () => {
           json: true,
           help: false,
           version: false,
+          xoxp: false,
+          xoxb: false,
         },
         context: {
           version: "1.2.3",
@@ -408,6 +412,8 @@ describe("messages history command", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -457,6 +463,8 @@ describe("--oldest/--latest time expressions", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -501,6 +509,8 @@ describe("--oldest/--latest time expressions", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -545,6 +555,8 @@ describe("--oldest/--latest time expressions", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -575,6 +587,8 @@ describe("--oldest/--latest time expressions", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -619,6 +633,8 @@ describe("--oldest/--latest time expressions", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -659,6 +675,8 @@ describe("channel identifier resolution", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -701,6 +719,8 @@ describe("channel identifier resolution", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -746,6 +766,8 @@ describe("channel identifier resolution", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -788,6 +810,8 @@ describe("channel identifier resolution", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -828,6 +852,8 @@ describe("channel identifier resolution", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -869,6 +895,8 @@ describe("channel identifier resolution", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",

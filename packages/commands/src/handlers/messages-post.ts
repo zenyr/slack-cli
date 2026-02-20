@@ -4,6 +4,7 @@ import {
   mapSlackClientError,
   readBlocksOption,
   readThreadTsOption,
+  resolveTokenForContext,
 } from "./messages-shared";
 import { createError } from "../errors";
 import { convertMarkdownToSlackMrkdwn } from "../messages-post/markdown";
@@ -15,7 +16,7 @@ import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post";
 const USAGE_HINT =
-  "Usage: slack messages post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
+  "Usage: slack messages post <channel-id> <text(required,non-empty)> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
 const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 
 type MessagesPostHandlerDeps = {
@@ -140,9 +141,16 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
     const mrkdwnText = convertMarkdownToSlackMrkdwn(text);
     const blockPayload = blocksPayloadOrError;
 
+    const tokenOverride = request.context.tokenTypeOverride;
+    const resolveForPost =
+      tokenOverride !== undefined
+        ? () => resolveTokenForContext(request.context, deps.env, deps.resolveToken)
+        : deps.resolveToken;
+    const preferredType = tokenOverride ?? "xoxb";
+
     try {
       return await withTokenFallback(
-        "xoxb",
+        preferredType,
         deps.env,
         async (resolvedToken) => {
           const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
@@ -170,7 +178,7 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
             textLines: [`Posted message to ${data.channel} at ${data.ts}.`],
           };
         },
-        deps.resolveToken,
+        resolveForPost,
       );
     } catch (error) {
       return mapSlackClientError(error, COMMAND_ID);

@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
@@ -52,7 +53,11 @@ export const createUsersStatusGetHandler = (
     const userId = rawUserId !== undefined ? rawUserId.trim() : undefined;
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
 
       let targetUserId: string;

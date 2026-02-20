@@ -1,12 +1,18 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
-import type { SlackClientError, SlackUsergroupsUpdateWebApiClient } from "../slack/types";
+import { resolveSlackToken } from "../slack/token";
+import type {
+  ResolvedSlackToken,
+  SlackClientError,
+  SlackUsergroupsUpdateWebApiClient,
+} from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "usergroups.users.update";
 const USAGE_HINT =
-  "Usage: slack usergroups users update <usergroup-id> <user-id> [user-id ...] --yes [--json]";
+  "Usage: slack usergroups users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]";
 const MEMBERS_PREVIEW_LIMIT = 10;
 
 const isTruthyOption = (value: string | boolean | undefined): boolean => {
@@ -56,12 +62,23 @@ const createMembershipPreviewLines = (userIds: string[]): string[] => {
   return lines;
 };
 
+type CreateClientOptions = {
+  token?: string;
+  env?: Record<string, string | undefined>;
+};
+
 type UsergroupsUsersUpdateHandlerDeps = {
-  createClient: () => SlackUsergroupsUpdateWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackUsergroupsUpdateWebApiClient;
+  resolveToken: (
+    env?: Record<string, string | undefined>,
+  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
+  env: Record<string, string | undefined>;
 };
 
 const defaultDeps: UsergroupsUsersUpdateHandlerDeps = {
   createClient: createSlackWebApiClient,
+  resolveToken: resolveSlackToken,
+  env: process.env,
 };
 
 export const createUsergroupsUsersUpdateHandler = (
@@ -114,7 +131,8 @@ export const createUsergroupsUsersUpdateHandler = (
     }
 
     try {
-      const client = deps.createClient();
+      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await client.updateUsergroupUsers({ usergroupId, userIds });
 
       return {

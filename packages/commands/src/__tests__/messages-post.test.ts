@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { isRecord, parseJsonOutput, runCliWithBuffer } from "./test-utils";
 import { createMessagesPostHandler } from "../handlers/messages-post";
@@ -6,8 +6,14 @@ import { createSlackClientError, createSlackWebApiClient } from "../slack";
 
 describe("messages post command", () => {
   const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
+  const XOXB_ENV_KEY = "SLACK_MCP_XOXB_TOKEN";
   const originalFetch = globalThis.fetch;
   const originalXoxpToken = process.env[XOXP_ENV_KEY];
+  const originalXoxbToken = process.env[XOXB_ENV_KEY];
+
+  beforeEach(() => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+  });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
@@ -17,10 +23,16 @@ describe("messages post command", () => {
     } else {
       process.env[XOXP_ENV_KEY] = originalXoxpToken;
     }
+
+    if (originalXoxbToken === undefined) {
+      delete process.env[XOXB_ENV_KEY];
+    } else {
+      process.env[XOXB_ENV_KEY] = originalXoxbToken;
+    }
   });
 
   test("returns missing argument when channel id is absent", async () => {
-    const result = await runCliWithBuffer(["messages", "post", "--json"]);
+    const result = await runCliWithBuffer(["messages", "post", "--json", "--xoxb"]);
 
     expect(result.exitCode).toBe(2);
     expect(result.stderr.length).toBe(0);
@@ -43,7 +55,7 @@ describe("messages post command", () => {
   });
 
   test("returns missing argument when text is absent", async () => {
-    const result = await runCliWithBuffer(["messages", "post", "C123", "--json"]);
+    const result = await runCliWithBuffer(["messages", "post", "C123", "--json", "--xoxb"]);
 
     expect(result.exitCode).toBe(2);
     expect(result.stderr.length).toBe(0);
@@ -66,7 +78,7 @@ describe("messages post command", () => {
   });
 
   test("returns invalid argument when text is whitespace-only", async () => {
-    const result = await runCliWithBuffer(["messages", "post", "C123", "   ", "--json"]);
+    const result = await runCliWithBuffer(["messages", "post", "C123", "   ", "--json", "--xoxb"]);
 
     expect(result.exitCode).toBe(2);
 
@@ -85,6 +97,21 @@ describe("messages post command", () => {
     expect(parsed.error.message).toContain("non-empty <text>");
   });
 
+  test("requires explicit token type selection", async () => {
+    const result = await runCliWithBuffer(["messages", "post", "C123", "hello", "--json"]);
+
+    expect(result.exitCode).toBe(2);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toContain("requires explicit token type selection");
+  });
+
   test("returns invalid argument when --thread-ts is provided without value", async () => {
     const result = await runCliWithBuffer([
       "messages",
@@ -93,6 +120,7 @@ describe("messages post command", () => {
       "hello",
       "--thread-ts",
       "--json",
+      "--xoxb",
     ]);
 
     expect(result.exitCode).toBe(2);
@@ -116,6 +144,7 @@ describe("messages post command", () => {
       "hello",
       "--thread-ts=",
       "--json",
+      "--xoxb",
     ]);
 
     expect(result.exitCode).toBe(2);
@@ -138,6 +167,7 @@ describe("messages post command", () => {
       "hello",
       "--thread-ts=not-a-ts",
       "--json",
+      "--xoxb",
     ]);
 
     expect(result.exitCode).toBe(2);
@@ -154,7 +184,7 @@ describe("messages post command", () => {
   });
 
   test("posts plain text and returns posted metadata with --json", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
     const mockedFetch: typeof fetch = Object.assign(
       async (input: string | URL | Request, init?: RequestInit) => {
@@ -163,7 +193,7 @@ describe("messages post command", () => {
         expect(init?.method).toBe("POST");
 
         const headers = new Headers(init?.headers);
-        expect(headers.get("Authorization")).toBe("Bearer xoxp-test-token");
+        expect(headers.get("Authorization")).toBe("Bearer xoxb-test-token");
         expect(headers.get("Content-Type")).toContain("application/x-www-form-urlencoded");
 
         const body = String(init?.body);
@@ -204,6 +234,7 @@ describe("messages post command", () => {
       "from",
       "cli",
       "--json",
+      "--xoxb",
     ]);
 
     expect(result.exitCode).toBe(0);
@@ -233,7 +264,7 @@ describe("messages post command", () => {
   });
 
   test("forwards --thread-ts to chat.postMessage payload", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
     const mockedFetch: typeof fetch = Object.assign(
       async (_input: string | URL | Request, init?: RequestInit) => {
@@ -274,6 +305,7 @@ describe("messages post command", () => {
       "cli",
       "--thread-ts=1700000000.000001",
       "--json",
+      "--xoxb",
     ]);
 
     expect(result.exitCode).toBe(0);
@@ -288,7 +320,7 @@ describe("messages post command", () => {
   });
 
   test("forwards advanced message post boolean options to chat.postMessage payload", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
     const mockedFetch: typeof fetch = Object.assign(
       async (_input: string | URL | Request, init?: RequestInit) => {
@@ -335,6 +367,7 @@ describe("messages post command", () => {
       "--unfurl-media=off",
       "--reply-broadcast=1",
       "--json",
+      "--xoxb",
     ]);
 
     expect(result.exitCode).toBe(0);
@@ -357,6 +390,7 @@ describe("messages post command", () => {
       "hello",
       "--reply-broadcast=maybe",
       "--json",
+      "--xoxb",
     ]);
 
     expect(result.exitCode).toBe(2);
@@ -420,6 +454,8 @@ describe("messages post command", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -480,6 +516,8 @@ describe("messages post command", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -619,6 +657,8 @@ describe("messages post command", () => {
             json: true,
             help: false,
             version: false,
+            xoxp: false,
+            xoxb: false,
           },
           context: {
             version: "1.2.3",
@@ -647,8 +687,10 @@ describe("messages post command", () => {
 
 describe("messages post --blocks with stdin (heredoc)", () => {
   const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
+  const XOXB_ENV_KEY = "SLACK_MCP_XOXB_TOKEN";
   const originalFetch = globalThis.fetch;
   const originalXoxpToken = process.env[XOXP_ENV_KEY];
+  const originalXoxbToken = process.env[XOXB_ENV_KEY];
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
@@ -658,10 +700,16 @@ describe("messages post --blocks with stdin (heredoc)", () => {
     } else {
       process.env[XOXP_ENV_KEY] = originalXoxpToken;
     }
+
+    if (originalXoxbToken === undefined) {
+      delete process.env[XOXB_ENV_KEY];
+    } else {
+      process.env[XOXB_ENV_KEY] = originalXoxbToken;
+    }
   });
 
   test("uses stdin content as block source when --blocks is bare and stdin is provided", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
     let capturedBlocks: unknown;
 
@@ -687,7 +735,7 @@ describe("messages post --blocks with stdin (heredoc)", () => {
     const stdinContent = "# Hello\nThis is block content from heredoc.";
 
     const result = await runCliWithBuffer(
-      ["messages", "post", "C123", "summary", "--blocks", "--json"],
+      ["messages", "post", "C123", "summary", "--blocks", "--json", "--xoxb"],
       { stdin: stdinContent },
     );
 
@@ -697,7 +745,7 @@ describe("messages post --blocks with stdin (heredoc)", () => {
   });
 
   test("uses <text> as block source when --blocks is bare and no stdin provided", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
     let capturedBlocks: unknown;
 
@@ -722,7 +770,7 @@ describe("messages post --blocks with stdin (heredoc)", () => {
 
     // No stdin option → falls back to <text> as block source
     const result = await runCliWithBuffer(
-      ["messages", "post", "C123", "summary text", "--blocks", "--json"],
+      ["messages", "post", "C123", "summary text", "--blocks", "--json", "--xoxb"],
       { stdin: undefined },
     );
 
@@ -732,7 +780,7 @@ describe("messages post --blocks with stdin (heredoc)", () => {
   });
 
   test("does not build blocks when --blocks is not provided even if stdin is present", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
     let capturedContentType = "";
 
@@ -754,9 +802,12 @@ describe("messages post --blocks with stdin (heredoc)", () => {
     );
     globalThis.fetch = mockedFetch;
 
-    const result = await runCliWithBuffer(["messages", "post", "C123", "plain text", "--json"], {
-      stdin: "should be ignored",
-    });
+    const result = await runCliWithBuffer(
+      ["messages", "post", "C123", "plain text", "--json", "--xoxb"],
+      {
+        stdin: "should be ignored",
+      },
+    );
 
     expect(result.exitCode).toBe(0);
     // Plain text path uses form-encoded, not JSON
@@ -764,7 +815,7 @@ describe("messages post --blocks with stdin (heredoc)", () => {
   });
 
   test("uses raw JSON blocks when --blocks is provided with JSON array", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
     let capturedContentType = "";
     let capturedBlocks: unknown;
@@ -796,6 +847,7 @@ describe("messages post --blocks with stdin (heredoc)", () => {
       "summary",
       '--blocks=[{"type":"section","text":{"type":"mrkdwn","text":"*hello*"}}]',
       "--json",
+      "--xoxb",
     ]);
 
     expect(result.exitCode).toBe(0);

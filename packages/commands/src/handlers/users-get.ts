@@ -1,20 +1,37 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
-import type { SlackClientError, SlackUser, SlackUsersInfoWebApiClient } from "../slack";
-import { createSlackWebApiClient, isSlackClientError } from "../slack";
+import type {
+  ResolvedSlackToken,
+  SlackClientError,
+  SlackUser,
+  SlackUsersInfoWebApiClient,
+} from "../slack";
+import { createSlackWebApiClient, isSlackClientError, resolveSlackToken } from "../slack";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "users.get";
-const USAGE_HINT = "Usage: slack users get <user-id> [user-id ...] [--json]";
+const USAGE_HINT = "Usage: slack users get <user-id(required,non-empty)> [user-id ...] [--json]";
 const USER_ID_PATTERN = /^[UW][A-Z0-9]+$/;
 const MISSING_PREVIEW_LIMIT = 20;
 const MAX_USER_IDS = 200;
 
+type CreateClientOptions = {
+  token?: string;
+  env?: Record<string, string | undefined>;
+};
+
 type UsersGetHandlerDeps = {
-  createClient: () => SlackUsersInfoWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackUsersInfoWebApiClient;
+  resolveToken: (
+    env?: Record<string, string | undefined>,
+  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
+  env: Record<string, string | undefined>;
 };
 
 const defaultDeps: UsersGetHandlerDeps = {
   createClient: createSlackWebApiClient,
+  resolveToken: resolveSlackToken,
+  env: process.env,
 };
 
 const parseUserIds = (positionals: string[]): { userIds?: string[]; error?: CliResult } => {
@@ -136,7 +153,8 @@ export const createUsersGetHandler = (depsOverrides: Partial<UsersGetHandlerDeps
     }
 
     try {
-      const client = deps.createClient();
+      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await client.getUsersByIds(userIds);
 
       const lines: string[] = [

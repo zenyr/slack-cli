@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { parseSlackMessagePermalink } from "../messages/permalink";
 import { createSlackWebApiClient } from "../slack/client";
@@ -8,7 +9,7 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.delete";
 const USAGE_HINT =
-  "Usage: slack messages delete <channel-id> <timestamp> [--json] or slack messages delete <message-url> [--json]";
+  "Usage: slack messages delete <channel-id(required,non-empty)> <timestamp(required,non-empty)> [--json] or slack messages delete <message-url(required,non-empty)> [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -131,7 +132,11 @@ export const createMessagesDeleteHandler = (
     }
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const data = await client.deleteMessage(targetOrError);
 

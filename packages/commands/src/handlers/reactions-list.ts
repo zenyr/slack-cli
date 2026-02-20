@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
@@ -6,6 +7,8 @@ import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "reactions.list";
+const USAGE_HINT =
+  "Usage: slack reactions list <channel-id(required,non-empty)> <timestamp(required,non-empty)> [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -71,7 +74,7 @@ export const createReactionsListHandler = (
       return createError(
         "INVALID_ARGUMENT",
         "reactions list requires <channel-id>. [MISSING_ARGUMENT]",
-        "Usage: slack reactions list <channel-id> <timestamp> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -81,7 +84,7 @@ export const createReactionsListHandler = (
       return createError(
         "INVALID_ARGUMENT",
         "reactions list requires <timestamp>. [MISSING_ARGUMENT]",
-        "Usage: slack reactions list <channel-id> <timestamp> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -90,7 +93,11 @@ export const createReactionsListHandler = (
     const timestamp = rawTimestamp.trim();
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const data = await client.getReactions({ channel, timestamp });
 

@@ -1,6 +1,7 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
-import type { SlackClientError, SlackUser, SlackWebApiClient } from "../slack";
-import { createSlackWebApiClient, isSlackClientError } from "../slack";
+import type { ResolvedSlackToken, SlackClientError, SlackUser, SlackWebApiClient } from "../slack";
+import { createSlackWebApiClient, isSlackClientError, resolveSlackToken } from "../slack";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const commandLabel = (path: string[]): string => {
@@ -156,8 +157,17 @@ const matchesUserFilter = (user: SlackUser, regexp: RegExp): boolean => {
   );
 };
 
+type CreateClientOptions = {
+  token?: string;
+  env?: Record<string, string | undefined>;
+};
+
 type UsersListHandlerDeps = {
-  createClient: () => SlackWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackWebApiClient;
+  resolveToken: (
+    env?: Record<string, string | undefined>,
+  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
+  env: Record<string, string | undefined>;
   commandId?: string;
   commandLabel?: string;
 };
@@ -204,6 +214,8 @@ const listUsersWithOptionalAutoPagination = async (
 
 const defaultUsersListDeps: UsersListHandlerDeps = {
   createClient: createSlackWebApiClient,
+  resolveToken: resolveSlackToken,
+  env: process.env,
   commandId: "users.list",
   commandLabel: undefined,
 };
@@ -231,7 +243,8 @@ export const createUsersListHandler = (depsOverrides: Partial<UsersListHandlerDe
     const shouldAutoPaginateQuery = queryParts.length > 0 && cursorOrError === undefined;
 
     try {
-      const client = deps.createClient();
+      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await listUsersWithOptionalAutoPagination(
         client,
         {

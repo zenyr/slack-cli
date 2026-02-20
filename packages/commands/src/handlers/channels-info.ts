@@ -1,19 +1,33 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
-import type { SlackChannelInfoWebApiClient } from "../slack/types";
+import { resolveSlackToken } from "../slack/token";
+import type { ResolvedSlackToken, SlackChannelInfoWebApiClient } from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "channels.info";
+const USAGE_HINT = "Usage: slack channels info <channel-id(required,non-empty)> [--json]";
 
 const CHANNEL_ID_RE = /^[CGD][A-Z0-9]+$/;
 
+type CreateClientOptions = {
+  token?: string;
+  env?: Record<string, string | undefined>;
+};
+
 type ChannelsInfoHandlerDeps = {
-  createClient: () => SlackChannelInfoWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackChannelInfoWebApiClient;
+  resolveToken: (
+    env?: Record<string, string | undefined>,
+  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
+  env: Record<string, string | undefined>;
 };
 
 const defaultDeps: ChannelsInfoHandlerDeps = {
   createClient: createSlackWebApiClient,
+  resolveToken: resolveSlackToken,
+  env: process.env,
 };
 
 const mapSlackClientError = (error: unknown): CliResult => {
@@ -59,7 +73,7 @@ export const createChannelsInfoHandler = (depsOverrides: Partial<ChannelsInfoHan
       return createError(
         "INVALID_ARGUMENT",
         "channels info requires <channel-id>. [MISSING_ARGUMENT]",
-        "Usage: slack channels info <channel-id> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -75,7 +89,8 @@ export const createChannelsInfoHandler = (depsOverrides: Partial<ChannelsInfoHan
     }
 
     try {
-      const client = deps.createClient();
+      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await client.fetchChannelInfo(channelId);
       const { channel } = result;
 

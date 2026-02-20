@@ -10,6 +10,8 @@ describe("parseArgv", () => {
       help: false,
       json: true,
       version: false,
+      xoxp: false,
+      xoxb: false,
     });
     expect(parsed.tokens).toEqual(["messages", "search"]);
     expect(parsed.positionalsFromDoubleDash).toEqual(["--help", "--limit=10", "-v"]);
@@ -66,6 +68,8 @@ describe("parseArgv", () => {
       help: true,
       json: true,
       version: true,
+      xoxp: false,
+      xoxb: false,
     });
     expect(parsed.tokens).toEqual(["messages", "search"]);
     expect(parsed.positionalsFromDoubleDash).toEqual(["--help", "--json", "--version"]);

@@ -12,6 +12,14 @@ const isGlobalJsonFlag = (token: string): boolean => {
   return token === "--json";
 };
 
+const isGlobalXoxpFlag = (token: string): boolean => {
+  return token === "--xoxp";
+};
+
+const isGlobalXoxbFlag = (token: string): boolean => {
+  return token === "--xoxb";
+};
+
 const parseOptionToken = (
   token: string,
   nextToken: string | undefined,
@@ -57,6 +65,8 @@ export const parseArgv = (argv: string[]): ParsedArgv => {
     json: false,
     help: false,
     version: false,
+    xoxp: false,
+    xoxb: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -87,6 +97,16 @@ export const parseArgv = (argv: string[]): ParsedArgv => {
 
     if (isGlobalJsonFlag(token)) {
       flags.json = true;
+      continue;
+    }
+
+    if (isGlobalXoxpFlag(token)) {
+      flags.xoxp = true;
+      continue;
+    }
+
+    if (isGlobalXoxbFlag(token)) {
+      flags.xoxb = true;
       continue;
     }
 

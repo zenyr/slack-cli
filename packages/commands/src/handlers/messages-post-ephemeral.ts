@@ -4,6 +4,7 @@ import {
   mapSlackClientError,
   readBlocksOption,
   readThreadTsOption,
+  resolveTokenForContext,
 } from "./messages-shared";
 import { createError } from "../errors";
 import { convertMarkdownToSlackMrkdwn } from "../messages-post/markdown";
@@ -15,7 +16,7 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post-ephemeral";
 const USAGE_HINT =
-  "Usage: slack messages post-ephemeral <channel-id> <user-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--json]";
+  "Usage: slack messages post-ephemeral <channel-id> <user-id> <text(required,non-empty)> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--json]";
 
 type MessagesPostEphemeralHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
@@ -106,7 +107,11 @@ export const createMessagesPostEphemeralHandler = (
     }
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const data = await client.postEphemeral({
         channel,

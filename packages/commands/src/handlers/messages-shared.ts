@@ -1,12 +1,37 @@
 import { createError } from "../errors";
 import type { SlackAttachmentObject, SlackBlockObject } from "../messages-post/block-builder";
 import { buildBlocksFromMarkdown } from "../messages-post/block-builder";
+import { resolveSlackToken, resolveSlackTokenForType } from "../slack/token";
+import type { ResolvedSlackToken } from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
-import type { CliOptions, CliResult } from "../types";
+import type { CliContext, CliOptions, CliResult } from "../types";
 
 export type CreateClientOptions = {
   token?: string;
   env?: Record<string, string | undefined>;
+};
+
+// Resolves token respecting context.tokenTypeOverride when set.
+// Handlers should use this instead of calling resolveSlackToken directly.
+export const resolveTokenForContext = async (
+  context: CliContext,
+  env: Record<string, string | undefined>,
+  resolveToken: (
+    env: Record<string, string | undefined>,
+  ) => Promise<ResolvedSlackToken> | ResolvedSlackToken = resolveSlackToken,
+): Promise<ResolvedSlackToken> => {
+  if (context.tokenTypeOverride !== undefined) {
+    const resolved = await resolveSlackTokenForType(context.tokenTypeOverride, env);
+    if (resolved === undefined) {
+      // Should not happen — runCli validates availability before routing.
+      // Throw so it surfaces as SLACK_CONFIG_ERROR via mapSlackClientError.
+      throw Object.assign(new Error(`${context.tokenTypeOverride} token not available`), {
+        code: "SLACK_CONFIG_ERROR",
+      });
+    }
+    return resolved;
+  }
+  return Promise.resolve(resolveToken(env));
 };
 
 export const mapSlackClientError = (error: unknown, commandId: string): CliResult => {

@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
@@ -6,6 +7,8 @@ import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "reactions.add";
+const USAGE_HINT =
+  "Usage: slack reactions add <channel-id(required,non-empty)> <timestamp(required,non-empty)> <emoji-name(required,non-empty)> [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -69,7 +72,7 @@ export const createReactionsAddHandler = (depsOverrides: Partial<ReactionsAddHan
       return createError(
         "INVALID_ARGUMENT",
         "reactions add requires <channel-id>. [MISSING_ARGUMENT]",
-        "Usage: slack reactions add <channel-id> <timestamp> <emoji-name> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -79,7 +82,7 @@ export const createReactionsAddHandler = (depsOverrides: Partial<ReactionsAddHan
       return createError(
         "INVALID_ARGUMENT",
         "reactions add requires <timestamp>. [MISSING_ARGUMENT]",
-        "Usage: slack reactions add <channel-id> <timestamp> <emoji-name> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -89,7 +92,7 @@ export const createReactionsAddHandler = (depsOverrides: Partial<ReactionsAddHan
       return createError(
         "INVALID_ARGUMENT",
         "reactions add requires <emoji-name>. [MISSING_ARGUMENT]",
-        "Usage: slack reactions add <channel-id> <timestamp> <emoji-name> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -99,7 +102,11 @@ export const createReactionsAddHandler = (depsOverrides: Partial<ReactionsAddHan
     const name = rawName.trim();
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const data = await client.addReaction({ channel, timestamp, name });
 

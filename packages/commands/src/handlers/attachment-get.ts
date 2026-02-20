@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
@@ -6,7 +7,7 @@ import { isRecord, isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "attachment.get";
-const USAGE_HINT = "Usage: slack attachment get <file-id> [--json]";
+const USAGE_HINT = "Usage: slack attachment get <file-id(required,non-empty)> [--json]";
 const ATTACHMENT_TOOL_ENV_KEY = "SLACK_MCP_ATTACHMENT_TOOL";
 const MAX_ATTACHMENT_TEXT_BYTES = 5 * 1024 * 1024;
 
@@ -201,7 +202,11 @@ export const createAttachmentGetHandler = (
     }
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       if (!hasAttachmentMetadataClient(client)) {
         return createError(

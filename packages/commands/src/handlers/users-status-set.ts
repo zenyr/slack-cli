@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
@@ -7,7 +8,7 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "users.status.set";
 const USAGE_HINT =
-  "Usage: slack users status set <emoji> <text> [--expiration=<30m|1h|2h|4h|today|unix-ts>] [--json]";
+  "Usage: slack users status set <emoji(required,non-empty)> <text(required,non-empty)> [--expiration=<30m|1h|2h|4h|today|unix-ts>] [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -127,7 +128,11 @@ export const createUsersStatusSetHandler = (
     const { expiration } = expirationResult;
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
 
       if (!resolvedToken.token.startsWith("xoxp")) {
         return createError(

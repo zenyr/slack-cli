@@ -1,6 +1,13 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
-import type { SlackClientError, SlackUserGroup, SlackUsergroupsWebApiClient } from "../slack/types";
+import { resolveSlackToken } from "../slack/token";
+import type {
+  ResolvedSlackToken,
+  SlackClientError,
+  SlackUserGroup,
+  SlackUsergroupsWebApiClient,
+} from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
@@ -79,12 +86,23 @@ const toGroupLine = (group: SlackUserGroup): string => {
   return `- @${group.handle} (${group.id}) ${group.name}${description}${count}${users}`;
 };
 
+type CreateClientOptions = {
+  token?: string;
+  env?: Record<string, string | undefined>;
+};
+
 type UsergroupsListHandlerDeps = {
-  createClient: () => SlackUsergroupsWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackUsergroupsWebApiClient;
+  resolveToken: (
+    env?: Record<string, string | undefined>,
+  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
+  env: Record<string, string | undefined>;
 };
 
 const defaultUsergroupsListDeps: UsergroupsListHandlerDeps = {
   createClient: createSlackWebApiClient,
+  resolveToken: resolveSlackToken,
+  env: process.env,
 };
 
 export const createUsergroupsListHandler = (
@@ -130,7 +148,8 @@ export const createUsergroupsListHandler = (
     }
 
     try {
-      const client = deps.createClient();
+      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await client.listUsergroups({
         includeUsers: includeUsersParsed.value,
         includeDisabled: includeDisabledParsed.value,

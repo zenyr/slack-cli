@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { parseSlackMessagePermalink } from "../messages/permalink";
 import { createSlackWebApiClient } from "../slack/client";
@@ -15,7 +16,7 @@ import { formatUser, resolveUserIds } from "../users/resolve";
 
 const COMMAND_ID = "messages.context";
 const USAGE_HINT =
-  "Usage: slack messages context <message-url> [--before=<n>] [--after=<n>] [--resolve-users[=<bool>]] [--json]";
+  "Usage: slack messages context <message-url(required,non-empty)> [--before=<n>] [--after=<n>] [--resolve-users[=<bool>]] [--json]";
 const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 
 type CreateClientOptions = {
@@ -262,7 +263,11 @@ export const createMessagesContextHandler = (
     const { channel, ts: targetTs } = permalink;
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
 
       // Fetch messages up to and including target (newest-first from API, but we need inclusive)

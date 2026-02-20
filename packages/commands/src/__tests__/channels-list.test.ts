@@ -117,6 +117,8 @@ describe("channels list command", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -215,6 +217,8 @@ describe("channels list command", () => {
             json: true,
             help: false,
             version: false,
+            xoxp: false,
+            xoxb: false,
           },
           context: {
             version: "1.2.3",
@@ -278,7 +282,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { type: "public" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -325,7 +329,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { type: "private" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -380,7 +384,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { type: "public,private" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -417,7 +421,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { type: "public , im" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -436,7 +440,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { type: "invalid" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -458,7 +462,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { type: "public,invalid,private" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -506,7 +510,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { sort: "popularity" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -557,7 +561,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { sort: "popularity" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -604,7 +608,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { sort: "popularity" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -650,7 +654,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { limit: "2" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -690,7 +694,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { limit: "10" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -733,7 +737,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { limit: "1" },
-        flags: { json: false, help: false, version: false },
+        flags: { json: false, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -764,7 +768,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { limit: "10" },
-        flags: { json: false, help: false, version: false },
+        flags: { json: false, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -801,7 +805,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { limit: "1" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -849,7 +853,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { limit: "1", cursor: cursorB64 },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -889,7 +893,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { cursor: staleCursorB64 },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -913,7 +917,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { limit: "0" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -935,7 +939,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { limit: "-5" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -957,7 +961,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { limit: "abc" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -979,7 +983,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { limit: "05" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 
@@ -1029,7 +1033,7 @@ describe("channels list command", () => {
         commandPath: ["channels", "list"],
         positionals: [],
         options: { type: "public", sort: "popularity", limit: "1" },
-        flags: { json: true, help: false, version: false },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
         context: { version: "1.2.3" },
       });
 

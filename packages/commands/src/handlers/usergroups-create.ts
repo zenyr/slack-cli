@@ -1,12 +1,18 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
-import type { SlackClientError, SlackUsergroupsWebApiClient } from "../slack/types";
+import { resolveSlackToken } from "../slack/token";
+import type {
+  ResolvedSlackToken,
+  SlackClientError,
+  SlackUsergroupsWebApiClient,
+} from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "usergroups.create";
 const USAGE_HINT =
-  "Usage: slack usergroups create <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]";
+  "Usage: slack usergroups create <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]";
 
 const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   switch (error.code) {
@@ -20,12 +26,23 @@ const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   }
 };
 
+type CreateClientOptions = {
+  token?: string;
+  env?: Record<string, string | undefined>;
+};
+
 type UsergroupsCreateHandlerDeps = {
-  createClient: () => SlackUsergroupsWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackUsergroupsWebApiClient;
+  resolveToken: (
+    env?: Record<string, string | undefined>,
+  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
+  env: Record<string, string | undefined>;
 };
 
 const defaultUsergroupsCreateDeps: UsergroupsCreateHandlerDeps = {
   createClient: createSlackWebApiClient,
+  resolveToken: resolveSlackToken,
+  env: process.env,
 };
 
 const isCliErrorResult = (value: string | string[] | undefined | CliResult): value is CliResult => {
@@ -158,7 +175,8 @@ export const createUsergroupsCreateHandler = (
     }
 
     try {
-      const client = deps.createClient();
+      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const usergroup = await client.createUsergroup({
         name,
         handle,

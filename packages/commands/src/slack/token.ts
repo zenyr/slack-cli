@@ -170,6 +170,31 @@ export const withTokenFallback = async <T>(
   }
 };
 
+// Resolve a token of a specific type from env or store.
+// Returns undefined if the requested type is not available.
+export const resolveSlackTokenForType = async (
+  type: "xoxp" | "xoxb",
+  env: Record<string, string | undefined> = process.env,
+): Promise<ResolvedSlackToken | undefined> => {
+  const envKey = type === "xoxp" ? XOXP_ENV_KEY : XOXB_ENV_KEY;
+  const envSource = type === "xoxp" ? "SLACK_MCP_XOXP_TOKEN" : "SLACK_MCP_XOXB_TOKEN";
+  const envToken = readNonEmptyEnv(env, envKey);
+  if (envToken !== undefined) {
+    return { token: envToken, source: envSource, tokenType: type };
+  }
+
+  // Fall back to store
+  try {
+    const resolved = await resolveSlackToken(env);
+    if (resolved.tokenType === type) {
+      return resolved;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const resolveSlackTokenFromEnv = (
   env: Record<string, string | undefined> = process.env,
 ): ResolvedSlackToken => {

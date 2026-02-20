@@ -63,7 +63,7 @@ describe("usergroups create command", () => {
     const lines = parsed.textLines.filter((line): line is string => typeof line === "string");
     const createLine = lines.find((line) =>
       line.includes(
-        "create <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+        "create <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
       ),
     );
     expect(createLine).toBeDefined();
@@ -228,7 +228,7 @@ describe("usergroups create command", () => {
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toContain("MISSING_ARGUMENT");
     expect(parsed.error.hint).toBe(
-      "Usage: slack usergroups create <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+      "Usage: slack usergroups create <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     );
   });
 
@@ -247,6 +247,8 @@ describe("usergroups create command", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -279,6 +281,8 @@ describe("usergroups create command", () => {
         json: true,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -385,6 +389,8 @@ describe("usergroups create command", () => {
             json: true,
             help: false,
             version: false,
+            xoxp: false,
+            xoxb: false,
           },
           context: {
             version: "1.2.3",

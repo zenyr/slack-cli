@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
@@ -6,6 +7,8 @@ import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.pin";
+const USAGE_HINT =
+  "Usage: slack messages pin <channel-id(required,non-empty)> <timestamp(required,non-empty)> [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -69,7 +72,7 @@ export const createMessagesPinHandler = (depsOverrides: Partial<MessagesPinHandl
       return createError(
         "INVALID_ARGUMENT",
         "messages pin requires <channel-id>. [MISSING_ARGUMENT]",
-        "Usage: slack messages pin <channel-id> <timestamp> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -79,7 +82,7 @@ export const createMessagesPinHandler = (depsOverrides: Partial<MessagesPinHandl
       return createError(
         "INVALID_ARGUMENT",
         "messages pin requires <timestamp>. [MISSING_ARGUMENT]",
-        "Usage: slack messages pin <channel-id> <timestamp> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -88,7 +91,21 @@ export const createMessagesPinHandler = (depsOverrides: Partial<MessagesPinHandl
     const timestamp = rawTimestamp.trim();
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
+
+      if (!resolvedToken.token.startsWith("xoxp")) {
+        return createError(
+          "INVALID_ARGUMENT",
+          "messages pin requires a user token (xoxp). Bot tokens (xoxb) are not supported. [TOKEN_TYPE_ERROR]",
+          "Set SLACK_MCP_XOXP_TOKEN with a valid xoxp token.",
+          COMMAND_ID,
+        );
+      }
+
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const data = await client.addPin({ channel, timestamp });
 

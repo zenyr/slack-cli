@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
@@ -34,9 +35,13 @@ export const createUsersStatusClearHandler = (
     ...depsOverrides,
   };
 
-  return async (_request: CommandRequest): Promise<CliResult> => {
+  return async (request: CommandRequest): Promise<CliResult> => {
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
 
       if (!resolvedToken.token.startsWith("xoxp")) {
         return createError(

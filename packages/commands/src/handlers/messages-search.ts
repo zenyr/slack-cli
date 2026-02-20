@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import type { ResolvedSlackToken, SlackWebApiClient } from "../slack";
 import { createSlackWebApiClient, isSlackClientError } from "../slack";
@@ -5,6 +6,8 @@ import { assertNoEdgeToken, resolveSlackToken, withTokenFallback } from "../slac
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.search";
+const USAGE_HINT =
+  "Usage: slack messages search <query(required,non-empty)> [--channel=<id>] [--user=<id>] [--after=<date>] [--before=<date>] [--threads] [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -294,7 +297,7 @@ export const createMessagesSearchHandler = (
       return createError(
         "INVALID_ARGUMENT",
         "messages search requires <query>",
-        "Example: slack messages search deploy --json",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -333,9 +336,16 @@ export const createMessagesSearchHandler = (
       ...filterParts,
     ].join(" ");
 
+    const tokenOverride = request.context.tokenTypeOverride;
+    const resolveForSearch =
+      tokenOverride !== undefined
+        ? () => resolveTokenForContext(request.context, deps.env, deps.resolveToken)
+        : deps.resolveToken;
+    const preferredType = tokenOverride ?? "xoxp";
+
     try {
       return await withTokenFallback(
-        "xoxp",
+        preferredType,
         deps.env,
         async (resolvedToken) => {
           assertNoEdgeToken(resolvedToken.token, COMMAND_ID);
@@ -356,7 +366,7 @@ export const createMessagesSearchHandler = (
             ),
           };
         },
-        deps.resolveToken,
+        resolveForSearch,
       );
     } catch (error) {
       return mapSlackErrorToCliResult(error);

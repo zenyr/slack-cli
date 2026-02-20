@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createUsersListHandler } from "./users-list";
 import { createError } from "../errors";
 import type { ResolvedSlackToken, SlackWebApiClient } from "../slack";
@@ -58,7 +59,11 @@ export const createUsersSearchHandler = (depsOverrides: Partial<UsersSearchHandl
 
   return async (request: CommandRequest): Promise<CliResult> => {
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       if (hasEdgeTokenPrefix(resolvedToken.token)) {
         return createError(
           "INVALID_ARGUMENT",

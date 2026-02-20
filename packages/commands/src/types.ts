@@ -6,6 +6,8 @@ export type GlobalFlags = {
   json: boolean;
   help: boolean;
   version: boolean;
+  xoxp: boolean;
+  xoxb: boolean;
 };
 
 export type ParsedArgv = {
@@ -18,6 +20,7 @@ export type ParsedArgv = {
 export type CliContext = {
   version: string;
   runSubcommand?: (argv: string[]) => Promise<CliResult>;
+  tokenTypeOverride?: "xoxp" | "xoxb";
 };
 
 export type CliErrorCode =
@@ -65,6 +68,8 @@ export type CommandStrategy = {
   id: string;
   path: string[];
   execute: CommandStrategyExecutor;
+  allowedTokenTypes?: ("xoxp" | "xoxb")[];
+  requiresExplicitTokenType?: boolean;
 };
 
 export type CliIo = {

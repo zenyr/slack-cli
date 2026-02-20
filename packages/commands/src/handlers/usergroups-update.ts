@@ -1,12 +1,18 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
-import type { SlackClientError, SlackUsergroupsUpdateWebApiClient } from "../slack/types";
+import { resolveSlackToken } from "../slack/token";
+import type {
+  ResolvedSlackToken,
+  SlackClientError,
+  SlackUsergroupsUpdateWebApiClient,
+} from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "usergroups.update";
 const USAGE_HINT =
-  "Usage: slack usergroups update <usergroup-id> <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]";
+  "Usage: slack usergroups update <usergroup-id(required,non-empty)> <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]";
 
 const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   switch (error.code) {
@@ -20,12 +26,23 @@ const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   }
 };
 
+type CreateClientOptions = {
+  token?: string;
+  env?: Record<string, string | undefined>;
+};
+
 type UsergroupsUpdateHandlerDeps = {
-  createClient: () => SlackUsergroupsUpdateWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackUsergroupsUpdateWebApiClient;
+  resolveToken: (
+    env?: Record<string, string | undefined>,
+  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
+  env: Record<string, string | undefined>;
 };
 
 const defaultDeps: UsergroupsUpdateHandlerDeps = {
   createClient: createSlackWebApiClient,
+  resolveToken: resolveSlackToken,
+  env: process.env,
 };
 
 const readDescriptionOption = (options: CliOptions): string | undefined | CliResult => {
@@ -178,7 +195,8 @@ export const createUsergroupsUpdateHandler = (
     }
 
     try {
-      const client = deps.createClient();
+      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const updateParams = {
         id,
         name,

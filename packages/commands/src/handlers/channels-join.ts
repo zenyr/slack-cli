@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
@@ -6,6 +7,7 @@ import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "channels.join";
+const USAGE_HINT = "Usage: slack channels join <channel-id(required,non-empty)> [--json]";
 
 const CHANNEL_ID_RE = /^[CGD][A-Z0-9]+$/;
 
@@ -71,7 +73,7 @@ export const createChannelsJoinHandler = (depsOverrides: Partial<ChannelsJoinHan
       return createError(
         "INVALID_ARGUMENT",
         "channels join requires <channel-id>. [MISSING_ARGUMENT]",
-        "Usage: slack channels join <channel-id> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -87,16 +89,11 @@ export const createChannelsJoinHandler = (depsOverrides: Partial<ChannelsJoinHan
     }
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
-
-      if (resolvedToken.token.startsWith("xoxb")) {
-        return createError(
-          "INVALID_ARGUMENT",
-          "channels join requires a user token (xoxp). Bot tokens are not supported.",
-          "Use a user token (xoxp) to join channels.",
-          COMMAND_ID,
-        );
-      }
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
 
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await client.joinChannel(channelId);

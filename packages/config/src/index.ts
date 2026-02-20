@@ -116,7 +116,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "usergroups create",
-    args: "<name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+    args: "<name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     description: "Create user group",
   },
   {
@@ -126,22 +126,22 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "usergroups me join",
-    args: "<usergroup-id> [--json]",
+    args: "<usergroup-id(required,non-empty)> [--json]",
     description: "Join current user to a user group",
   },
   {
     name: "usergroups me leave",
-    args: "<usergroup-id> [--json]",
+    args: "<usergroup-id(required,non-empty)> [--json]",
     description: "Remove current user from a user group",
   },
   {
     name: "usergroups update",
-    args: "<usergroup-id> <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+    args: "<usergroup-id(required,non-empty)> <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     description: "Update user group metadata",
   },
   {
     name: "usergroups users update",
-    args: "<usergroup-id> <user-id> [user-id ...] --yes [--json]",
+    args: "<usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]",
     description: "Replace user group members",
   },
   {
@@ -186,8 +186,8 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages replies",
-    args: "<channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
-    description: "Fetch full thread by channel ID and thread timestamp",
+    args: "<channel-id(required,non-empty)> <thread-ts(required,non-empty)> OR <thread-permalink(required,non-empty)> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
+    description: "Fetch full thread by channel+thread timestamp or thread permalink",
   },
   {
     name: "messages pin",

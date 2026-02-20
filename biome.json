@@ -55,6 +55,18 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["**/__tests__/**/*.ts", "**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double",

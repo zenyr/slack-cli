@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { isRecord, parseJsonOutput, runCliWithBuffer } from "./test-utils";
 import { createReactionsAddHandler } from "../handlers/reactions-add";
@@ -6,8 +6,14 @@ import { createSlackClientError } from "../slack";
 
 describe("reactions add command", () => {
   const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
+  const XOXB_ENV_KEY = "SLACK_MCP_XOXB_TOKEN";
   const originalFetch = globalThis.fetch;
   const originalXoxpToken = process.env[XOXP_ENV_KEY];
+  const originalXoxbToken = process.env[XOXB_ENV_KEY];
+
+  beforeEach(() => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+  });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
@@ -17,10 +23,16 @@ describe("reactions add command", () => {
     } else {
       process.env[XOXP_ENV_KEY] = originalXoxpToken;
     }
+
+    if (originalXoxbToken === undefined) {
+      delete process.env[XOXB_ENV_KEY];
+    } else {
+      process.env[XOXB_ENV_KEY] = originalXoxbToken;
+    }
   });
 
   test("returns missing argument when channel id is absent", async () => {
-    const result = await runCliWithBuffer(["reactions", "add", "--json"]);
+    const result = await runCliWithBuffer(["reactions", "add", "--json", "--xoxb"]);
 
     expect(result.exitCode).toBe(2);
     expect(result.stderr.length).toBe(0);
@@ -43,7 +55,7 @@ describe("reactions add command", () => {
   });
 
   test("returns missing argument when timestamp is absent", async () => {
-    const result = await runCliWithBuffer(["reactions", "add", "C123", "--json"]);
+    const result = await runCliWithBuffer(["reactions", "add", "C123", "--json", "--xoxb"]);
 
     expect(result.exitCode).toBe(2);
 
@@ -70,6 +82,7 @@ describe("reactions add command", () => {
       "C123",
       "1700000001.000100",
       "--json",
+      "--xoxb",
     ]);
 
     expect(result.exitCode).toBe(2);
@@ -90,8 +103,29 @@ describe("reactions add command", () => {
     expect(parsed.error.message).toContain("<emoji-name>");
   });
 
+  test("requires explicit token type selection", async () => {
+    const result = await runCliWithBuffer([
+      "reactions",
+      "add",
+      "C123",
+      "1700000001.000100",
+      "thumbsup",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toContain("requires explicit token type selection");
+  });
+
   test("adds reaction and returns expected payload with --json", async () => {
-    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
     const mockedFetch: typeof fetch = Object.assign(
       async (input: string | URL | Request, init?: RequestInit) => {
@@ -100,7 +134,7 @@ describe("reactions add command", () => {
         expect(init?.method).toBe("POST");
 
         const headers = new Headers(init?.headers);
-        expect(headers.get("Authorization")).toBe("Bearer xoxp-test-token");
+        expect(headers.get("Authorization")).toBe("Bearer xoxb-test-token");
 
         const body = String(init?.body);
         const params = new URLSearchParams(body);
@@ -134,6 +168,7 @@ describe("reactions add command", () => {
       "1700000001.000100",
       "thumbsup",
       "--json",
+      "--xoxb",
     ]);
 
     expect(result.exitCode).toBe(0);
@@ -267,6 +302,8 @@ describe("reactions add command", () => {
             json: true,
             help: false,
             version: false,
+            xoxp: false,
+            xoxb: false,
           },
           context: {
             version: "1.2.3",

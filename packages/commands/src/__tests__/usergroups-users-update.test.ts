@@ -66,7 +66,7 @@ describe("usergroups users update command", () => {
 
     const lines = parsed.textLines.filter((line): line is string => typeof line === "string");
     const updateLine = lines.find((line) =>
-      line.includes("users update <usergroup-id> <user-id> [user-id ...] --yes [--json]"),
+      line.includes("users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]"),
     );
     expect(updateLine).toBeDefined();
   });
@@ -164,7 +164,7 @@ describe("usergroups users update command", () => {
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toContain("MISSING_ARGUMENT");
     expect(parsed.error.hint).toBe(
-      "Usage: slack usergroups users update <usergroup-id> <user-id> [user-id ...] --yes [--json]",
+      "Usage: slack usergroups users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]",
     );
   });
 
@@ -233,6 +233,8 @@ describe("usergroups users update command", () => {
         json: false,
         help: false,
         version: false,
+        xoxp: false,
+        xoxb: false,
       },
       context: {
         version: "1.2.3",
@@ -346,6 +348,8 @@ describe("usergroups users update command", () => {
           json: true,
           help: false,
           version: false,
+          xoxp: false,
+          xoxb: false,
         },
         context: {
           version: "1.2.3",

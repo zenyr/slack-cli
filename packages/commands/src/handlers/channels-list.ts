@@ -1,6 +1,13 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
-import type { SlackChannel, SlackChannelType, SlackClientError, SlackWebApiClient } from "../slack";
-import { createSlackWebApiClient, isSlackClientError } from "../slack";
+import type {
+  ResolvedSlackToken,
+  SlackChannel,
+  SlackChannelType,
+  SlackClientError,
+  SlackWebApiClient,
+} from "../slack";
+import { createSlackWebApiClient, isSlackClientError, resolveSlackToken } from "../slack";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "channels.list";
@@ -144,12 +151,23 @@ const mapSlackErrorToCliResult = (error: unknown): CliResult => {
   );
 };
 
+type CreateClientOptions = {
+  token?: string;
+  env?: Record<string, string | undefined>;
+};
+
 type ChannelsListHandlerDeps = {
-  createClient: () => SlackWebApiClient;
+  createClient: (options?: CreateClientOptions) => SlackWebApiClient;
+  resolveToken: (
+    env?: Record<string, string | undefined>,
+  ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
+  env: Record<string, string | undefined>;
 };
 
 const defaultChannelsListDeps: ChannelsListHandlerDeps = {
   createClient: createSlackWebApiClient,
+  resolveToken: resolveSlackToken,
+  env: process.env,
 };
 
 export const createChannelsListHandler = (depsOverrides: Partial<ChannelsListHandlerDeps> = {}) => {
@@ -176,7 +194,8 @@ export const createChannelsListHandler = (depsOverrides: Partial<ChannelsListHan
         }
       }
 
-      const client = deps.createClient();
+      const resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const result = await client.listChannels({ types, limit: 999 });
 
       let channels = result.channels;

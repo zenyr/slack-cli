@@ -148,11 +148,13 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "users-status-set",
     path: ["users", "status", "set"],
     execute: usersStatusSetHandler,
+    allowedTokenTypes: ["xoxp"],
   },
   {
     id: "users-status-clear",
     path: ["users", "status", "clear"],
     execute: usersStatusClearHandler,
+    allowedTokenTypes: ["xoxp"],
   },
   {
     id: "attachment-get",
@@ -203,6 +205,7 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-search",
     path: ["messages", "search"],
     execute: messagesSearchHandler,
+    allowedTokenTypes: ["xoxp"],
   },
   {
     id: "messages-fetch",
@@ -223,11 +226,13 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-post",
     path: ["messages", "post"],
     execute: messagesPostHandler,
+    requiresExplicitTokenType: true,
   },
   {
     id: "messages-post-ephemeral",
     path: ["messages", "post-ephemeral"],
     execute: messagesPostEphemeralHandler,
+    requiresExplicitTokenType: true,
   },
   {
     id: "messages-delete",
@@ -243,6 +248,7 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-reply",
     path: ["messages", "reply"],
     execute: messagesReplyHandler,
+    requiresExplicitTokenType: true,
   },
   {
     id: "messages-replies",
@@ -253,6 +259,7 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-pin",
     path: ["messages", "pin"],
     execute: messagesPinHandler,
+    allowedTokenTypes: ["xoxp"],
   },
   {
     id: "messages-unpin",
@@ -268,11 +275,13 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "reactions-add",
     path: ["reactions", "add"],
     execute: reactionsAddHandler,
+    requiresExplicitTokenType: true,
   },
   {
     id: "reactions-remove",
     path: ["reactions", "remove"],
     execute: reactionsRemoveHandler,
+    requiresExplicitTokenType: true,
   },
   {
     id: "reactions-list",

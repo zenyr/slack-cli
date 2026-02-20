@@ -6,8 +6,8 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.reply";
 const USAGE_HINT =
-  "Usage: slack messages reply <channel-id-or-permalink> <thread-ts> <text> [--blocks[=<json|bool>]] [--reply-broadcast[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--json]\n" +
-  "       slack messages reply <thread-permalink> <text> [--blocks[=<json|bool>]] [--reply-broadcast[=<bool>]] [--json]";
+  "Usage: slack messages reply <channel-id-or-permalink> <thread-ts> <text(required,non-empty)> [--blocks[=<json|bool>]] [--reply-broadcast[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--json]\n" +
+  "       slack messages reply <thread-permalink> <text(required,non-empty)> [--blocks[=<json|bool>]] [--reply-broadcast[=<bool>]] [--json]";
 
 type ResolvedReplyTarget = {
   channelId: string;

@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import type { ResolvedSlackToken, SlackMessage, SlackWebApiClient } from "../slack";
 import { createSlackWebApiClient, isSlackClientError, resolveSlackToken } from "../slack";
@@ -7,6 +8,8 @@ import type { UserLookup } from "../users/resolve";
 import { formatUser, resolveUserIds } from "../users/resolve";
 
 const COMMAND_ID = "messages.history";
+const USAGE_HINT =
+  "Usage: slack messages history <channel-id or #channel-name(required,non-empty)> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--include-activity] [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -356,11 +359,11 @@ export const createMessagesHistoryHandler = (
 
   return async (request: CommandRequest): Promise<CliResult> => {
     const channelIdentifier = request.positionals[0];
-    if (channelIdentifier === undefined || channelIdentifier.length === 0) {
+    if (channelIdentifier === undefined || channelIdentifier.trim().length === 0) {
       return createError(
         "INVALID_ARGUMENT",
         "messages history requires <channel-id or #channel-name>. [MISSING_ARGUMENT]",
-        "Usage: slack messages history <channel-id or #channel-name> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--include-activity] [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -396,7 +399,11 @@ export const createMessagesHistoryHandler = (
     }
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       if (hasEdgeTokenPrefix(resolvedToken.token)) {
         return createError(
           "INVALID_ARGUMENT",

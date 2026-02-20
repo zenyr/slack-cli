@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
@@ -6,6 +7,7 @@ import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.pins";
+const USAGE_HINT = "Usage: slack messages pins <channel-id(required,non-empty)> [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -94,7 +96,7 @@ export const createMessagesPinsHandler = (depsOverrides: Partial<MessagesPinsHan
       return createError(
         "INVALID_ARGUMENT",
         "messages pins requires <channel-id>. [MISSING_ARGUMENT]",
-        "Usage: slack messages pins <channel-id> [--json]",
+        USAGE_HINT,
         COMMAND_ID,
       );
     }
@@ -102,7 +104,11 @@ export const createMessagesPinsHandler = (depsOverrides: Partial<MessagesPinsHan
     const channel = rawChannel.trim();
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const data = await client.listPins(channel);
 
