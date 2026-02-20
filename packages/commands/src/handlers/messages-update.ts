@@ -1,7 +1,9 @@
 import {
   type CreateClientOptions,
+  isCliErrorResult,
   isValidSlackTimestamp,
   mapSlackClientError,
+  readBlocksOption,
 } from "./messages-shared";
 import { createError } from "../errors";
 import { parseSlackMessagePermalink } from "../messages/permalink";
@@ -13,7 +15,7 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.update";
 const USAGE_HINT =
-  "Usage: slack messages update <channel-id> <timestamp> <text> [--json] or slack messages update <message-url> <text> [--json]";
+  "Usage: slack messages update <channel-id> <timestamp> <text> [--blocks[=<json|bool>]] [--json] or slack messages update <message-url> <text> [--blocks[=<json|bool>]] [--json]";
 
 type MessagesUpdateHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
@@ -119,6 +121,16 @@ export const createMessagesUpdateHandler = (
     }
 
     const mrkdwnText = convertMarkdownToSlackMrkdwn(targetOrError.text);
+    const blocksPayloadOrError = readBlocksOption(
+      request.options,
+      targetOrError.text,
+      "messages update",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+    if (isCliErrorResult(blocksPayloadOrError)) {
+      return blocksPayloadOrError;
+    }
 
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
@@ -127,6 +139,8 @@ export const createMessagesUpdateHandler = (
         channel: targetOrError.channel,
         ts: targetOrError.ts,
         text: mrkdwnText,
+        blocks: blocksPayloadOrError?.blocks,
+        attachments: blocksPayloadOrError?.attachments,
       });
 
       return {

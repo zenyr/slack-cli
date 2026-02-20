@@ -35,9 +35,15 @@ export const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null;
 };
 
-export const runCliWithBuffer = async (argv: string[]) => {
+type RunCliWithBufferOptions = {
+  /** Simulate stdin input (e.g. heredoc content piped to --blocks). */
+  stdin?: string;
+};
+
+export const runCliWithBuffer = async (argv: string[], opts: RunCliWithBufferOptions = {}) => {
   const buffer = createIoBuffer();
-  const exitCode = await runCli(argv, { version: "1.2.3", io: buffer.io });
+  const readStdin = opts.stdin !== undefined ? async () => opts.stdin : async () => undefined;
+  const exitCode = await runCli(argv, { version: "1.2.3", io: buffer.io, readStdin });
 
   return {
     exitCode,

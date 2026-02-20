@@ -2,10 +2,10 @@ import {
   type CreateClientOptions,
   isCliErrorResult,
   mapSlackClientError,
+  readBlocksOption,
   readThreadTsOption,
 } from "./messages-shared";
 import { createError } from "../errors";
-import { buildBlocksFromMarkdown } from "../messages-post/block-builder";
 import { convertMarkdownToSlackMrkdwn } from "../messages-post/markdown";
 import { evaluatePostChannelPolicy } from "../messages-post/policy";
 import { createSlackWebApiClient } from "../slack/client";
@@ -15,7 +15,7 @@ import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post";
 const USAGE_HINT =
-  "Usage: slack messages post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
+  "Usage: slack messages post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
 const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 
 type MessagesPostHandlerDeps = {
@@ -34,7 +34,7 @@ const defaultDeps: MessagesPostHandlerDeps = {
 
 const readOptionalBooleanOption = (
   options: CliOptions,
-  optionName: "unfurl-links" | "unfurl-media" | "reply-broadcast" | "blocks",
+  optionName: "unfurl-links" | "unfurl-media" | "reply-broadcast",
 ): boolean | undefined | CliResult => {
   const rawValue = options[optionName];
   if (rawValue === undefined) {
@@ -116,9 +116,15 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       return replyBroadcastOrError;
     }
 
-    const blocksOrError = readOptionalBooleanOption(request.options, "blocks");
-    if (isCliErrorResult(blocksOrError)) {
-      return blocksOrError;
+    const blocksPayloadOrError = readBlocksOption(
+      request.options,
+      text,
+      "messages post",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+    if (isCliErrorResult(blocksPayloadOrError)) {
+      return blocksPayloadOrError;
     }
 
     const postPolicy = evaluatePostChannelPolicy(channelId, deps.env);
@@ -132,8 +138,7 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
     }
 
     const mrkdwnText = convertMarkdownToSlackMrkdwn(text);
-    const shouldBuildBlocks = blocksOrError === true;
-    const blockPayload = shouldBuildBlocks ? buildBlocksFromMarkdown(text) : undefined;
+    const blockPayload = blocksPayloadOrError;
 
     try {
       return await withTokenFallback(

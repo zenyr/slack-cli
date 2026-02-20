@@ -2,6 +2,7 @@ import {
   type CreateClientOptions,
   isCliErrorResult,
   mapSlackClientError,
+  readBlocksOption,
   readThreadTsOption,
 } from "./messages-shared";
 import { createError } from "../errors";
@@ -14,7 +15,7 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post-ephemeral";
 const USAGE_HINT =
-  "Usage: slack messages post-ephemeral <channel-id> <user-id> <text> [--thread-ts=<ts>] [--json]";
+  "Usage: slack messages post-ephemeral <channel-id> <user-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--json]";
 
 type MessagesPostEphemeralHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
@@ -93,6 +94,16 @@ export const createMessagesPostEphemeralHandler = (
     }
 
     const mrkdwnText = convertMarkdownToSlackMrkdwn(text);
+    const blocksPayloadOrError = readBlocksOption(
+      request.options,
+      text,
+      "messages post-ephemeral",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+    if (isCliErrorResult(blocksPayloadOrError)) {
+      return blocksPayloadOrError;
+    }
 
     try {
       const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
@@ -102,6 +113,8 @@ export const createMessagesPostEphemeralHandler = (
         user,
         text: mrkdwnText,
         threadTs: threadTsOrError,
+        blocks: blocksPayloadOrError?.blocks,
+        attachments: blocksPayloadOrError?.attachments,
       });
 
       return {

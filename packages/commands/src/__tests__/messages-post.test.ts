@@ -645,6 +645,166 @@ describe("messages post command", () => {
   );
 });
 
+describe("messages post --blocks with stdin (heredoc)", () => {
+  const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
+  const originalFetch = globalThis.fetch;
+  const originalXoxpToken = process.env[XOXP_ENV_KEY];
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+
+    if (originalXoxpToken === undefined) {
+      delete process.env[XOXP_ENV_KEY];
+    } else {
+      process.env[XOXP_ENV_KEY] = originalXoxpToken;
+    }
+  });
+
+  test("uses stdin content as block source when --blocks is bare and stdin is provided", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    let capturedBlocks: unknown;
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        capturedBlocks = body.blocks;
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            ts: "1700000002.000100",
+            message: { type: "message", text: "summary", ts: "1700000002.000100" },
+          }),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const stdinContent = "# Hello\nThis is block content from heredoc.";
+
+    const result = await runCliWithBuffer(
+      ["messages", "post", "C123", "summary", "--blocks", "--json"],
+      { stdin: stdinContent },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(Array.isArray(capturedBlocks)).toBe(true);
+    expect((capturedBlocks as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  test("uses <text> as block source when --blocks is bare and no stdin provided", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    let capturedBlocks: unknown;
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        capturedBlocks = body.blocks;
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            ts: "1700000002.000100",
+            message: { type: "message", text: "summary text", ts: "1700000002.000100" },
+          }),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    globalThis.fetch = mockedFetch;
+
+    // No stdin option → falls back to <text> as block source
+    const result = await runCliWithBuffer(
+      ["messages", "post", "C123", "summary text", "--blocks", "--json"],
+      { stdin: undefined },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(Array.isArray(capturedBlocks)).toBe(true);
+    expect((capturedBlocks as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  test("does not build blocks when --blocks is not provided even if stdin is present", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    let capturedContentType = "";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        capturedContentType = new Headers(init?.headers).get("Content-Type") ?? "";
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            ts: "1700000002.000100",
+            message: { type: "message", text: "plain text", ts: "1700000002.000100" },
+          }),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer(["messages", "post", "C123", "plain text", "--json"], {
+      stdin: "should be ignored",
+    });
+
+    expect(result.exitCode).toBe(0);
+    // Plain text path uses form-encoded, not JSON
+    expect(capturedContentType).toContain("application/x-www-form-urlencoded");
+  });
+
+  test("uses raw JSON blocks when --blocks is provided with JSON array", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    let capturedContentType = "";
+    let capturedBlocks: unknown;
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        capturedContentType = new Headers(init?.headers).get("Content-Type") ?? "";
+        const body = JSON.parse(String(init?.body));
+        capturedBlocks = body.blocks;
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            ts: "1700000002.000100",
+            message: { type: "message", text: "summary", ts: "1700000002.000100" },
+          }),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      "C123",
+      "summary",
+      '--blocks=[{"type":"section","text":{"type":"mrkdwn","text":"*hello*"}}]',
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(capturedContentType).toContain("application/json");
+    expect(Array.isArray(capturedBlocks)).toBe(true);
+    expect((capturedBlocks as unknown[]).length).toBe(1);
+  });
+});
+
 describe("postMessage client path", () => {
   const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
   const originalFetch = globalThis.fetch;

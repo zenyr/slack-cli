@@ -1,4 +1,6 @@
 import { createError } from "../errors";
+import type { SlackAttachmentObject, SlackBlockObject } from "../messages-post/block-builder";
+import { buildBlocksFromMarkdown } from "../messages-post/block-builder";
 import { isSlackClientError } from "../slack/utils";
 import type { CliOptions, CliResult } from "../types";
 
@@ -95,4 +97,107 @@ export const readThreadTsOption = (
   }
 
   return threadTs;
+};
+
+export type BlocksPayload = {
+  blocks: SlackBlockObject[];
+  attachments: SlackAttachmentObject[];
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
+
+/**
+ * Resolves --blocks option into a BlocksPayload or CliResult error.
+ *
+ * Supported inputs:
+ *   - undefined              → no blocks
+ *   - true (bare flag)       → markdown source = fallbackText
+ *   - string starting with [ → parsed as JSON blocks array directly
+ *   - other string           → treated as markdown source → converted to blocks
+ *   - "true"/"1"/"yes"/"on"  → markdown source = fallbackText
+ *   - "false"/"0"/"no"/"off" → no blocks
+ */
+export const readBlocksOption = (
+  options: CliOptions,
+  fallbackText: string,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+): BlocksPayload | undefined | CliResult => {
+  const raw = options["blocks"];
+
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  // Bare --blocks flag (boolean true from parser)
+  if (raw === true) {
+    return buildBlocksFromMarkdown(fallbackText);
+  }
+
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+
+  const trimmed = raw.trim();
+
+  // JSON blocks: string starting with '[' → parse directly as blocks array
+  if (trimmed.startsWith("[")) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      return createError(
+        "INVALID_ARGUMENT",
+        `${commandLabel} --blocks value is not valid JSON. Received: ${trimmed.slice(0, 80)}`,
+        `${usageHint}\nProvide a JSON array of Slack block objects, e.g. --blocks='[{"type":"section","text":{"type":"mrkdwn","text":"Hello"}}]'`,
+        commandId,
+      );
+    }
+    if (!Array.isArray(parsed)) {
+      return createError(
+        "INVALID_ARGUMENT",
+        `${commandLabel} --blocks JSON must be an array of block objects.`,
+        usageHint,
+        commandId,
+      );
+    }
+
+    const blocks: SlackBlockObject[] = [];
+    for (const entry of parsed) {
+      if (!isRecord(entry)) {
+        return createError(
+          "INVALID_ARGUMENT",
+          `${commandLabel} --blocks JSON array must contain only objects.`,
+          usageHint,
+          commandId,
+        );
+      }
+      blocks.push(entry);
+    }
+
+    return {
+      blocks,
+      attachments: [],
+    };
+  }
+
+  // Bool-like string values
+  const normalized = trimmed.toLowerCase();
+  const isFalsy =
+    normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off";
+  if (isFalsy) {
+    return undefined;
+  }
+
+  const isTruthy =
+    normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
+  if (isTruthy) {
+    return buildBlocksFromMarkdown(fallbackText);
+  }
+
+  // Non-bool, non-JSON string → treat as markdown source (stdin content injected by runCli)
+  return buildBlocksFromMarkdown(raw);
 };

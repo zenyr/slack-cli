@@ -110,4 +110,51 @@ describe("messages post-ephemeral command", () => {
     expect(parsed.data.user).toBe("U777");
     expect(parsed.data.message_ts).toBe("1700000002.000100");
   });
+
+  test("posts ephemeral message with raw JSON blocks when --blocks is provided", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    let capturedContentType = "";
+    let capturedBlocks: unknown;
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        capturedContentType = new Headers(init?.headers).get("Content-Type") ?? "";
+        const body = JSON.parse(String(init?.body));
+        capturedBlocks = body.blocks;
+        expect(body.channel).toBe("C123");
+        expect(body.user).toBe("U777");
+        expect(body.text).toBe("Read *docs*");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            message_ts: "1700000002.000100",
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post-ephemeral",
+      "C123",
+      "U777",
+      "Read",
+      "**docs**",
+      '--blocks=[{"type":"section","text":{"type":"mrkdwn","text":"*override*"}}]',
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(capturedContentType).toContain("application/json");
+    expect(Array.isArray(capturedBlocks)).toBe(true);
+    expect((capturedBlocks as unknown[]).length).toBe(1);
+  });
 });
