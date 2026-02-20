@@ -1,4 +1,6 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
+import { parseSlackMessagePermalink } from "../messages/permalink";
 import type { ResolvedSlackToken, SlackMessage } from "../slack";
 import { createSlackWebApiClient, isSlackClientError, resolveSlackToken } from "../slack";
 import type { SlackRepliesWebApiClient, SlackUsersInfoWebApiClient } from "../slack/types";
@@ -7,6 +9,9 @@ import type { UserLookup } from "../users/resolve";
 import { formatUser, resolveUserIds } from "../users/resolve";
 
 const COMMAND_ID = "messages.replies";
+const USAGE_HINT =
+  "Usage: slack messages replies <channel-id(required,non-empty)> <thread-ts(required,non-empty)> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]\n" +
+  "       slack messages replies <thread-permalink(required,non-empty)> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -26,6 +31,11 @@ type MessagesRepliesHandlerDeps = {
 type RepliesPage = {
   messages: SlackMessage[];
   nextCursor?: string;
+};
+
+type RepliesTarget = {
+  channel: string;
+  threadTs: string;
 };
 
 const defaultDeps: MessagesRepliesHandlerDeps = {
@@ -70,6 +80,79 @@ const readStringOption = (options: CliOptions, key: string): string | undefined 
 
 const isValidSlackTimestamp = (value: string): boolean => {
   return /^\d+\.\d+$/.test(value);
+};
+
+const resolveRepliesTarget = (positionals: string[]): RepliesTarget | CliResult => {
+  const first = positionals[0];
+  if (first === undefined || first.trim().length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "messages replies requires <channel-id> or <thread-permalink>. [MISSING_ARGUMENT]",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  if (first.startsWith("http://") || first.startsWith("https://")) {
+    const permalink = parseSlackMessagePermalink(first.trim());
+    if (permalink.kind === "not-permalink") {
+      return createError(
+        "INVALID_ARGUMENT",
+        "messages replies expects Slack canonical message URL when URL input is provided.",
+        USAGE_HINT,
+        COMMAND_ID,
+      );
+    }
+
+    if (permalink.kind === "invalid") {
+      return createError(
+        "INVALID_ARGUMENT",
+        `invalid messages replies message-url: ${permalink.reason}`,
+        `${permalink.hint} Input: ${first}`,
+        COMMAND_ID,
+      );
+    }
+
+    return {
+      channel: permalink.channel,
+      threadTs: permalink.threadTs ?? permalink.ts,
+    };
+  }
+
+  const channel = first.trim();
+  const rawThreadTs = positionals[1];
+  if (rawThreadTs === undefined || rawThreadTs.length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "messages replies requires <thread-ts>. [MISSING_ARGUMENT]",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  const threadTs = rawThreadTs.trim();
+  if (threadTs.length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "messages replies requires <thread-ts>. [MISSING_ARGUMENT]",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  if (!isValidSlackTimestamp(threadTs)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages replies <thread-ts> must match Slack timestamp format seconds.fraction. Received: ${threadTs}`,
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  return {
+    channel,
+    threadTs,
+  };
 };
 
 const parseLimitOption = (options: CliOptions): number | undefined | CliResult => {
@@ -172,7 +255,7 @@ const readRangeOption = (options: CliOptions, key: string): string | undefined |
 };
 
 const isCliErrorResult = (
-  value: number | string | boolean | undefined | CliResult,
+  value: number | string | boolean | undefined | CliResult | RepliesTarget,
 ): value is CliResult => {
   return typeof value === "object" && value !== null && "ok" in value;
 };
@@ -336,44 +419,12 @@ export const createMessagesRepliesHandler = (
   };
 
   return async (request: CommandRequest): Promise<CliResult> => {
-    const channel = request.positionals[0];
-    if (channel === undefined || channel.length === 0) {
-      return createError(
-        "INVALID_ARGUMENT",
-        "messages replies requires <channel-id>. [MISSING_ARGUMENT]",
-        "Usage: slack messages replies <channel-id> <thread-ts> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--json]",
-        COMMAND_ID,
-      );
+    const targetOrError = resolveRepliesTarget(request.positionals);
+    if (isCliErrorResult(targetOrError)) {
+      return targetOrError;
     }
 
-    const rawThreadTs = request.positionals[1];
-    if (rawThreadTs === undefined || rawThreadTs.length === 0) {
-      return createError(
-        "INVALID_ARGUMENT",
-        "messages replies requires <thread-ts>. [MISSING_ARGUMENT]",
-        "Usage: slack messages replies <channel-id> <thread-ts> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--json]",
-        COMMAND_ID,
-      );
-    }
-
-    const threadTs = rawThreadTs.trim();
-    if (threadTs.length === 0) {
-      return createError(
-        "INVALID_ARGUMENT",
-        "messages replies requires <thread-ts>. [MISSING_ARGUMENT]",
-        "Usage: slack messages replies <channel-id> <thread-ts> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--json]",
-        COMMAND_ID,
-      );
-    }
-
-    if (!isValidSlackTimestamp(threadTs)) {
-      return createError(
-        "INVALID_ARGUMENT",
-        `messages replies <thread-ts> must match Slack timestamp format seconds.fraction. Received: ${threadTs}`,
-        "Usage: slack messages replies <channel-id> <thread-ts> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--json]",
-        COMMAND_ID,
-      );
-    }
+    const { channel, threadTs } = targetOrError;
 
     const limitOrError = parseLimitOption(request.options);
     if (isCliErrorResult(limitOrError)) {
@@ -401,7 +452,11 @@ export const createMessagesRepliesHandler = (
     }
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       if (hasEdgeTokenPrefix(resolvedToken.token)) {
         return createError(
           "INVALID_ARGUMENT",

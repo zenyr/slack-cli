@@ -1,3 +1,4 @@
+import { resolveTokenForContext } from "./messages-shared";
 import { createError } from "../errors";
 import { parseSlackMessagePermalink } from "../messages/permalink";
 import { createSlackWebApiClient } from "../slack/client";
@@ -16,7 +17,7 @@ import { formatUser, resolveUserIds } from "../users/resolve";
 
 const COMMAND_ID = "messages.fetch";
 const USAGE_HINT =
-  "Usage: slack messages fetch <message-url> [--thread[=<bool>]] [--resolve-users[=<bool>]] [--json]";
+  "Usage: slack messages fetch <message-url(required,non-empty)> [--thread[=<bool>]] [--resolve-users[=<bool>]] [--json]";
 const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 
 type CreateClientOptions = {
@@ -39,6 +40,11 @@ type MessagesFetchHandlerDeps = {
 type RepliesPage = {
   messages: SlackMessage[];
   nextCursor?: string;
+};
+
+type NeighborMessagesHint = {
+  hasOlder: boolean;
+  hasNewer: boolean;
 };
 
 const defaultDeps: MessagesFetchHandlerDeps = {
@@ -284,13 +290,66 @@ const buildSingleMessageLines = (
   channel: string,
   message: SlackMessage,
   lookup?: UserLookup,
+  neighborHintLine?: string,
 ): string[] => {
   const threadRoot = message.threadTs === undefined ? message.ts : message.threadTs;
-  return [
+  const lines = [
     `Message ${message.ts} in ${channel}`,
     `Thread root: ${threadRoot}`,
     toMessageLine(message, lookup),
   ];
+
+  if (neighborHintLine !== undefined) {
+    lines.push(neighborHintLine);
+  }
+
+  return lines;
+};
+
+const detectNeighborMessages = async (
+  client: MessagesFetchClient,
+  channel: string,
+  targetTs: string,
+): Promise<NeighborMessagesHint | undefined> => {
+  try {
+    const olderResult = await client.fetchChannelHistory({
+      channel,
+      latest: targetTs,
+      limit: 2,
+      inclusive: true,
+    });
+    const hasOlder = olderResult.messages.some((message) => message.ts !== targetTs);
+
+    const newerResult = await client.fetchChannelHistory({
+      channel,
+      oldest: targetTs,
+      limit: 1,
+    });
+    const hasNewer = newerResult.messages.some((message) => message.ts !== targetTs);
+
+    return {
+      hasOlder,
+      hasNewer,
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+const buildNeighborHintLine = (hint: NeighborMessagesHint): string | undefined => {
+  if (!hint.hasOlder && !hint.hasNewer) {
+    return undefined;
+  }
+
+  if (hint.hasOlder && hint.hasNewer) {
+    return "Hint: older and newer messages exist. Run 'slack messages context <message-url>' for surrounding context.";
+  }
+
+  if (hint.hasOlder) {
+    return "Hint: older messages exist. Run 'slack messages context <message-url>' for surrounding context.";
+  }
+
+  return "Hint: newer messages exist. Run 'slack messages context <message-url>' for surrounding context.";
 };
 
 const buildThreadLines = (
@@ -367,7 +426,11 @@ export const createMessagesFetchHandler = (
     }
 
     try {
-      const resolvedToken = await Promise.resolve(deps.resolveToken(deps.env));
+      const resolvedToken = await resolveTokenForContext(
+        request.context,
+        deps.env,
+        deps.resolveToken,
+      );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
 
       const messageOrError = await resolveMessageFromPermalink(
@@ -389,6 +452,18 @@ export const createMessagesFetchHandler = (
           resolvedUsers = resolved.resolvedUsers;
         }
 
+        let neighborHintLine: string | undefined;
+        if (!request.flags.json) {
+          const neighborHint = await detectNeighborMessages(
+            client,
+            permalink.channel,
+            messageOrError.ts,
+          );
+          if (neighborHint !== undefined) {
+            neighborHintLine = buildNeighborHintLine(neighborHint);
+          }
+        }
+
         return {
           ok: true,
           command: COMMAND_ID,
@@ -399,7 +474,12 @@ export const createMessagesFetchHandler = (
             message: messageOrError,
             ...(resolvedUsers !== undefined ? { resolvedUsers } : {}),
           },
-          textLines: buildSingleMessageLines(permalink.channel, messageOrError, lookup),
+          textLines: buildSingleMessageLines(
+            permalink.channel,
+            messageOrError,
+            lookup,
+            neighborHintLine,
+          ),
         };
       }
 

@@ -481,6 +481,27 @@ const mapSearchMessage = (value: unknown): SlackSearchMessage | undefined => {
   };
 };
 
+const mapFileMetadata = (value: unknown): SlackFileMetadata | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const id = readString(value, "id");
+  const name = readString(value, "name");
+  if (id === undefined || name === undefined) {
+    return undefined;
+  }
+
+  return {
+    id,
+    name,
+    mimetype: readString(value, "mimetype"),
+    filetype: readString(value, "filetype"),
+    size: readNumber(value, "size"),
+    urlPrivate: readString(value, "url_private"),
+  };
+};
+
 const mapMessage = (value: unknown): SlackMessage | undefined => {
   if (!isRecord(value)) {
     return undefined;
@@ -500,6 +521,11 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
     return undefined;
   }
 
+  const rawFiles = readArray(value, "files");
+  const files = toRecordArray(rawFiles)
+    .map(mapFileMetadata)
+    .filter((f): f is SlackFileMetadata => f !== undefined);
+
   return {
     type: readString(value, "type") ?? "message",
     user: readString(value, "user"),
@@ -507,27 +533,7 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
     ts,
     threadTs: readString(value, "thread_ts"),
     ...(blocks.length > 0 ? { blocks } : {}),
-  };
-};
-
-const mapFileMetadata = (value: unknown): SlackFileMetadata | undefined => {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const id = readString(value, "id");
-  const name = readString(value, "name");
-  if (id === undefined || name === undefined) {
-    return undefined;
-  }
-
-  return {
-    id,
-    name,
-    mimetype: readString(value, "mimetype"),
-    filetype: readString(value, "filetype"),
-    size: readNumber(value, "size"),
-    urlPrivate: readString(value, "url_private"),
+    ...(files.length > 0 ? { files } : {}),
   };
 };
 

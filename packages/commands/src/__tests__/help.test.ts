@@ -65,7 +65,10 @@ describe("help command", () => {
     expect(
       result.stdout.some((line) =>
         line.includes(
-          "post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+          "replies <channel-id(required,non-empty)> <thread-ts(required,non-empty)>",
+        ) &&
+        line.includes(
+          "[--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
         ),
       ),
     ).toBe(true);
@@ -77,13 +80,6 @@ describe("help command", () => {
       true,
     );
     expect(result.stdout.some((line) => line.includes("--threads"))).toBe(true);
-    expect(
-      result.stdout.some((line) =>
-        line.includes(
-          "replies <channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
-        ),
-      ),
-    ).toBe(true);
     expect(result.stdout.some((line) => line.includes("--sort=<oldest|newest>"))).toBe(false);
     expect(result.stdout.some((line) => line.includes("--filter-text=<text>"))).toBe(false);
     expect(result.stderr.length).toBe(0);
@@ -143,7 +139,7 @@ describe("help command", () => {
     ).toBe(true);
     expect(
       result.stdout.some((line) =>
-        line.includes("users update <usergroup-id> <user-id> [user-id ...] --yes [--json]"),
+        line.includes("users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]"),
       ),
     ).toBe(true);
     expect(result.stderr.length).toBe(0);
