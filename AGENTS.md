@@ -19,6 +19,12 @@
   - NEVER default to: `node|ts-node`, `jest|vitest`, `webpack|esbuild`, `npm|yarn|pnpm`, `npx`.
   - NOTE: Bun auto-loads `.env`; avoid dotenv bootstrap for basic env load.
 
+## Token Env Migration
+
+- APPLY: Slack token env naming transition.
+  - NOTE: `SLACK_MCP_*` env vars are in phase-out.
+  - POLICY: do not do one-shot migration; keep backward compatibility during incremental rollout.
+
 ## Lib Preference
 
 - APPLY: new deps or replacements.

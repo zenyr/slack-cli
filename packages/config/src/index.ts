@@ -110,6 +110,11 @@ export const COMMANDS: CliCommand[] = [
     description: "List user groups",
   },
   {
+    name: "usergroups get",
+    args: "<usergroup-id> [usergroup-id ...] [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
+    description: "Get user groups by ID (batch supported)",
+  },
+  {
     name: "usergroups create",
     args: "<name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     description: "Create user group",
@@ -147,7 +152,7 @@ export const COMMANDS: CliCommand[] = [
   {
     name: "messages fetch",
     args: "<message-url> [--thread[=<bool>]] [--resolve-users[=<bool>]] [--json]",
-    description: "Fetch one message or full thread from permalink",
+    description: "Fetch message by permalink URL (optionally include thread)",
   },
   {
     name: "messages history",
@@ -161,12 +166,12 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages post",
-    args: "<channel-id> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+    args: "<channel-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
     description: "Post message to channel (markdown auto-converted to mrkdwn)",
   },
   {
     name: "messages post-ephemeral",
-    args: "<channel-id> <user-id> <text> [--thread-ts=<ts>] [--json]",
+    args: "<channel-id> <user-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--json]",
     description: "Post ephemeral message to channel user",
   },
   {
@@ -176,13 +181,13 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages update",
-    args: "<message-url> <text> [--json] OR <channel-id> <timestamp> <text> [--json]",
+    args: "<message-url> <text> [--blocks[=<json|bool>]] [--json] OR <channel-id> <timestamp> <text> [--blocks[=<json|bool>]] [--json]",
     description: "Update message text by URL or channel and timestamp",
   },
   {
     name: "messages replies",
     args: "<channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
-    description: "Fetch thread message replies",
+    description: "Fetch full thread by channel ID and thread timestamp",
   },
   {
     name: "messages pin",

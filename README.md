@@ -188,11 +188,13 @@ Search messages.
 slack messages fetch <message-url> [--thread[=<bool>]] [--json]
 ```
 
-Fetch one message or full thread from permalink.
+Fetch one message by permalink URL. Use `--thread` to expand to the full thread.
 
 | Flag | Description |
 |---|---|
 | `--thread` | Include full thread (default: false) |
+
+Use this command when input is a Slack message URL.
 
 ---
 
@@ -281,6 +283,15 @@ slack messages replies <channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] 
 
 Fetch thread message replies.
 
+Use this command when you already know both `<channel-id>` and `<thread-ts>` and want thread messages directly.
+
+Quick decision:
+
+| Situation | Command |
+|---|---|
+| You have a Slack message URL | `slack messages fetch <message-url>` |
+| You already have `channel-id` + `thread-ts` | `slack messages replies <channel-id> <thread-ts>` |
+
 ---
 
 ### `slack reactions add`
@@ -310,6 +321,16 @@ slack usergroups list [--include-users[=<bool>]] [--include-disabled[=<bool>]] [
 ```
 
 List user groups.
+
+---
+
+### `slack usergroups get`
+
+```
+slack usergroups get <usergroup-id> [usergroup-id ...] [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]
+```
+
+Get user groups by ID (batch supported).
 
 ---
 
@@ -375,7 +396,12 @@ Remove current user from a user group.
 
 ## JSON Output
 
-All commands accept `--json`. Output shape:
+All commands accept `--json`, but prefer plain text by default to reduce output/token size.
+
+- Use default text mode for quick human checks.
+- Use `--json` only for automation/parsing (e.g. `jq`), integrations, or deep debugging.
+
+Output shape:
 
 ```json
 {

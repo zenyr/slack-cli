@@ -65,7 +65,7 @@ describe("help command", () => {
     expect(
       result.stdout.some((line) =>
         line.includes(
-          "post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+          "post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
         ),
       ),
     ).toBe(true);
@@ -131,6 +131,13 @@ describe("help command", () => {
       result.stdout.some((line) =>
         line.includes(
           "list [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      result.stdout.some((line) =>
+        line.includes(
+          "get <usergroup-id> [usergroup-id ...] [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
         ),
       ),
     ).toBe(true);
