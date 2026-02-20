@@ -13,6 +13,7 @@ import { messagesPinHandler } from "./handlers/messages-pin";
 import { messagesPinsHandler } from "./handlers/messages-pins";
 import { messagesPostHandler } from "./handlers/messages-post";
 import { messagesPostEphemeralHandler } from "./handlers/messages-post-ephemeral";
+import { messagesReplyHandler } from "./handlers/messages-reply";
 import { messagesUnpinHandler } from "./handlers/messages-unpin";
 import { messagesUpdateHandler } from "./handlers/messages-update";
 import { reactionsAddHandler } from "./handlers/reactions-add";
@@ -34,6 +35,7 @@ import {
 } from "./handlers/stubs";
 import { toolsHandler } from "./handlers/tools";
 import { usergroupsCreateHandler } from "./handlers/usergroups-create";
+import { usergroupsGetHandler } from "./handlers/usergroups-get";
 import { usergroupsListHandler } from "./handlers/usergroups-list";
 import { usergroupsMeHandler } from "./handlers/usergroups-me";
 import { usergroupsMeJoinHandler } from "./handlers/usergroups-me-join";
@@ -163,6 +165,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     execute: usergroupsListHandler,
   },
   {
+    id: "usergroups-get",
+    path: ["usergroups", "get"],
+    execute: usergroupsGetHandler,
+  },
+  {
     id: "usergroups-create",
     path: ["usergroups", "create"],
     execute: usergroupsCreateHandler,
@@ -231,6 +238,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-update",
     path: ["messages", "update"],
     execute: messagesUpdateHandler,
+  },
+  {
+    id: "messages-reply",
+    path: ["messages", "reply"],
+    execute: messagesReplyHandler,
   },
   {
     id: "messages-replies",

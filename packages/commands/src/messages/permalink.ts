@@ -1,11 +1,13 @@
 const CHANNEL_ID_PATTERN = /^[CDG][A-Z0-9]{8,}$/;
 const MESSAGE_POINTER_PATTERN = /^p(\d{7,})$/;
+const SLACK_TIMESTAMP_PATTERN = /^\d+\.\d+$/;
 
 export type SlackMessagePermalinkParseResult =
   | {
       kind: "ok";
       channel: string;
       ts: string;
+      threadTs?: string;
     }
   | {
       kind: "invalid";
@@ -94,6 +96,25 @@ export const parseSlackMessagePermalink = (value: string): SlackMessagePermalink
 
   const secondsPart = packedTs.slice(0, -6);
   const microsPart = packedTs.slice(-6);
+  const threadTsParam = parsedUrl.searchParams.get("thread_ts");
+
+  if (threadTsParam !== null) {
+    const normalizedThreadTs = threadTsParam.trim();
+    if (!SLACK_TIMESTAMP_PATTERN.test(normalizedThreadTs)) {
+      return {
+        kind: "invalid",
+        reason: "Invalid thread_ts query parameter in URL.",
+        hint: "Use thread_ts format seconds.fraction, e.g. thread_ts=1700000000.000001.",
+      };
+    }
+
+    return {
+      kind: "ok",
+      channel,
+      ts: `${secondsPart}.${microsPart}`,
+      threadTs: normalizedThreadTs,
+    };
+  }
 
   return {
     kind: "ok",
