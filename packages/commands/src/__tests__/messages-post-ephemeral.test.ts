@@ -268,4 +268,108 @@ describe("messages post-ephemeral command", () => {
     expect(Array.isArray(capturedBlocks)).toBe(true);
     expect((capturedBlocks as unknown[]).length).toBeGreaterThan(0);
   });
+
+  test("parses wrapped JSON blocks object when --blocks is provided with object payload", async () => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    let capturedContentType = "";
+    let capturedBlocks: unknown;
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        capturedContentType = new Headers(init?.headers).get("Content-Type") ?? "";
+        const body = JSON.parse(String(init?.body));
+        capturedBlocks = body.blocks;
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            message_ts: "1700000002.000100",
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post-ephemeral",
+      "C123",
+      "U777",
+      "summary",
+      '--blocks={"blocks":[{"type":"section","text":{"type":"mrkdwn","text":"Line 1\\nLine 2"}}]}',
+      "--json",
+      "--xoxb",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(capturedContentType).toContain("application/json");
+    expect(Array.isArray(capturedBlocks)).toBe(true);
+    expect((capturedBlocks as unknown[]).length).toBe(1);
+  });
+
+  test("parses wrapped JSON blocks object from stdin when --blocks is bare", async () => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    let capturedBlocks: unknown;
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        capturedBlocks = body.blocks;
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            message_ts: "1700000002.000100",
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer(
+      ["messages", "post-ephemeral", "C123", "U777", "summary", "--blocks", "--json", "--xoxb"],
+      {
+        stdin: '{"blocks":[{"type":"section","text":{"type":"mrkdwn","text":"Line 1\\nLine 2"}}]}',
+      },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(Array.isArray(capturedBlocks)).toBe(true);
+    expect((capturedBlocks as unknown[]).length).toBe(1);
+  });
+
+  test("returns invalid argument when --blocks JSON wrapper is mismatched", async () => {
+    const result = await runCliWithBuffer([
+      "messages",
+      "post-ephemeral",
+      "C123",
+      "U777",
+      "summary",
+      '--blocks={"blocks":[{"type":"section","text":{"type":"mrkdwn","text":"Line 1"}}]',
+      "--json",
+      "--xoxb",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.code).toBe("INVALID_ARGUMENT");
+    expect(parsed.error.message).toContain("start/end with matching [] or {}");
+  });
 });

@@ -178,6 +178,126 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null;
 };
 
+const parseBlocksArrayOrError = (
+  value: unknown,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+): SlackBlockObject[] | CliResult => {
+  if (!Array.isArray(value)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --blocks JSON must be an array of block objects.`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  const blocks: SlackBlockObject[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) {
+      return createError(
+        "INVALID_ARGUMENT",
+        `${commandLabel} --blocks JSON array must contain only objects.`,
+        usageHint,
+        commandId,
+      );
+    }
+    blocks.push(entry);
+  }
+
+  return blocks;
+};
+
+const parseAttachmentsArrayOrError = (
+  value: unknown,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+): SlackAttachmentObject[] | CliResult => {
+  if (value === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --blocks JSON object field 'attachments' must be an array when provided.`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  const attachments: SlackAttachmentObject[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) {
+      return createError(
+        "INVALID_ARGUMENT",
+        `${commandLabel} --blocks JSON object field 'attachments' must contain only objects.`,
+        usageHint,
+        commandId,
+      );
+    }
+    attachments.push(entry);
+  }
+
+  return attachments;
+};
+
+const parseBlocksPayloadOrError = (
+  value: unknown,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+): BlocksPayload | CliResult => {
+  if (Array.isArray(value)) {
+    const blocksOrError = parseBlocksArrayOrError(value, commandLabel, usageHint, commandId);
+    if (isCliErrorResult(blocksOrError)) {
+      return blocksOrError;
+    }
+
+    return {
+      blocks: blocksOrError,
+      attachments: [],
+    };
+  }
+
+  if (!isRecord(value)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --blocks JSON must be an array of block objects or an object with a 'blocks' array.`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  const blocksOrError = parseBlocksArrayOrError(value.blocks, commandLabel, usageHint, commandId);
+  if (isCliErrorResult(blocksOrError)) {
+    return blocksOrError;
+  }
+
+  const attachmentsOrError = parseAttachmentsArrayOrError(
+    value.attachments,
+    commandLabel,
+    usageHint,
+    commandId,
+  );
+  if (isCliErrorResult(attachmentsOrError)) {
+    return attachmentsOrError;
+  }
+
+  return {
+    blocks: blocksOrError,
+    attachments: attachmentsOrError,
+  };
+};
+
+const hasMatchedJsonWrappers = (value: string): boolean => {
+  return (
+    (value.startsWith("[") && value.endsWith("]")) || (value.startsWith("{") && value.endsWith("}"))
+  );
+};
+
 /**
  * Resolves --blocks option into a BlocksPayload or CliResult error.
  *
@@ -185,6 +305,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
  *   - undefined              → no blocks
  *   - true (bare flag)       → markdown source = fallbackText
  *   - string starting with [ → parsed as JSON blocks array directly
+ *   - string starting with { → parsed as JSON object with blocks/attachments
  *   - other string           → treated as markdown source → converted to blocks
  *   - "true"/"1"/"yes"/"on"  → markdown source = fallbackText
  *   - "false"/"0"/"no"/"off" → no blocks
@@ -229,8 +350,19 @@ export const readBlocksOption = async (
     return buildBlocksFromMarkdown(stdinTextOrError);
   }
 
-  // JSON blocks: string starting with '[' → parse directly as blocks array
-  if (trimmed.startsWith("[")) {
+  const startsLikeJson = trimmed.startsWith("[") || trimmed.startsWith("{");
+
+  // JSON blocks: value must be wrapped with matching [] or {}
+  if (startsLikeJson) {
+    if (!hasMatchedJsonWrappers(trimmed)) {
+      return createError(
+        "INVALID_ARGUMENT",
+        `${commandLabel} --blocks JSON must start/end with matching [] or {}.`,
+        `${usageHint}\nProvide a JSON blocks payload, e.g. --blocks='[{"type":"section","text":{"type":"mrkdwn","text":"Hello"}}]' or --blocks='{"blocks":[{"type":"section","text":{"type":"mrkdwn","text":"Hello"}}]}'`,
+        commandId,
+      );
+    }
+
     let parsed: unknown;
     try {
       parsed = JSON.parse(trimmed);
@@ -238,36 +370,12 @@ export const readBlocksOption = async (
       return createError(
         "INVALID_ARGUMENT",
         `${commandLabel} --blocks value is not valid JSON. Received: ${trimmed.slice(0, 80)}`,
-        `${usageHint}\nProvide a JSON array of Slack block objects, e.g. --blocks='[{"type":"section","text":{"type":"mrkdwn","text":"Hello"}}]'`,
-        commandId,
-      );
-    }
-    if (!Array.isArray(parsed)) {
-      return createError(
-        "INVALID_ARGUMENT",
-        `${commandLabel} --blocks JSON must be an array of block objects.`,
-        usageHint,
+        `${usageHint}\nProvide a JSON blocks payload, e.g. --blocks='[{"type":"section","text":{"type":"mrkdwn","text":"Hello"}}]' or --blocks='{"blocks":[{"type":"section","text":{"type":"mrkdwn","text":"Hello"}}]}'`,
         commandId,
       );
     }
 
-    const blocks: SlackBlockObject[] = [];
-    for (const entry of parsed) {
-      if (!isRecord(entry)) {
-        return createError(
-          "INVALID_ARGUMENT",
-          `${commandLabel} --blocks JSON array must contain only objects.`,
-          usageHint,
-          commandId,
-        );
-      }
-      blocks.push(entry);
-    }
-
-    return {
-      blocks,
-      attachments: [],
-    };
+    return parseBlocksPayloadOrError(parsed, commandLabel, usageHint, commandId);
   }
 
   // Bool-like string values
