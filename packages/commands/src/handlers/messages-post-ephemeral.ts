@@ -3,6 +3,7 @@ import {
   isCliErrorResult,
   mapSlackClientError,
   readBlocksOption,
+  readTextWithStdinMarker,
   readThreadTsOption,
   resolveTokenForContext,
 } from "./messages-shared";
@@ -16,7 +17,7 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post-ephemeral";
 const USAGE_HINT =
-  "Usage: slack messages post-ephemeral <channel-id> <user-id> <text(required,non-empty)> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--json]";
+  "Usage: slack messages post-ephemeral <channel-id> <user-id> <text(required,non-empty)|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--json]";
 
 type MessagesPostEphemeralHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
@@ -61,8 +62,8 @@ export const createMessagesPostEphemeralHandler = (
       );
     }
 
-    const text = request.positionals.slice(2).join(" ");
-    if (text.trim().length === 0) {
+    const rawText = request.positionals.slice(2).join(" ");
+    if (rawText.trim().length === 0) {
       return createError(
         "INVALID_ARGUMENT",
         "messages post-ephemeral requires non-empty <text>. [MISSING_ARGUMENT]",
@@ -70,6 +71,18 @@ export const createMessagesPostEphemeralHandler = (
         COMMAND_ID,
       );
     }
+
+    const textOrError = await readTextWithStdinMarker(
+      rawText,
+      "messages post-ephemeral",
+      USAGE_HINT,
+      COMMAND_ID,
+      request.context.readStdin,
+    );
+    if (isCliErrorResult(textOrError)) {
+      return textOrError;
+    }
+    const text = textOrError;
 
     const channel = rawChannel.trim();
     const user = rawUser.trim();
@@ -95,12 +108,13 @@ export const createMessagesPostEphemeralHandler = (
     }
 
     const mrkdwnText = convertMarkdownToSlackMrkdwn(text);
-    const blocksPayloadOrError = readBlocksOption(
+    const blocksPayloadOrError = await readBlocksOption(
       request.options,
       text,
       "messages post-ephemeral",
       USAGE_HINT,
       COMMAND_ID,
+      request.context.readStdin,
     );
     if (isCliErrorResult(blocksPayloadOrError)) {
       return blocksPayloadOrError;

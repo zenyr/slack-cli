@@ -29,6 +29,15 @@ export const runCli = async (argv: string[], options: RunCliOptions = {}): Promi
   const version = options.version ?? "0.0.0-dev";
   const io = options.io ?? DEFAULT_IO;
   const readStdin = options.readStdin ?? defaultReadStdin;
+  let stdinLoaded = false;
+  let stdinText: string | undefined;
+  const readStdinOnce = async (): Promise<string | undefined> => {
+    if (!stdinLoaded) {
+      stdinText = await readStdin();
+      stdinLoaded = true;
+    }
+    return stdinText;
+  };
   const parsed = parseArgv(argv);
 
   // --xoxp and --xoxb are mutually exclusive
@@ -61,9 +70,9 @@ export const runCli = async (argv: string[], options: RunCliOptions = {}): Promi
 
   // When --blocks is a bare flag (true) and stdin is available, use stdin as the blocks text.
   if (parsed.options.blocks === true) {
-    const stdinText = await readStdin();
-    if (stdinText !== undefined) {
-      parsed.options.blocks = stdinText;
+    const blocksSourceText = await readStdinOnce();
+    if (blocksSourceText !== undefined) {
+      parsed.options.blocks = blocksSourceText;
     }
   }
 
@@ -74,6 +83,7 @@ export const runCli = async (argv: string[], options: RunCliOptions = {}): Promi
         version,
         runSubcommand,
         tokenTypeOverride,
+        readStdin: readStdinOnce,
       },
       COMMAND_REGISTRY,
     );
@@ -86,6 +96,7 @@ export const runCli = async (argv: string[], options: RunCliOptions = {}): Promi
         version,
         runSubcommand,
         tokenTypeOverride,
+        readStdin: readStdinOnce,
       },
       COMMAND_REGISTRY,
     );

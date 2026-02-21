@@ -3,6 +3,7 @@ import {
   isCliErrorResult,
   mapSlackClientError,
   readBlocksOption,
+  readTextWithStdinMarker,
   readThreadTsOption,
   resolveTokenForContext,
 } from "./messages-shared";
@@ -16,7 +17,7 @@ import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post";
 const USAGE_HINT =
-  "Usage: slack messages post <channel-id> <text(required,non-empty)> [--thread-ts=<ts>] [--blocks[=<json|bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
+  "Usage: slack messages post <channel-id> <text(required,non-empty)|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
 const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 
 type MessagesPostHandlerDeps = {
@@ -82,8 +83,8 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
 
     const channelId = rawChannel.trim();
 
-    const text = request.positionals.slice(1).join(" ");
-    if (text.trim().length === 0) {
+    const rawText = request.positionals.slice(1).join(" ");
+    if (rawText.trim().length === 0) {
       return createError(
         "INVALID_ARGUMENT",
         "messages post requires non-empty <text>. [MISSING_ARGUMENT]",
@@ -91,6 +92,18 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
         COMMAND_ID,
       );
     }
+
+    const textOrError = await readTextWithStdinMarker(
+      rawText,
+      "messages post",
+      USAGE_HINT,
+      COMMAND_ID,
+      request.context.readStdin,
+    );
+    if (isCliErrorResult(textOrError)) {
+      return textOrError;
+    }
+    const text = textOrError;
 
     const threadTsOrError = readThreadTsOption(
       request.options,
@@ -117,12 +130,13 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       return replyBroadcastOrError;
     }
 
-    const blocksPayloadOrError = readBlocksOption(
+    const blocksPayloadOrError = await readBlocksOption(
       request.options,
       text,
       "messages post",
       USAGE_HINT,
       COMMAND_ID,
+      request.context.readStdin,
     );
     if (isCliErrorResult(blocksPayloadOrError)) {
       return blocksPayloadOrError;

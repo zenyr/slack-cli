@@ -21,6 +21,7 @@ export type CliContext = {
   version: string;
   runSubcommand?: (argv: string[]) => Promise<CliResult>;
   tokenTypeOverride?: "xoxp" | "xoxb";
+  readStdin?: () => Promise<string | undefined>;
 };
 
 export type CliErrorCode =

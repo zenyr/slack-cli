@@ -85,6 +85,40 @@ describe("messages update command", () => {
     expect(parsed.data.ts).toBe("1700000001.000100");
   });
 
+  test("uses stdin content as <text> when text is '-'", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = String(init?.body);
+        const params = new URLSearchParams(body);
+        expect(params.get("channel")).toBe("C123");
+        expect(params.get("ts")).toBe("1700000001.000100");
+        expect(params.get("text")).toBe("update from stdin");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            ts: "1700000001.000100",
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer(
+      ["messages", "update", "C123", "1700000001.000100", "-", "--json"],
+      { stdin: "update from stdin" },
+    );
+
+    expect(result.exitCode).toBe(0);
+  });
+
   test("updates message from canonical permalink", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
@@ -178,5 +212,40 @@ describe("messages update command", () => {
     expect(capturedContentType).toContain("application/json");
     expect(Array.isArray(capturedBlocks)).toBe(true);
     expect((capturedBlocks as unknown[]).length).toBe(1);
+  });
+
+  test("uses stdin content as block source when --blocks=- is provided", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    let capturedBlocks: unknown;
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        capturedBlocks = body.blocks;
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            ts: "1700000001.000100",
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer(
+      ["messages", "update", "C123", "1700000001.000100", "summary", "--blocks=-", "--json"],
+      { stdin: "# title\ncontent from stdin" },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(Array.isArray(capturedBlocks)).toBe(true);
+    expect((capturedBlocks as unknown[]).length).toBeGreaterThan(0);
   });
 });

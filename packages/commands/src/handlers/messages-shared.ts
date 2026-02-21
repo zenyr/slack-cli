@@ -129,6 +129,51 @@ export type BlocksPayload = {
   attachments: SlackAttachmentObject[];
 };
 
+const STDIN_MARKER = "-";
+
+const readStdinOrError = async (
+  readStdin: (() => Promise<string | undefined>) | undefined,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+  targetLabel: "<text>" | "--blocks",
+): Promise<string | CliResult> => {
+  if (readStdin === undefined) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} ${targetLabel} set to '-' requires stdin input. [MISSING_ARGUMENT]`,
+      `${usageHint}\nPipe content via stdin when using '-'.`,
+      commandId,
+    );
+  }
+
+  const stdinText = await readStdin();
+  if (stdinText === undefined || stdinText.trim().length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} ${targetLabel} set to '-' requires non-empty stdin input. [MISSING_ARGUMENT]`,
+      `${usageHint}\nPipe content via stdin when using '-'.`,
+      commandId,
+    );
+  }
+
+  return stdinText;
+};
+
+export const readTextWithStdinMarker = async (
+  rawText: string,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+  readStdin?: () => Promise<string | undefined>,
+): Promise<string | CliResult> => {
+  if (rawText.trim() !== STDIN_MARKER) {
+    return rawText;
+  }
+
+  return await readStdinOrError(readStdin, commandLabel, usageHint, commandId, "<text>");
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null;
 };
@@ -144,13 +189,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
  *   - "true"/"1"/"yes"/"on"  → markdown source = fallbackText
  *   - "false"/"0"/"no"/"off" → no blocks
  */
-export const readBlocksOption = (
+export const readBlocksOption = async (
   options: CliOptions,
   fallbackText: string,
   commandLabel: string,
   usageHint: string,
   commandId: string,
-): BlocksPayload | undefined | CliResult => {
+  readStdin?: () => Promise<string | undefined>,
+): Promise<BlocksPayload | undefined | CliResult> => {
   const raw = options.blocks;
 
   if (raw === undefined) {
@@ -167,6 +213,21 @@ export const readBlocksOption = (
   }
 
   const trimmed = raw.trim();
+
+  if (trimmed === STDIN_MARKER) {
+    const stdinTextOrError = await readStdinOrError(
+      readStdin,
+      commandLabel,
+      usageHint,
+      commandId,
+      "--blocks",
+    );
+    if (isCliErrorResult(stdinTextOrError)) {
+      return stdinTextOrError;
+    }
+
+    return buildBlocksFromMarkdown(stdinTextOrError);
+  }
 
   // JSON blocks: string starting with '[' → parse directly as blocks array
   if (trimmed.startsWith("[")) {

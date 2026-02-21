@@ -152,6 +152,40 @@ describe("messages post-ephemeral command", () => {
     expect(parsed.data.message_ts).toBe("1700000002.000100");
   });
 
+  test("uses stdin content as <text> when text is '-'", async () => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = String(init?.body);
+        const params = new URLSearchParams(body);
+        expect(params.get("channel")).toBe("C123");
+        expect(params.get("user")).toBe("U777");
+        expect(params.get("text")).toBe("hello from stdin");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            message_ts: "1700000002.000100",
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer(
+      ["messages", "post-ephemeral", "C123", "U777", "-", "--json", "--xoxb"],
+      { stdin: "hello from stdin" },
+    );
+
+    expect(result.exitCode).toBe(0);
+  });
+
   test("posts ephemeral message with raw JSON blocks when --blocks is provided", async () => {
     process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
@@ -198,5 +232,40 @@ describe("messages post-ephemeral command", () => {
     expect(capturedContentType).toContain("application/json");
     expect(Array.isArray(capturedBlocks)).toBe(true);
     expect((capturedBlocks as unknown[]).length).toBe(1);
+  });
+
+  test("uses stdin content as block source when --blocks=- is provided", async () => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    let capturedBlocks: unknown;
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        capturedBlocks = body.blocks;
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            message_ts: "1700000002.000100",
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer(
+      ["messages", "post-ephemeral", "C123", "U777", "summary", "--blocks=-", "--json", "--xoxb"],
+      { stdin: "# title\ncontent from stdin" },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(Array.isArray(capturedBlocks)).toBe(true);
+    expect((capturedBlocks as unknown[]).length).toBeGreaterThan(0);
   });
 });

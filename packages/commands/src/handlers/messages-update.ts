@@ -4,6 +4,7 @@ import {
   isValidSlackTimestamp,
   mapSlackClientError,
   readBlocksOption,
+  readTextWithStdinMarker,
   resolveTokenForContext,
 } from "./messages-shared";
 import { createError } from "../errors";
@@ -16,7 +17,7 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.update";
 const USAGE_HINT =
-  "Usage: slack messages update <channel-id> <timestamp> <text(required,non-empty)> [--blocks[=<json|bool>]] [--json] or slack messages update <message-url> <text(required,non-empty)> [--blocks[=<json|bool>]] [--json]";
+  "Usage: slack messages update <channel-id> <timestamp> <text(required,non-empty)|-> [--blocks[=<json|bool|->]] [--json] or slack messages update <message-url> <text(required,non-empty)|-> [--blocks[=<json|bool|->]] [--json]";
 
 type MessagesUpdateHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
@@ -121,13 +122,25 @@ export const createMessagesUpdateHandler = (
       return targetOrError;
     }
 
-    const mrkdwnText = convertMarkdownToSlackMrkdwn(targetOrError.text);
-    const blocksPayloadOrError = readBlocksOption(
-      request.options,
+    const textOrError = await readTextWithStdinMarker(
       targetOrError.text,
       "messages update",
       USAGE_HINT,
       COMMAND_ID,
+      request.context.readStdin,
+    );
+    if (isCliErrorResult(textOrError)) {
+      return textOrError;
+    }
+
+    const mrkdwnText = convertMarkdownToSlackMrkdwn(textOrError);
+    const blocksPayloadOrError = await readBlocksOption(
+      request.options,
+      textOrError,
+      "messages update",
+      USAGE_HINT,
+      COMMAND_ID,
+      request.context.readStdin,
     );
     if (isCliErrorResult(blocksPayloadOrError)) {
       return blocksPayloadOrError;
