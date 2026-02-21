@@ -45,6 +45,12 @@ describe("help command", () => {
     expect(result.stdout.some((line) => line.includes("login"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("logout"))).toBe(true);
     expect(result.stdout.some((line) => line.includes("use"))).toBe(true);
+    expect(
+      result.stdout.some((line) => line.includes("auth login requires --type <xoxp|xoxb>.")),
+    ).toBe(true);
+    expect(
+      result.stdout.some((line) => line.includes("Use --xoxp/--xoxb on target commands")),
+    ).toBe(true);
 
     expect(result.stderr.length).toBe(0);
   });

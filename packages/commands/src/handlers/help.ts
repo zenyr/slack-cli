@@ -144,6 +144,13 @@ const renderNamespaceHelp = (group: CommandGroup): string[] => {
     lines.push(`  ${entry.label.padEnd(maxWidth)}${entry.description}`);
   }
 
+  if (group.name === "auth") {
+    lines.push("");
+    lines.push("Notes:");
+    lines.push("  auth login requires --type <xoxp|xoxb>.");
+    lines.push("  Use --xoxp/--xoxb on target commands, not with auth commands.");
+  }
+
   return lines;
 };
 

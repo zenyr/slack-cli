@@ -13,6 +13,23 @@ type RunCliOptions = {
   readStdin?: () => Promise<string | undefined>;
 };
 
+const buildAuthTokenFlagHint = (tokens: string[], requestedType: "xoxp" | "xoxb"): string => {
+  const subcommand = tokens[1];
+  const loginExample = `slack auth login --type ${requestedType} --token <token>`;
+  const useExample = `slack auth use ${requestedType}`;
+  const targetCommandExample = `slack messages post <channel-id> <text> --${requestedType}`;
+
+  if (subcommand === "login") {
+    return `Did you mean '${loginExample}'? If token already exists, run '${useExample}'. Use --${requestedType} only on target commands, e.g. '${targetCommandExample}'.`;
+  }
+
+  if (subcommand === "use") {
+    return `Did you mean '${useExample}'? Use --${requestedType} only on target commands, e.g. '${targetCommandExample}'.`;
+  }
+
+  return `Use '${loginExample}' to store token, '${useExample}' to switch active token, and --${requestedType} only on target commands, e.g. '${targetCommandExample}'.`;
+};
+
 const defaultReadStdin = async (): Promise<string | undefined> => {
   if (process.stdin.isTTY) {
     return undefined;
@@ -50,9 +67,26 @@ export const runCli = async (argv: string[], options: RunCliOptions = {}): Promi
     return renderCliResult(result, parsed.flags.json, io);
   }
 
+  if (
+    (parsed.flags.xoxp || parsed.flags.xoxb) &&
+    parsed.tokens[0] === "auth" &&
+    !parsed.flags.help &&
+    !parsed.flags.version
+  ) {
+    const requestedType = parsed.flags.xoxp ? "xoxp" : "xoxb";
+    const command = parsed.tokens.slice(0, 2).join(".") || "auth";
+    const result = createError(
+      "INVALID_ARGUMENT",
+      `'auth' commands do not accept --${requestedType}.`,
+      buildAuthTokenFlagHint(parsed.tokens, requestedType),
+      command,
+    );
+    return renderCliResult(result, parsed.flags.json, io);
+  }
+
   // Resolve tokenTypeOverride: verify the requested type is actually available
   let tokenTypeOverride: "xoxp" | "xoxb" | undefined;
-  if (parsed.flags.xoxp || parsed.flags.xoxb) {
+  if (!parsed.flags.help && !parsed.flags.version && (parsed.flags.xoxp || parsed.flags.xoxb)) {
     const requestedType = parsed.flags.xoxp ? "xoxp" : "xoxb";
     const resolved = await resolveSlackTokenForType(requestedType);
     if (resolved === undefined) {
