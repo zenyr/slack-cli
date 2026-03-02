@@ -3,6 +3,7 @@ import {
   isCliErrorResult,
   mapSlackClientError,
   readBlocksOption,
+  readBooleanOption,
   readTextWithStdinMarker,
   readThreadTsOption,
   resolveTokenForContext,
@@ -18,7 +19,6 @@ import type { CliOptions, CliResult, CommandRequest } from "../types";
 const COMMAND_ID = "messages.post";
 const USAGE_HINT =
   "Usage: slack messages post <channel-id> <text(required,non-empty)|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
-const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 
 type MessagesPostHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
@@ -38,30 +38,23 @@ const readOptionalBooleanOption = (
   options: CliOptions,
   optionName: "unfurl-links" | "unfurl-media" | "reply-broadcast",
 ): boolean | undefined | CliResult => {
-  const rawValue = options[optionName];
-  if (rawValue === undefined) {
+  const resolved = readBooleanOption(
+    options,
+    optionName,
+    "messages post",
+    USAGE_HINT,
+    COMMAND_ID,
+    false,
+  );
+  if (isCliErrorResult(resolved)) {
+    return resolved;
+  }
+
+  if (options[optionName] === undefined) {
     return undefined;
   }
 
-  if (typeof rawValue === "boolean") {
-    return rawValue;
-  }
-
-  const normalized = rawValue.trim().toLowerCase();
-  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
-    return true;
-  }
-
-  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
-    return false;
-  }
-
-  return createError(
-    "INVALID_ARGUMENT",
-    `messages post --${optionName} must be boolean when provided with '=...'. Received: ${rawValue}`,
-    `${BOOLEAN_OPTION_VALUES_HINT} ${USAGE_HINT}`,
-    COMMAND_ID,
-  );
+  return resolved;
 };
 
 export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHandlerDeps> = {}) => {

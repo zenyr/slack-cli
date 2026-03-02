@@ -3,18 +3,22 @@ import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { resolveTokenForContext } from "./messages-shared";
+import {
+  isCliErrorResult,
+  mapSlackClientError,
+  readBooleanOption,
+  resolveTokenForContext,
+} from "./messages-shared";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
 import type { ResolvedSlackToken } from "../slack/types";
-import { isRecord, isSlackClientError } from "../slack/utils";
+import { isRecord } from "../slack/utils";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "attachment.get";
 const USAGE_HINT =
   "Usage: slack attachment get <file-id(required,non-empty)> [--save[=<bool>]] [--json]";
-const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 const MAX_ATTACHMENT_DOWNLOAD_BYTES = 256 * 1024 * 1024;
 const TEMP_DIR_PREFIX = "slack-attachment-";
 const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -109,37 +113,6 @@ const defaultDeps: AttachmentGetHandlerDeps = {
   env: process.env,
 };
 
-const mapSlackClientError = (error: unknown): CliResult => {
-  if (!isSlackClientError(error)) {
-    return createError(
-      "INTERNAL_ERROR",
-      "Unexpected runtime failure for attachment.get.",
-      "Retry with --json for structured output.",
-      COMMAND_ID,
-    );
-  }
-
-  switch (error.code) {
-    case "SLACK_CONFIG_ERROR":
-      return createError("INVALID_ARGUMENT", error.message, error.hint, COMMAND_ID);
-    case "SLACK_AUTH_ERROR":
-      return createError(
-        "INVALID_ARGUMENT",
-        `${error.message} [AUTH_ERROR]`,
-        error.hint,
-        COMMAND_ID,
-      );
-    case "SLACK_API_ERROR": {
-      const reason =
-        error.details === undefined ? error.message : `${error.message} ${error.details}`;
-      return createError("INVALID_ARGUMENT", `${reason} [SLACK_API_ERROR]`, error.hint, COMMAND_ID);
-    }
-    case "SLACK_HTTP_ERROR":
-    case "SLACK_RESPONSE_ERROR":
-      return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID);
-  }
-};
-
 const hasAttachmentMetadataClient = (value: unknown): value is AttachmentMetadataClient => {
   return (
     isRecord(value) &&
@@ -149,30 +122,7 @@ const hasAttachmentMetadataClient = (value: unknown): value is AttachmentMetadat
 };
 
 const readSaveOption = (options: CliOptions): boolean | CliResult => {
-  const rawValue = options.save;
-  if (rawValue === undefined) {
-    return false;
-  }
-
-  if (typeof rawValue === "boolean") {
-    return rawValue;
-  }
-
-  const normalized = rawValue.trim().toLowerCase();
-  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
-    return true;
-  }
-
-  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
-    return false;
-  }
-
-  return createError(
-    "INVALID_ARGUMENT",
-    `attachment get --save must be boolean when provided with '=...'. Received: ${rawValue}`,
-    `${BOOLEAN_OPTION_VALUES_HINT} ${USAGE_HINT}`,
-    COMMAND_ID,
-  );
+  return readBooleanOption(options, "save", "attachment get", USAGE_HINT, COMMAND_ID, false);
 };
 
 const mapFileMetadata = (value: SlackFileInfoMetadata): SlackAttachmentOutputMetadata => {
@@ -224,7 +174,7 @@ export const createAttachmentGetHandler = (
 
     const fileId = rawFileId.trim();
     const saveToFileOrError = readSaveOption(request.options);
-    if (typeof saveToFileOrError !== "boolean") {
+    if (isCliErrorResult(saveToFileOrError)) {
       return saveToFileOrError;
     }
 
@@ -300,7 +250,7 @@ export const createAttachmentGetHandler = (
         textLines: [...buildTextLines(outputMetadata), "", `Saved to: ${outputFilePath}`],
       };
     } catch (error) {
-      return mapSlackClientError(error);
+      return mapSlackClientError(error, COMMAND_ID);
     }
   };
 };

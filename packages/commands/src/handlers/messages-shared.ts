@@ -73,6 +73,42 @@ export const isValidSlackTimestamp = (value: string): boolean => {
   return /^\d+\.\d+$/.test(value);
 };
 
+export const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
+
+export const readBooleanOption = (
+  options: CliOptions,
+  optionName: string,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+  defaultValue: boolean,
+): boolean | CliResult => {
+  const rawValue = options[optionName];
+  if (rawValue === undefined) {
+    return defaultValue;
+  }
+
+  if (typeof rawValue === "boolean") {
+    return rawValue;
+  }
+
+  const normalized = rawValue.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+    return true;
+  }
+
+  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+    return false;
+  }
+
+  return createError(
+    "INVALID_ARGUMENT",
+    `${commandLabel} --${optionName} must be boolean when provided with '=...'. Received: ${rawValue}`,
+    `${BOOLEAN_OPTION_VALUES_HINT} ${usageHint}`,
+    commandId,
+  );
+};
+
 export const readThreadTsOption = (
   options: CliOptions,
   commandLabel: string,

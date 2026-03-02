@@ -1,4 +1,9 @@
-import { resolveTokenForContext } from "./messages-shared";
+import {
+  isCliErrorResult,
+  mapSlackClientError,
+  readBooleanOption,
+  resolveTokenForContext,
+} from "./messages-shared";
 import { createError } from "../errors";
 import { parseSlackMessagePermalink } from "../messages/permalink";
 import { createSlackWebApiClient } from "../slack/client";
@@ -10,7 +15,6 @@ import type {
   SlackUsersInfoWebApiClient,
   SlackWebApiClient,
 } from "../slack/types";
-import { isSlackClientError } from "../slack/utils";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 import type { UserLookup } from "../users/resolve";
 import { formatUser, resolveUserIds } from "../users/resolve";
@@ -18,7 +22,6 @@ import { formatUser, resolveUserIds } from "../users/resolve";
 const COMMAND_ID = "messages.fetch";
 const USAGE_HINT =
   "Usage: slack messages fetch <message-url(required,non-empty)> [--thread[=<bool>]] [--resolve-users[=<bool>]] [--json]";
-const BOOLEAN_OPTION_VALUES_HINT = "Use boolean value: true|false|1|0|yes|no|on|off.";
 
 type CreateClientOptions = {
   token?: string;
@@ -53,10 +56,6 @@ const defaultDeps: MessagesFetchHandlerDeps = {
   env: process.env,
 };
 
-const isCliErrorResult = (value: unknown): value is CliResult => {
-  return typeof value === "object" && value !== null && "ok" in value;
-};
-
 const toMessageLine = (message: SlackMessage, lookup?: UserLookup): string => {
   const user =
     lookup !== undefined ? formatUser(message.user, lookup) : (message.user ?? "unknown");
@@ -64,88 +63,18 @@ const toMessageLine = (message: SlackMessage, lookup?: UserLookup): string => {
 };
 
 const readThreadOption = (options: CliOptions): boolean | CliResult => {
-  const rawValue = options.thread;
-  if (rawValue === undefined) {
-    return false;
-  }
-
-  if (typeof rawValue === "boolean") {
-    return rawValue;
-  }
-
-  const normalized = rawValue.trim().toLowerCase();
-  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
-    return true;
-  }
-
-  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
-    return false;
-  }
-
-  return createError(
-    "INVALID_ARGUMENT",
-    `messages fetch --thread must be boolean when provided with '=...'. Received: ${rawValue}`,
-    `${BOOLEAN_OPTION_VALUES_HINT} ${USAGE_HINT}`,
-    COMMAND_ID,
-  );
+  return readBooleanOption(options, "thread", "messages fetch", USAGE_HINT, COMMAND_ID, false);
 };
 
 export const readResolveUsersOption = (options: CliOptions): boolean | CliResult => {
-  const rawValue = options["resolve-users"];
-  if (rawValue === undefined) {
-    return false;
-  }
-
-  if (typeof rawValue === "boolean") {
-    return rawValue;
-  }
-
-  const normalized = rawValue.trim().toLowerCase();
-  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
-    return true;
-  }
-
-  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
-    return false;
-  }
-
-  return createError(
-    "INVALID_ARGUMENT",
-    `messages fetch --resolve-users must be boolean when provided with '=...'. Received: ${rawValue}`,
-    `${BOOLEAN_OPTION_VALUES_HINT} ${USAGE_HINT}`,
+  return readBooleanOption(
+    options,
+    "resolve-users",
+    "messages fetch",
+    USAGE_HINT,
     COMMAND_ID,
+    false,
   );
-};
-
-const mapSlackClientError = (error: unknown): CliResult => {
-  if (!isSlackClientError(error)) {
-    return createError(
-      "INTERNAL_ERROR",
-      "Unexpected runtime failure for messages.fetch.",
-      "Retry with --json for structured output.",
-      COMMAND_ID,
-    );
-  }
-
-  switch (error.code) {
-    case "SLACK_CONFIG_ERROR":
-      return createError("INVALID_ARGUMENT", error.message, error.hint, COMMAND_ID);
-    case "SLACK_AUTH_ERROR":
-      return createError(
-        "INVALID_ARGUMENT",
-        `${error.message} [AUTH_ERROR]`,
-        error.hint,
-        COMMAND_ID,
-      );
-    case "SLACK_API_ERROR": {
-      const reason =
-        error.details === undefined ? error.message : `${error.message} ${error.details}`;
-      return createError("INVALID_ARGUMENT", `${reason} [SLACK_API_ERROR]`, error.hint, COMMAND_ID);
-    }
-    case "SLACK_HTTP_ERROR":
-    case "SLACK_RESPONSE_ERROR":
-      return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID);
-  }
 };
 
 const buildTimestampBounds = (targetTs: string): { oldest: string; latest: string } => {
@@ -180,7 +109,7 @@ const resolveMessageFromPermalink = async (
       });
       return history.messages.find((item) => item.ts === ts);
     } catch (error) {
-      return mapSlackClientError(error);
+      return mapSlackClientError(error, COMMAND_ID);
     }
   };
 
@@ -211,7 +140,7 @@ const resolveMessageFromPermalink = async (
         cursor = replies.nextCursor;
       }
     } catch (error) {
-      return mapSlackClientError(error);
+      return mapSlackClientError(error, COMMAND_ID);
     }
   };
 
@@ -282,7 +211,7 @@ const fetchFullThreadReplies = async (
       cursor = page.nextCursor;
     }
   } catch (error) {
-    return mapSlackClientError(error);
+    return mapSlackClientError(error, COMMAND_ID);
   }
 };
 
@@ -520,7 +449,7 @@ export const createMessagesFetchHandler = (
         ),
       };
     } catch (error) {
-      return mapSlackClientError(error);
+      return mapSlackClientError(error, COMMAND_ID);
     }
   };
 };
