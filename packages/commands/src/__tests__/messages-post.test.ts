@@ -894,6 +894,46 @@ describe("messages post --blocks with stdin (heredoc)", () => {
     expect((capturedBlocks as unknown[]).length).toBe(1);
   });
 
+  test("truncates fallback text when blocks payload is used", async () => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    let capturedText = "";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        capturedText = body.text;
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            ts: "1700000002.000100",
+            message: { type: "message", text: "summary", ts: "1700000002.000100" },
+          }),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const longText = "A".repeat(4100);
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      "C123",
+      longText,
+      '--blocks=[{"type":"section","text":{"type":"mrkdwn","text":"*override*"}}]',
+      "--json",
+      "--xoxb",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(capturedText.length).toBe(3000);
+    expect(capturedText.endsWith("…")).toBe(true);
+  });
+
   test("uses stdin content as block source when --blocks=- is provided", async () => {
     process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 

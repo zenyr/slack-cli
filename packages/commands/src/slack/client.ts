@@ -329,12 +329,22 @@ const mapUserProfile = (value: unknown): SlackUserProfile | undefined => {
 };
 
 const SEARCH_TEXT_TRUNCATE_LENGTH = 120;
+const BLOCK_FALLBACK_TEXT_MAX_LENGTH = 3000;
 
 const truncateText = (text: string, maxLength: number): string => {
   if (text.length <= maxLength) {
     return text;
   }
   return `${text.slice(0, maxLength)}…`;
+};
+
+const truncateBlockFallbackText = (text: string): string => {
+  if (text.length <= BLOCK_FALLBACK_TEXT_MAX_LENGTH) {
+    return text;
+  }
+
+  const cutoff = BLOCK_FALLBACK_TEXT_MAX_LENGTH - 1;
+  return `${text.slice(0, cutoff)}…`;
 };
 
 const toRecordArray = (value: unknown): Record<string, unknown>[] => {
@@ -1291,7 +1301,7 @@ export const createSlackWebApiClient = (
     const payload = hasBlockPayload
       ? {
           channel: params.channel,
-          text: params.text,
+          text: truncateBlockFallbackText(params.text),
           thread_ts: params.threadTs,
           unfurl_links: params.unfurlLinks,
           unfurl_media: params.unfurlMedia,
@@ -1374,7 +1384,7 @@ export const createSlackWebApiClient = (
       ? {
           channel: params.channel,
           user: params.user,
-          text: params.text,
+          text: truncateBlockFallbackText(params.text),
           thread_ts: params.threadTs,
           blocks: params.blocks,
           attachments: params.attachments,
@@ -1422,7 +1432,7 @@ export const createSlackWebApiClient = (
       ? {
           channel: params.channel,
           ts: params.ts,
-          text: params.text,
+          text: truncateBlockFallbackText(params.text),
           blocks: params.blocks,
           attachments: params.attachments,
         }

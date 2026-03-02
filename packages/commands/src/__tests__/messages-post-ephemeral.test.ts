@@ -234,6 +234,47 @@ describe("messages post-ephemeral command", () => {
     expect((capturedBlocks as unknown[]).length).toBe(1);
   });
 
+  test("truncates fallback text when blocks payload is used", async () => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    let capturedText = "";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        capturedText = body.text;
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C123",
+            message_ts: "1700000002.000100",
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post-ephemeral",
+      "C123",
+      "U777",
+      "A".repeat(4100),
+      '--blocks=[{"type":"section","text":{"type":"mrkdwn","text":"*override*"}}]',
+      "--json",
+      "--xoxb",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(capturedText.length).toBe(3000);
+    expect(capturedText.endsWith("…")).toBe(true);
+  });
+
   test("uses stdin content as block source when --blocks=- is provided", async () => {
     process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
