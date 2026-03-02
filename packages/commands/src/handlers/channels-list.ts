@@ -200,7 +200,7 @@ export const createChannelsListHandler = (depsOverrides: Partial<ChannelsListHan
         deps.resolveToken,
       );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
-      const result = await client.listChannels({ types, limit: 999 });
+      const result = await client.listChannels({ types, limit });
 
       let channels = result.channels;
 

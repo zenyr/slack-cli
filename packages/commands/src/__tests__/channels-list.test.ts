@@ -993,6 +993,30 @@ describe("channels list command", () => {
     });
   });
 
+  describe("api paging options", () => {
+    test("forwards parsed --limit value to Slack listChannels call", async () => {
+      const handler = createChannelsListHandler({
+        createClient: () =>
+          ({
+            listChannels: async (opts: any) => {
+              expect(opts.limit).toBe(7);
+              return { channels: [] };
+            },
+          }) as any,
+      });
+
+      const result = await handler({
+        commandPath: ["channels", "list"],
+        positionals: [],
+        options: { limit: "7" },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
+        context: { version: "1.2.3" },
+      });
+
+      expect(result.ok).toBe(true);
+    });
+  });
+
   describe("combined operations", () => {
     test("type filter + popularity sort + pagination", async () => {
       const channels: SlackChannel[] = [
