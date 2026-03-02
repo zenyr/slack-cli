@@ -46,6 +46,7 @@ export type LoginInput = {
 
 export type AuthService = {
   resolveToken: () => Promise<ResolvedAuthToken>;
+  resolveTokenForType: (type: AuthTokenType) => Promise<ResolvedAuthToken | undefined>;
   login: (input: LoginInput) => Promise<ResolvedAuthToken>;
   logout: () => Promise<void>;
   useTokenType: (type: AuthTokenType) => Promise<void>;

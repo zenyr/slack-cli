@@ -107,13 +107,7 @@ const resolveAlternateToken = async (
   alternateType: "xoxp" | "xoxb",
   env: Record<string, string | undefined>,
 ): Promise<ResolvedSlackToken | undefined> => {
-  const envKey = alternateType === "xoxp" ? XOXP_ENV_KEY : XOXB_ENV_KEY;
-  const envSource = alternateType === "xoxp" ? "SLACK_MCP_XOXP_TOKEN" : "SLACK_MCP_XOXB_TOKEN";
-  const envToken = readNonEmptyEnv(env, envKey);
-  if (envToken !== undefined) {
-    return { token: envToken, source: envSource, tokenType: alternateType };
-  }
-  return undefined;
+  return await resolveSlackTokenForType(alternateType, env);
 };
 
 const isRetryableTokenError = (error: unknown): boolean => {
@@ -176,20 +170,18 @@ export const resolveSlackTokenForType = async (
   type: "xoxp" | "xoxb",
   env: Record<string, string | undefined> = process.env,
 ): Promise<ResolvedSlackToken | undefined> => {
-  const envKey = type === "xoxp" ? XOXP_ENV_KEY : XOXB_ENV_KEY;
-  const envSource = type === "xoxp" ? "SLACK_MCP_XOXP_TOKEN" : "SLACK_MCP_XOXB_TOKEN";
-  const envToken = readNonEmptyEnv(env, envKey);
-  if (envToken !== undefined) {
-    return { token: envToken, source: envSource, tokenType: type };
-  }
-
-  // Fall back to store
   try {
-    const resolved = await resolveSlackToken(env);
-    if (resolved.tokenType === type) {
-      return resolved;
+    const service = createAuthService({ env });
+    const resolved = await service.resolveTokenForType(type);
+    if (resolved === undefined) {
+      return undefined;
     }
-    return undefined;
+
+    return {
+      token: resolved.token,
+      source: resolved.source,
+      tokenType: resolved.type,
+    };
   } catch {
     return undefined;
   }

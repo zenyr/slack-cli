@@ -353,6 +353,25 @@ export const createAuthService = (options: AuthServiceOptions = {}): AuthService
   const fetchImpl = options.fetchImpl ?? fetch;
   const authFilePath = ensureAuthFilePath(options);
 
+  const resolveTokenForType = async (
+    type: AuthTokenType,
+  ): Promise<ResolvedAuthToken | undefined> => {
+    const envKey = type === "xoxp" ? XOXP_ENV_KEY : XOXB_ENV_KEY;
+    const envToken = readTrimmed(env[envKey]);
+    if (envToken !== undefined) {
+      return ensureResolvedTokenPrefix(envToken, type, `env:${envKey}`);
+    }
+
+    const store = await readStore(authFilePath);
+    const storedToken = store.tokens[type];
+    if (storedToken === undefined) {
+      return undefined;
+    }
+
+    const source: AuthTokenSource = store.active === type ? "store:active" : "store:fallback";
+    return ensureResolvedTokenPrefix(storedToken, type, source);
+  };
+
   const resolveToken = async (): Promise<ResolvedAuthToken> => {
     const store = await readStore(authFilePath);
     const context = { env, store };
@@ -457,6 +476,7 @@ export const createAuthService = (options: AuthServiceOptions = {}): AuthService
 
   return {
     resolveToken,
+    resolveTokenForType,
     login,
     logout,
     useTokenType,

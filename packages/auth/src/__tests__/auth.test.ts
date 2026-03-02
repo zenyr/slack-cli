@@ -335,6 +335,26 @@ describe("auth service", () => {
     }
   });
 
+  test("resolveTokenForType returns inactive stored token when requested", async () => {
+    const { rootDir, authFilePath } = await createTempAuthFilePath();
+
+    try {
+      const auth = createAuthService({ env: {}, authFilePath });
+
+      await auth.login({ type: "xoxp", token: "xoxp-login-token" });
+      await auth.login({ type: "xoxb", token: "xoxb-login-token" });
+      await auth.useTokenType("xoxp");
+
+      await expect(auth.resolveTokenForType("xoxb")).resolves.toEqual({
+        token: "xoxb-login-token",
+        type: "xoxb",
+        source: "store:fallback",
+      });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
   test("useTokenType returns typed config error when token missing", async () => {
     const { rootDir, authFilePath } = await createTempAuthFilePath();
 

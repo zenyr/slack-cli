@@ -1,6 +1,20 @@
 import { describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { resolveSlackTokenFromEnv } from "../slack";
+import { resolveSlackTokenForType, resolveSlackTokenFromEnv } from "../slack/token";
+
+const createTempAuthFilePath = async (): Promise<{ rootDir: string; authFilePath: string }> => {
+  const rootDir = await mkdtemp(join(tmpdir(), "slack-cli-token-"));
+  const authDir = join(rootDir, ".config", "slack-cli");
+  await mkdir(authDir, { recursive: true });
+
+  return {
+    rootDir,
+    authFilePath: join(authDir, "auth.json"),
+  };
+};
 
 describe("resolveSlackTokenFromEnv", () => {
   test("prefers user token over bot token", () => {
@@ -114,5 +128,40 @@ describe("resolveSlackTokenFromEnv", () => {
         SLACK_MCP_XOXD_TOKEN: "xoxd-edge",
       }),
     ).toThrow("Slack edge tokens are unsupported in this environment.");
+  });
+});
+
+describe("resolveSlackTokenForType", () => {
+  test("resolves inactive store token for explicit type override", async () => {
+    const { rootDir, authFilePath } = await createTempAuthFilePath();
+
+    try {
+      await Bun.write(
+        authFilePath,
+        JSON.stringify(
+          {
+            active: "xoxp",
+            tokens: {
+              xoxp: "xoxp-store-token",
+              xoxb: "xoxb-store-token",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const resolved = await resolveSlackTokenForType("xoxb", {
+        SLACK_CLI_AUTH_FILE: authFilePath,
+      });
+
+      expect(resolved).toEqual({
+        token: "xoxb-store-token",
+        source: "store:fallback",
+        tokenType: "xoxb",
+      });
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
   });
 });
