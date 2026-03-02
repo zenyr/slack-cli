@@ -3,7 +3,11 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { resolveSlackTokenForType, resolveSlackTokenFromEnv } from "../slack/token";
+import {
+  resolveSlackTokenForType,
+  resolveSlackTokenFromEnv,
+  withTokenFallback,
+} from "../slack/token";
 
 const createTempAuthFilePath = async (): Promise<{ rootDir: string; authFilePath: string }> => {
   const rootDir = await mkdtemp(join(tmpdir(), "slack-cli-token-"));
@@ -163,5 +167,77 @@ describe("resolveSlackTokenForType", () => {
     } finally {
       await rm(rootDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("withTokenFallback", () => {
+  test("retries with opposite token type when primary differs from preferred type", async () => {
+    const { rootDir, authFilePath } = await createTempAuthFilePath();
+
+    try {
+      await Bun.write(
+        authFilePath,
+        JSON.stringify(
+          {
+            active: "xoxp",
+            tokens: {
+              xoxp: "xoxp-store-token",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const calls: string[] = [];
+      const resolved = await withTokenFallback(
+        "xoxp",
+        {
+          SLACK_CLI_AUTH_FILE: authFilePath,
+        },
+        async (token) => {
+          calls.push(token.token);
+          if (token.token.startsWith("xoxp")) {
+            return "ok";
+          }
+
+          throw Object.assign(new Error("auth failure"), { code: "SLACK_AUTH_ERROR" });
+        },
+        async () => {
+          return {
+            token: "xoxb-primary",
+            source: "SLACK_MCP_XOXB_TOKEN",
+            tokenType: "xoxb",
+          };
+        },
+      );
+
+      expect(resolved).toBe("ok");
+      expect(calls).toEqual(["xoxb-primary", "xoxp-store-token"]);
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  test("returns primary error when alternate token is unavailable", async () => {
+    await expect(
+      withTokenFallback(
+        "xoxb",
+        {},
+        async () => {
+          throw Object.assign(new Error("auth failure"), { code: "SLACK_AUTH_ERROR" });
+        },
+        async () => {
+          return {
+            token: "xoxb-primary",
+            source: "SLACK_MCP_XOXB_TOKEN",
+            tokenType: "xoxb",
+          };
+        },
+      ),
+    ).rejects.toMatchObject({
+      message: "auth failure",
+      code: "SLACK_AUTH_ERROR",
+    });
   });
 });

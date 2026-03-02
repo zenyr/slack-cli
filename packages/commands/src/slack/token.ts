@@ -132,7 +132,7 @@ export const assertNoEdgeToken = (token: string, commandId: string): void => {
 // Try fn with the resolved token. On auth/scope failure, retry once with the
 // alternate token type (xoxp <-> xoxb). Store is never mutated; no restore needed.
 export const withTokenFallback = async <T>(
-  preferredType: "xoxp" | "xoxb",
+  _preferredType: "xoxp" | "xoxb",
   env: Record<string, string | undefined>,
   fn: (token: ResolvedSlackToken) => Promise<T>,
   resolveToken: (
@@ -148,11 +148,8 @@ export const withTokenFallback = async <T>(
       throw primaryError;
     }
 
-    // Primary failed with auth/scope error — try alternate type if different
-    const alternateType = preferredType === "xoxp" ? "xoxb" : "xoxp";
-    if (primaryToken.tokenType === alternateType) {
-      throw primaryError;
-    }
+    // Primary failed with auth/scope error — retry once with the other token type.
+    const alternateType = primaryToken.tokenType === "xoxp" ? "xoxb" : "xoxp";
 
     const alternateToken = await resolveAlternateToken(alternateType, env);
     if (alternateToken === undefined) {
