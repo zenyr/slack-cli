@@ -185,7 +185,7 @@ Search messages.
 ### `slack messages fetch`
 
 ```
-slack messages fetch <message-url> [--thread[=<bool>]] [--json]
+slack messages fetch <message-url> [--thread[=<bool>]] [--resolve-users[=<bool>]] [--json]
 ```
 
 Fetch one message by permalink URL. Use `--thread` to expand to the full thread.
@@ -193,6 +193,7 @@ Fetch one message by permalink URL. Use `--thread` to expand to the full thread.
 | Flag | Description |
 |---|---|
 | `--thread` | Include full thread (default: false) |
+| `--resolve-users` | Resolve user IDs to usernames/display names |
 
 Use this command when input is a Slack message URL.
 
@@ -246,7 +247,7 @@ Post plain text message to channel. Markdown is auto-converted to Slack mrkdwn.
 ### `slack messages post-ephemeral`
 
 ```
-slack messages post-ephemeral <channel-id> <user-id> <text> [--thread-ts=<ts>] [--json]
+slack messages post-ephemeral <channel-id> <user-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--json]
 ```
 
 Post ephemeral message visible only to `<user-id>` in `<channel-id>`.
