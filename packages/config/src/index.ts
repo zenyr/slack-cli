@@ -20,6 +20,11 @@ export const COMMANDS: CliCommand[] = [
     description: "Show this help message",
   },
   {
+    name: "schema",
+    args: "[<command> [subcommand ...]] [--json]",
+    description: "Show machine-readable command schema metadata",
+  },
+  {
     name: "auth check",
     args: "[--json]",
     description: "Check current auth session status",
@@ -166,12 +171,12 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages post",
-    args: "<channel-id> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+    args: "<channel-id> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
     description: "Post message to channel (markdown auto-converted to mrkdwn)",
   },
   {
     name: "messages post-ephemeral",
-    args: "<channel-id> <user-id> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--json]",
+    args: "<channel-id> <user-id> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json]",
     description: "Post ephemeral message to channel user",
   },
   {
@@ -181,12 +186,12 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages update",
-    args: "<message-url> <text|-> [--blocks[=<json|bool|->]] [--json] OR <channel-id> <timestamp> <text|-> [--blocks[=<json|bool|->]] [--json]",
+    args: "<message-url> <text|-> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json] OR <channel-id> <timestamp> <text|-> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json]",
     description: "Update message text by URL or channel and timestamp",
   },
   {
     name: "messages reply",
-    args: "<channel-id-or-permalink> <thread-ts> <text|-> [--blocks[=<json|bool|->]] [--reply-broadcast[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--json] OR <thread-permalink> <text|-> [--blocks[=<json|bool|->]] [--reply-broadcast[=<bool>]] [--json]",
+    args: "<channel-id-or-permalink> <thread-ts> <text|-> [--blocks[=<json|bool|->]] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--json] OR <thread-permalink> <text|-> [--blocks[=<json|bool|->]] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
     description: "Reply to thread by channel+ts or thread permalink",
   },
   {

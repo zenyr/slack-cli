@@ -221,6 +221,89 @@ describe("messages post command", () => {
     expect(result.exitCode).toBe(0);
   });
 
+  test("supports dry-run without calling Slack", async () => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      "C123",
+      "hello",
+      "--dry-run",
+      "--json",
+      "--xoxb",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !isRecord(parsed.data.request)) {
+      return;
+    }
+
+    expect(parsed.data.dryRun).toBe(true);
+    expect(parsed.data.request.channel).toBe("C123");
+    expect(parsed.data.request.text).toBe("hello");
+  });
+
+  test("accepts raw payload json", async () => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    const mockedFetch: typeof fetch = Object.assign(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        const params = new URLSearchParams(String(init?.body));
+        expect(params.get("channel")).toBe("C777");
+        expect(params.get("text")).toBe("payload text");
+        expect(params.get("thread_ts")).toBe("1700000001.000100");
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            channel: "C777",
+            ts: "1700000002.000100",
+            message: { type: "message", text: "payload text", ts: "1700000002.000100" },
+          }),
+          { status: 200 },
+        );
+      },
+      {
+        preconnect: originalFetch.preconnect,
+      },
+    );
+    globalThis.fetch = mockedFetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      '--payload={"channel":"C777","text":"payload text","thread_ts":"1700000001.000100"}',
+      "--json",
+      "--xoxb",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+  });
+
+  test("rejects unsupported payload fields", async () => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      '--payload={"channel":"C777","text":"payload text","oops":true}',
+      "--json",
+      "--xoxb",
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.message).toContain("unsupported field 'oops'");
+  });
+
   test("posts plain text and returns posted metadata with --json", async () => {
     process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 

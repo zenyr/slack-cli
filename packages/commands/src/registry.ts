@@ -20,6 +20,7 @@ import { reactionsAddHandler } from "./handlers/reactions-add";
 import { reactionsListHandler } from "./handlers/reactions-list";
 import { reactionsRemoveHandler } from "./handlers/reactions-remove";
 import { resourcesHandler } from "./handlers/resources";
+import { schemaHandler } from "./handlers/schema";
 import {
   authCheckHandler,
   authLoginHandler,
@@ -58,6 +59,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "help",
     path: ["help"],
     execute: helpHandler,
+  },
+  {
+    id: "schema",
+    path: ["schema"],
+    execute: schemaHandler,
   },
   {
     id: "version",

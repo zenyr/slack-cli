@@ -70,6 +70,17 @@ Show top-level help.
 
 ---
 
+### `slack schema [<command> [subcommand ...]] [--json]`
+
+Show machine-readable command capability metadata for agents.
+
+```bash
+slack schema --json
+slack schema messages post --json
+```
+
+---
+
 ### `slack version`
 
 Print CLI version.
@@ -220,7 +231,7 @@ Fetch channel message history.
 ### `slack messages post`
 
 ```
-slack messages post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]
+slack messages post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--payload=<json|->] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]
 ```
 
 Post plain text message to channel. Markdown is auto-converted to Slack mrkdwn.
@@ -229,6 +240,8 @@ Post plain text message to channel. Markdown is auto-converted to Slack mrkdwn.
 |---|---|
 | `--thread-ts` | Reply in thread (`seconds.fraction`) |
 | `--blocks` | Build Block Kit blocks from Markdown |
+| `--payload` | Read complete request object from JSON or stdin (`-`) |
+| `--dry-run` | Validate and print normalized request without posting |
 | `--unfurl-links` | Unfurl links (bool: `true\|false\|1\|0\|yes\|no\|on\|off`) |
 | `--unfurl-media` | Unfurl media |
 | `--reply-broadcast` | Also send reply to channel |
@@ -247,7 +260,7 @@ Post plain text message to channel. Markdown is auto-converted to Slack mrkdwn.
 ### `slack messages post-ephemeral`
 
 ```
-slack messages post-ephemeral <channel-id> <user-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--json]
+slack messages post-ephemeral <channel-id> <user-id> <text> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json]
 ```
 
 Post ephemeral message visible only to `<user-id>` in `<channel-id>`.
@@ -268,8 +281,8 @@ Delete message by permalink URL or by channel ID + Slack timestamp.
 ### `slack messages update`
 
 ```
-slack messages update <message-url> <text> [--json]
-slack messages update <channel-id> <timestamp> <text> [--json]
+slack messages update <message-url> <text> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json]
+slack messages update <channel-id> <timestamp> <text> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json]
 ```
 
 Update message text by permalink URL or by channel ID + Slack timestamp.

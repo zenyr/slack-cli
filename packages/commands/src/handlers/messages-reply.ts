@@ -122,8 +122,20 @@ export const createMessagesReplyHandler = (
     return {
       ...result,
       command: COMMAND_ID,
-      message: `Reply posted in thread ${threadTs}.`,
-      textLines: [`Posted reply to ${channelId} thread ${threadTs}.`],
+      message:
+        result.data &&
+        typeof result.data === "object" &&
+        result.data !== null &&
+        "dryRun" in result.data
+          ? `Dry run: reply validated for thread ${threadTs}.`
+          : `Reply posted in thread ${threadTs}.`,
+      textLines:
+        result.data &&
+        typeof result.data === "object" &&
+        result.data !== null &&
+        "dryRun" in result.data
+          ? [`Dry run: validated reply to ${channelId} thread ${threadTs}.`]
+          : [`Posted reply to ${channelId} thread ${threadTs}.`],
       data:
         typeof result.data === "object" && result.data !== null
           ? { ...result.data, thread_ts: threadTs }

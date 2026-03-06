@@ -69,6 +69,10 @@ export const isCliErrorResult = (value: unknown): value is CliResult => {
   return typeof value === "object" && value !== null && "ok" in value;
 };
 
+export const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
+
 export const isValidSlackTimestamp = (value: string): boolean => {
   return /^\d+\.\d+$/.test(value);
 };
@@ -172,7 +176,7 @@ const readStdinOrError = async (
   commandLabel: string,
   usageHint: string,
   commandId: string,
-  targetLabel: "<text>" | "--blocks",
+  targetLabel: string,
 ): Promise<string | CliResult> => {
   if (readStdin === undefined) {
     return createError(
@@ -208,10 +212,6 @@ export const readTextWithStdinMarker = async (
   }
 
   return await readStdinOrError(readStdin, commandLabel, usageHint, commandId, "<text>");
-};
-
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === "object" && value !== null;
 };
 
 const parseBlocksArrayOrError = (
@@ -307,7 +307,12 @@ const parseBlocksPayloadOrError = (
     );
   }
 
-  const blocksOrError = parseBlocksArrayOrError(value.blocks, commandLabel, usageHint, commandId);
+  const rawBlocks = value.blocks;
+  const hasBlocks = rawBlocks !== undefined;
+  const blocksOrError =
+    hasBlocks === true
+      ? parseBlocksArrayOrError(rawBlocks, commandLabel, usageHint, commandId)
+      : [];
   if (isCliErrorResult(blocksOrError)) {
     return blocksOrError;
   }
@@ -322,10 +327,217 @@ const parseBlocksPayloadOrError = (
     return attachmentsOrError;
   }
 
+  if (hasBlocks === false && attachmentsOrError.length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} composition payload must include 'blocks' or 'attachments'.`,
+      usageHint,
+      commandId,
+    );
+  }
+
   return {
     blocks: blocksOrError,
     attachments: attachmentsOrError,
   };
+};
+
+export const readCompositionPayload = (
+  value: unknown,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+): BlocksPayload | undefined | CliResult => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return parseBlocksPayloadOrError(value, commandLabel, usageHint, commandId);
+};
+
+export const readJsonObjectOption = async (
+  options: CliOptions,
+  optionName: string,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+  readStdin?: () => Promise<string | undefined>,
+): Promise<Record<string, unknown> | undefined | CliResult> => {
+  const raw = options[optionName];
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (raw === true) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --${optionName} requires a JSON object value. [MISSING_ARGUMENT]`,
+      `${usageHint}\nUse --${optionName}='<json>' or --${optionName}=- with stdin.`,
+      commandId,
+    );
+  }
+
+  if (typeof raw !== "string") {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --${optionName} must be a JSON object string.`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  const input =
+    raw.trim() === STDIN_MARKER
+      ? await readStdinOrError(readStdin, commandLabel, usageHint, commandId, `--${optionName}`)
+      : raw;
+  if (isCliErrorResult(input)) {
+    return input;
+  }
+
+  const trimmed = input.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --${optionName} must be a JSON object.`,
+      `${usageHint}\nUse --${optionName}='{"key":"value"}'.`,
+      commandId,
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --${optionName} value is not valid JSON. Received: ${trimmed.slice(0, 80)}`,
+      `${usageHint}\nUse --${optionName}='{"key":"value"}'.`,
+      commandId,
+    );
+  }
+
+  if (!isRecord(parsed) || Array.isArray(parsed)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --${optionName} must decode to a JSON object.`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  return parsed;
+};
+
+export const validatePayloadKeys = (
+  payload: Record<string, unknown>,
+  allowedKeys: string[],
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+): CliResult | undefined => {
+  const unknownKey = Object.keys(payload).find((key) => !allowedKeys.includes(key));
+  if (unknownKey === undefined) {
+    return undefined;
+  }
+
+  return createError(
+    "INVALID_ARGUMENT",
+    `${commandLabel} --payload contains unsupported field '${unknownKey}'.`,
+    `${usageHint}\nAllowed fields: ${allowedKeys.join(", ")}`,
+    commandId,
+  );
+};
+
+export const readRequiredPayloadString = (
+  payload: Record<string, unknown>,
+  key: string,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+): string | CliResult => {
+  const value = payload[key];
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --payload requires non-empty string field '${key}'.`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  return value.trim();
+};
+
+export const readOptionalPayloadString = (
+  payload: Record<string, unknown>,
+  key: string,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+): string | undefined | CliResult => {
+  const value = payload[key];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --payload field '${key}' must be a non-empty string when provided.`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  return value.trim();
+};
+
+export const readOptionalPayloadBoolean = (
+  payload: Record<string, unknown>,
+  key: string,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+): boolean | undefined | CliResult => {
+  const value = payload[key];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "boolean") {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --payload field '${key}' must be boolean when provided.`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  return value;
+};
+
+export const readOptionalPayloadTimestamp = (
+  payload: Record<string, unknown>,
+  key: string,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+): string | undefined | CliResult => {
+  const valueOrError = readOptionalPayloadString(payload, key, commandLabel, usageHint, commandId);
+  if (isCliErrorResult(valueOrError) || valueOrError === undefined) {
+    return valueOrError;
+  }
+
+  if (!isValidSlackTimestamp(valueOrError)) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --payload field '${key}' must match Slack timestamp format seconds.fraction. Received: ${valueOrError}`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  return valueOrError;
 };
 
 const hasMatchedJsonWrappers = (value: string): boolean => {

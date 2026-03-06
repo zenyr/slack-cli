@@ -1,11 +1,17 @@
 import {
+  type BlocksPayload,
   type CreateClientOptions,
   isCliErrorResult,
   isValidSlackTimestamp,
   mapSlackClientError,
   readBlocksOption,
+  readBooleanOption,
+  readCompositionPayload,
+  readJsonObjectOption,
+  readRequiredPayloadString,
   readTextWithStdinMarker,
   resolveTokenForContext,
+  validatePayloadKeys,
 } from "./messages-shared";
 import { createError } from "../errors";
 import { parseSlackMessagePermalink } from "../messages/permalink";
@@ -17,7 +23,9 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.update";
 const USAGE_HINT =
-  "Usage: slack messages update <channel-id> <timestamp> <text(required,non-empty)|-> [--blocks[=<json|bool|->]] [--json] or slack messages update <message-url> <text(required,non-empty)|-> [--blocks[=<json|bool|->]] [--json]";
+  "Usage: slack messages update <channel-id> <timestamp> <text(required,non-empty)|-> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json] or slack messages update <message-url> <text(required,non-empty)|-> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json]";
+
+const PAYLOAD_KEYS = ["channel", "ts", "text", "blocks", "attachments"];
 
 type MessagesUpdateHandlerDeps = {
   createClient: (options?: CreateClientOptions) => SlackPostWebApiClient;
@@ -117,13 +125,129 @@ export const createMessagesUpdateHandler = (
   };
 
   return async (request: CommandRequest): Promise<CliResult> => {
-    const targetOrError = resolveTargetAndText(request);
-    if ("ok" in targetOrError) {
-      return targetOrError;
+    const dryRunOrError = readBooleanOption(
+      request.options,
+      "dry-run",
+      "messages update",
+      USAGE_HINT,
+      COMMAND_ID,
+      false,
+    );
+    if (isCliErrorResult(dryRunOrError)) {
+      return dryRunOrError;
+    }
+
+    const payloadOrError = await readJsonObjectOption(
+      request.options,
+      "payload",
+      "messages update",
+      USAGE_HINT,
+      COMMAND_ID,
+      request.context.readStdin,
+    );
+    if (isCliErrorResult(payloadOrError)) {
+      return payloadOrError;
+    }
+
+    let channel: string;
+    let ts: string;
+    let rawText: string;
+    let blocksPayloadOrError: BlocksPayload | undefined | CliResult;
+
+    if (payloadOrError !== undefined) {
+      if (request.positionals.length > 0) {
+        return createError(
+          "INVALID_ARGUMENT",
+          "messages update cannot mix positional arguments with --payload.",
+          USAGE_HINT,
+          COMMAND_ID,
+        );
+      }
+
+      const payloadKeyError = validatePayloadKeys(
+        payloadOrError,
+        PAYLOAD_KEYS,
+        "messages update",
+        USAGE_HINT,
+        COMMAND_ID,
+      );
+      if (payloadKeyError !== undefined) {
+        return payloadKeyError;
+      }
+
+      const channelOrError = readRequiredPayloadString(
+        payloadOrError,
+        "channel",
+        "messages update",
+        USAGE_HINT,
+        COMMAND_ID,
+      );
+      if (isCliErrorResult(channelOrError)) {
+        return channelOrError;
+      }
+
+      const tsOrError = readRequiredPayloadString(
+        payloadOrError,
+        "ts",
+        "messages update",
+        USAGE_HINT,
+        COMMAND_ID,
+      );
+      if (isCliErrorResult(tsOrError)) {
+        return tsOrError;
+      }
+
+      if (!isValidSlackTimestamp(tsOrError)) {
+        return createError(
+          "INVALID_ARGUMENT",
+          `messages update --payload field 'ts' must match Slack timestamp format seconds.fraction. Received: ${tsOrError}`,
+          USAGE_HINT,
+          COMMAND_ID,
+        );
+      }
+
+      const textOrError = readRequiredPayloadString(
+        payloadOrError,
+        "text",
+        "messages update",
+        USAGE_HINT,
+        COMMAND_ID,
+      );
+      if (isCliErrorResult(textOrError)) {
+        return textOrError;
+      }
+
+      channel = channelOrError;
+      ts = tsOrError;
+      rawText = textOrError;
+      const hasComposition =
+        payloadOrError.blocks !== undefined || payloadOrError.attachments !== undefined;
+      blocksPayloadOrError =
+        hasComposition === true
+          ? readCompositionPayload(
+              {
+                blocks: payloadOrError.blocks,
+                attachments: payloadOrError.attachments,
+              },
+              "messages update",
+              USAGE_HINT,
+              COMMAND_ID,
+            )
+          : undefined;
+    } else {
+      const targetOrError = resolveTargetAndText(request);
+      if ("ok" in targetOrError) {
+        return targetOrError;
+      }
+
+      channel = targetOrError.channel;
+      ts = targetOrError.ts;
+      rawText = targetOrError.text;
+      blocksPayloadOrError = undefined;
     }
 
     const textOrError = await readTextWithStdinMarker(
-      targetOrError.text,
+      rawText,
       "messages update",
       USAGE_HINT,
       COMMAND_ID,
@@ -134,16 +258,37 @@ export const createMessagesUpdateHandler = (
     }
 
     const mrkdwnText = convertMarkdownToSlackMrkdwn(textOrError);
-    const blocksPayloadOrError = await readBlocksOption(
-      request.options,
-      textOrError,
-      "messages update",
-      USAGE_HINT,
-      COMMAND_ID,
-      request.context.readStdin,
-    );
+    if (blocksPayloadOrError === undefined) {
+      blocksPayloadOrError = await readBlocksOption(
+        request.options,
+        textOrError,
+        "messages update",
+        USAGE_HINT,
+        COMMAND_ID,
+        request.context.readStdin,
+      );
+    }
     if (isCliErrorResult(blocksPayloadOrError)) {
       return blocksPayloadOrError;
+    }
+
+    if (dryRunOrError) {
+      return {
+        ok: true,
+        command: COMMAND_ID,
+        message: `Dry run: message update validated for ${channel}.`,
+        data: {
+          dryRun: true,
+          request: {
+            channel,
+            ts,
+            text: mrkdwnText,
+            blocks: blocksPayloadOrError?.blocks,
+            attachments: blocksPayloadOrError?.attachments,
+          },
+        },
+        textLines: [`Dry run: validated message update in ${channel} at ${ts}.`],
+      };
     }
 
     try {
@@ -154,8 +299,8 @@ export const createMessagesUpdateHandler = (
       );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const data = await client.updateMessage({
-        channel: targetOrError.channel,
-        ts: targetOrError.ts,
+        channel,
+        ts,
         text: mrkdwnText,
         blocks: blocksPayloadOrError?.blocks,
         attachments: blocksPayloadOrError?.attachments,

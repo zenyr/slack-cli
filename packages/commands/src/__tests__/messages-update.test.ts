@@ -119,6 +119,29 @@ describe("messages update command", () => {
     expect(result.exitCode).toBe(0);
   });
 
+  test("supports payload dry-run for deterministic validation", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "update",
+      '--payload={"channel":"C123","ts":"1700000001.000100","text":"Read **docs**"}',
+      "--dry-run",
+      "--json",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !isRecord(parsed.data.request)) {
+      return;
+    }
+
+    expect(parsed.data.dryRun).toBe(true);
+    expect(parsed.data.request.channel).toBe("C123");
+    expect(parsed.data.request.ts).toBe("1700000001.000100");
+  });
+
   test("updates message from canonical permalink", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 

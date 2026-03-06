@@ -186,6 +186,30 @@ describe("messages post-ephemeral command", () => {
     expect(result.exitCode).toBe(0);
   });
 
+  test("supports payload dry-run without posting", async () => {
+    process.env[XOXB_ENV_KEY] = "xoxb-test-token";
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post-ephemeral",
+      '--payload={"channel":"C123","user":"U777","text":"hello"}',
+      "--dry-run",
+      "--json",
+      "--xoxb",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !isRecord(parsed.data.request)) {
+      return;
+    }
+
+    expect(parsed.data.dryRun).toBe(true);
+    expect(parsed.data.request.channel).toBe("C123");
+    expect(parsed.data.request.user).toBe("U777");
+  });
+
   test("posts ephemeral message with raw JSON blocks when --blocks is provided", async () => {
     process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 
