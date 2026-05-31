@@ -67,12 +67,12 @@ describe("usergroups update command", () => {
     const lines = parsed.textLines.filter((line): line is string => typeof line === "string");
     const updateLine = lines.find((line) =>
       line.includes(
-        "update <usergroup-id(required,non-empty)> <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+        "update <usergroup-id(required,non-empty)> [--name=<name>] [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
       ),
     );
     expect(updateLine).toBeDefined();
-    expect(updateLine).not.toContain("--name");
-    expect(updateLine).not.toContain("--handle");
+    expect(updateLine).toContain("--name");
+    expect(updateLine).toContain("--handle");
   });
 
   test("updates usergroup and returns core fields for --json", async () => {
@@ -172,7 +172,7 @@ describe("usergroups update command", () => {
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toContain("MISSING_ARGUMENT");
     expect(parsed.error.hint).toBe(
-      "Usage: slack usergroups update <usergroup-id(required,non-empty)> <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+      "Usage: slack usergroups update <usergroup-id(required,non-empty)> [--name=<name>] [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     );
   });
 
@@ -288,7 +288,7 @@ describe("usergroups update command", () => {
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toBe(expectedMessage);
     expect(parsed.error.hint).toBe(
-      "Usage: slack usergroups update <usergroup-id(required,non-empty)> <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+      "Usage: slack usergroups update <usergroup-id(required,non-empty)> [--name=<name>] [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     );
   });
 

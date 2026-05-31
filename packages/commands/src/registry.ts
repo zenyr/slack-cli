@@ -9,12 +9,14 @@ import { messagesContextHandler } from "./handlers/messages-context";
 import { messagesDeleteHandler } from "./handlers/messages-delete";
 import { messagesFetchHandler } from "./handlers/messages-fetch";
 import { messagesHistoryHandler } from "./handlers/messages-history";
+import { messagesMarkHandler } from "./handlers/messages-mark";
 import { messagesPinHandler } from "./handlers/messages-pin";
 import { messagesPinsHandler } from "./handlers/messages-pins";
 import { messagesPostHandler } from "./handlers/messages-post";
 import { messagesPostEphemeralHandler } from "./handlers/messages-post-ephemeral";
 import { messagesReplyHandler } from "./handlers/messages-reply";
 import { messagesUnpinHandler } from "./handlers/messages-unpin";
+import { messagesUnreadsHandler } from "./handlers/messages-unreads";
 import { messagesUpdateHandler } from "./handlers/messages-update";
 import { reactionsAddHandler } from "./handlers/reactions-add";
 import { reactionsListHandler } from "./handlers/reactions-list";
@@ -47,6 +49,8 @@ import { usersStatusClearHandler } from "./handlers/users-status-clear";
 import { usersStatusGetHandler } from "./handlers/users-status-get";
 import { usersStatusSetHandler } from "./handlers/users-status-set";
 import { versionHandler } from "./handlers/version";
+import { viewsClearHandler } from "./handlers/views-clear";
+import { viewsPublishHandler } from "./handlers/views-publish";
 import type { CommandStrategy } from "./types";
 
 export const COMMAND_REGISTRY: CommandStrategy[] = [
@@ -262,6 +266,18 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     execute: messagesRepliesHandler,
   },
   {
+    id: "messages-unreads",
+    path: ["messages", "unreads"],
+    execute: messagesUnreadsHandler,
+    allowedTokenTypes: ["xoxp"],
+  },
+  {
+    id: "messages-mark",
+    path: ["messages", "mark"],
+    execute: messagesMarkHandler,
+    allowedTokenTypes: ["xoxp"],
+  },
+  {
     id: "messages-pin",
     path: ["messages", "pin"],
     execute: messagesPinHandler,
@@ -276,6 +292,16 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "messages-pins",
     path: ["messages", "pins"],
     execute: messagesPinsHandler,
+  },
+  {
+    id: "views-publish",
+    path: ["views", "publish"],
+    execute: viewsPublishHandler,
+  },
+  {
+    id: "views-clear",
+    path: ["views", "clear"],
+    execute: viewsClearHandler,
   },
   {
     id: "reactions-add",

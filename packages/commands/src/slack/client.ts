@@ -12,6 +12,7 @@ import type {
   SlackChannelJoinWebApiClient,
   SlackChannelRepliesResult,
   SlackChannelType,
+  SlackConversationMarkWebApiClient,
   SlackCreateUsergroupParams,
   SlackDeleteMessageParams,
   SlackDeleteMessageResult,
@@ -25,6 +26,8 @@ import type {
   SlackListUsergroupsResult,
   SlackListUsersOptions,
   SlackListUsersResult,
+  SlackMarkConversationParams,
+  SlackMarkConversationResult,
   SlackMessage,
   SlackPinnedItem,
   SlackPinParams,
@@ -35,6 +38,8 @@ import type {
   SlackPostMessageParams,
   SlackPostMessageResult,
   SlackPostWebApiClient,
+  SlackPublishViewParams,
+  SlackPublishViewResult,
   SlackReactionDetail,
   SlackReactionParams,
   SlackReactionResult,
@@ -59,6 +64,7 @@ import type {
   SlackUserProfileGetResult,
   SlackUserProfileWebApiClient,
   SlackUsersInfoWebApiClient,
+  SlackViewsWebApiClient,
   SlackWebApiClient,
 } from "./types";
 import {
@@ -248,11 +254,17 @@ const mapChannelInfo = (value: unknown): SlackChannelInfo | undefined => {
     name,
     isPrivate: readBoolean(value, "is_private") ?? false,
     isArchived: readBoolean(value, "is_archived") ?? false,
+    isExtShared: readBoolean(value, "is_ext_shared"),
+    isIm: readBoolean(value, "is_im"),
+    isMpim: readBoolean(value, "is_mpim"),
     memberCount: readNumber(value, "num_members"),
     topic: topicRecord === undefined ? undefined : readString(topicRecord, "value"),
     purpose: purposeRecord === undefined ? undefined : readString(purposeRecord, "value"),
     creator: readString(value, "creator"),
     created: readNumber(value, "created"),
+    lastRead: readString(value, "last_read"),
+    unreadCount: readNumber(value, "unread_count"),
+    latestTs: readString(readRecord(value, "latest") ?? {}, "ts"),
   };
 };
 
@@ -268,6 +280,27 @@ const mapUser = (value: unknown): SlackUser | undefined => {
   }
 
   const profile = readRecord(value, "profile");
+  const avatar =
+    profile === undefined
+      ? undefined
+      : {
+          image24: readString(profile, "image_24"),
+          image32: readString(profile, "image_32"),
+          image48: readString(profile, "image_48"),
+          image72: readString(profile, "image_72"),
+          image192: readString(profile, "image_192"),
+          image512: readString(profile, "image_512"),
+          imageOriginal: readString(profile, "image_original"),
+        };
+  const hasAvatar =
+    avatar !== undefined &&
+    (avatar.image24 !== undefined ||
+      avatar.image32 !== undefined ||
+      avatar.image48 !== undefined ||
+      avatar.image72 !== undefined ||
+      avatar.image192 !== undefined ||
+      avatar.image512 !== undefined ||
+      avatar.imageOriginal !== undefined);
 
   return {
     id,
@@ -278,6 +311,7 @@ const mapUser = (value: unknown): SlackUser | undefined => {
         : (readString(profile, "display_name") ?? readString(profile, "real_name")),
     realName: profile === undefined ? undefined : readString(profile, "real_name"),
     email: profile === undefined ? undefined : readString(profile, "email"),
+    avatar: hasAvatar ? avatar : undefined,
     isBot: readBoolean(value, "is_bot") ?? false,
     isDeleted: readBoolean(value, "deleted") ?? false,
     isAdmin: readBoolean(value, "is_admin") ?? false,
@@ -320,10 +354,28 @@ const mapUserProfile = (value: unknown): SlackUserProfile | undefined => {
   const statusEmoji = readString(value, "status_emoji") ?? "";
   const statusText = readString(value, "status_text") ?? "";
   const statusExpiration = readNumber(value, "status_expiration") ?? 0;
+  const avatar = {
+    image24: readString(value, "image_24"),
+    image32: readString(value, "image_32"),
+    image48: readString(value, "image_48"),
+    image72: readString(value, "image_72"),
+    image192: readString(value, "image_192"),
+    image512: readString(value, "image_512"),
+    imageOriginal: readString(value, "image_original"),
+  };
+  const hasAvatar =
+    avatar.image24 !== undefined ||
+    avatar.image32 !== undefined ||
+    avatar.image48 !== undefined ||
+    avatar.image72 !== undefined ||
+    avatar.image192 !== undefined ||
+    avatar.image512 !== undefined ||
+    avatar.imageOriginal !== undefined;
   return {
     displayName: readString(value, "display_name"),
     realName: readString(value, "real_name"),
     email: readString(value, "email"),
+    avatar: hasAvatar ? avatar : undefined,
     status: { emoji: statusEmoji, text: statusText, expiration: statusExpiration },
   };
 };
@@ -547,6 +599,18 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
   };
 };
 
+const mapView = (value: unknown): SlackPublishViewResult["view"] => {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return {
+    id: readString(value, "id"),
+    type: readString(value, "type"),
+    hash: readString(value, "hash"),
+  };
+};
+
 const isActivityOrSystemMessage = (value: Record<string, unknown>): boolean => {
   const type = readString(value, "type");
   if (type !== undefined && type !== "message") {
@@ -573,7 +637,9 @@ export const createSlackWebApiClient = (
   SlackChannelInfoWebApiClient &
   SlackChannelJoinWebApiClient &
   SlackUserProfileWebApiClient &
-  SlackPinsWebApiClient => {
+  SlackPinsWebApiClient &
+  SlackConversationMarkWebApiClient &
+  SlackViewsWebApiClient => {
   const fetchImpl = options.fetchImpl ?? fetch;
   const baseUrl = options.baseUrl ?? DEFAULT_SLACK_API_BASE_URL;
   const explicitToken = options.token;
@@ -743,7 +809,13 @@ export const createSlackWebApiClient = (
       exclude_archived: "true",
       types: mappedTypes,
     });
-    const payload = await callApi("conversations.list", params);
+    if (options.cursor !== undefined) {
+      params.set("cursor", options.cursor);
+    }
+    const payload = await callApi(
+      options.userOnly === true ? "users.conversations" : "conversations.list",
+      params,
+    );
     const channelsRaw = readArray(payload, "channels") ?? [];
     const channels = channelsRaw
       .map(mapChannel)
@@ -951,10 +1023,10 @@ export const createSlackWebApiClient = (
   };
 
   const createUsergroup = async (params: SlackCreateUsergroupParams): Promise<SlackUserGroup> => {
-    const payload = new URLSearchParams({
-      name: params.name,
-      handle: params.handle,
-    });
+    const payload = new URLSearchParams({ name: params.name });
+    if (params.handle !== undefined) {
+      payload.set("handle", params.handle);
+    }
     if (params.description !== undefined) {
       payload.set("description", params.description);
     }
@@ -978,9 +1050,15 @@ export const createSlackWebApiClient = (
   const updateUsergroup = async (params: SlackUpdateUsergroupParams) => {
     const payloadInput: Record<string, string> = {
       usergroup: params.id,
-      name: params.name,
-      handle: params.handle,
     };
+
+    if (params.name !== undefined) {
+      payloadInput.name = params.name;
+    }
+
+    if (params.handle !== undefined) {
+      payloadInput.handle = params.handle;
+    }
 
     if (params.description !== undefined) {
       payloadInput.description = params.description;
@@ -1057,7 +1135,10 @@ export const createSlackWebApiClient = (
     };
   };
 
-  const searchMessages = async (query: string): Promise<SlackSearchMessagesResult> => {
+  const searchMessages = async (
+    query: string,
+    options: { limit?: number; cursor?: string } = {},
+  ): Promise<SlackSearchMessagesResult> => {
     const normalizedQuery = query.trim();
     if (normalizedQuery.length === 0) {
       throw createSlackClientError({
@@ -1069,8 +1150,11 @@ export const createSlackWebApiClient = (
 
     const params = new URLSearchParams({
       query: normalizedQuery,
-      count: "5",
+      count: String(options.limit ?? 5),
     });
+    if (options.cursor !== undefined) {
+      params.set("page", options.cursor);
+    }
     const payload = await callApi("search.messages", params);
     const messagesContainer = readRecord(payload, "messages");
     const matchesRaw =
@@ -1079,6 +1163,13 @@ export const createSlackWebApiClient = (
       .map(mapSearchMessage)
       .filter((value): value is SlackSearchMessage => value !== undefined);
 
+    const paging =
+      messagesContainer === undefined ? undefined : readRecord(messagesContainer, "paging");
+    const page = paging === undefined ? undefined : readNumber(paging, "page");
+    const pages = paging === undefined ? undefined : readNumber(paging, "pages");
+    const nextCursor =
+      page !== undefined && pages !== undefined && page < pages ? String(page + 1) : undefined;
+
     return {
       query: normalizedQuery,
       total:
@@ -1086,6 +1177,7 @@ export const createSlackWebApiClient = (
           ? 0
           : (readNumber(messagesContainer, "total") ?? messages.length),
       messages,
+      nextCursor,
     };
   };
 
@@ -1265,6 +1357,7 @@ export const createSlackWebApiClient = (
     oldest?: string;
     latest?: string;
     cursor?: string;
+    includeActivity?: boolean;
   }): Promise<SlackChannelRepliesResult> => {
     const payload = new URLSearchParams({ channel: params.channel, ts: params.ts });
     if (params.limit !== undefined) {
@@ -1282,7 +1375,15 @@ export const createSlackWebApiClient = (
 
     const payloadData = await callApi("conversations.replies", payload);
     const messagesRaw = readArray(payloadData, "messages") ?? [];
-    const messages = messagesRaw
+    const filteredMessagesRaw = params.includeActivity
+      ? messagesRaw
+      : messagesRaw.filter((value) => {
+          if (!isRecord(value)) {
+            return true;
+          }
+          return !isActivityOrSystemMessage(value);
+        });
+    const messages = filteredMessagesRaw
       .map(mapMessage)
       .filter((value): value is SlackMessage => value !== undefined);
 
@@ -1457,6 +1558,22 @@ export const createSlackWebApiClient = (
       channel,
       ts,
       message: mapMessage(readRecord(payloadData, "message")),
+    };
+  };
+
+  const publishView = async (params: SlackPublishViewParams): Promise<SlackPublishViewResult> => {
+    const payload: Record<string, unknown> = {
+      user_id: params.userId,
+      view: params.view,
+    };
+    if (params.hash !== undefined) {
+      payload.hash = params.hash;
+    }
+
+    const payloadData = await callApiPost("views.publish", payload);
+
+    return {
+      view: mapView(readRecord(payloadData, "view")),
     };
   };
 
@@ -1648,6 +1765,14 @@ export const createSlackWebApiClient = (
     return { channel, items };
   };
 
+  const markConversation = async (
+    params: SlackMarkConversationParams,
+  ): Promise<SlackMarkConversationResult> => {
+    const payload = new URLSearchParams({ channel: params.channel, ts: params.ts });
+    await callApiPost("conversations.mark", payload);
+    return { channel: params.channel, ts: params.ts };
+  };
+
   const getUserProfile = async (userId?: string): Promise<SlackUserProfileGetResult> => {
     const params = new URLSearchParams();
     if (userId !== undefined && userId.length > 0) {
@@ -1709,12 +1834,14 @@ export const createSlackWebApiClient = (
     deleteMessage,
     postEphemeral,
     updateMessage,
+    publishView,
     addReaction,
     removeReaction,
     getReactions,
     addPin,
     removePin,
     listPins,
+    markConversation,
     getUserProfile,
     setUserProfile,
   };

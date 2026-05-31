@@ -63,12 +63,12 @@ describe("usergroups create command", () => {
     const lines = parsed.textLines.filter((line): line is string => typeof line === "string");
     const createLine = lines.find((line) =>
       line.includes(
-        "create <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+        "create <name(required,non-empty)> [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
       ),
     );
     expect(createLine).toBeDefined();
     expect(createLine).not.toContain("--name");
-    expect(createLine).not.toContain("--handle");
+    expect(createLine).toContain("--handle");
   });
 
   test("creates usergroup and returns core fields for --json", async () => {
@@ -228,7 +228,7 @@ describe("usergroups create command", () => {
     expect(parsed.error.code).toBe("INVALID_ARGUMENT");
     expect(parsed.error.message).toContain("MISSING_ARGUMENT");
     expect(parsed.error.hint).toBe(
-      "Usage: slack usergroups create <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+      "Usage: slack usergroups create <name(required,non-empty)> [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     );
   });
 

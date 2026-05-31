@@ -76,7 +76,7 @@ describe("help command", () => {
             "replies <channel-id(required,non-empty)> <thread-ts(required,non-empty)>",
           ) &&
           line.includes(
-            "[--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
+            "[--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]] [--json]",
           ),
       ),
     ).toBe(true);

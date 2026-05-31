@@ -33,10 +33,12 @@ const MUTATING_VERBS = new Set([
   "create",
   "update",
   "post",
+  "publish",
   "reply",
   "delete",
   "pin",
   "unpin",
+  "mark",
   "add",
   "remove",
 ]);
@@ -68,6 +70,8 @@ const RESTRICTED_TOKEN_COMMANDS: Record<string, ("xoxp" | "xoxb")[]> = {
   "users status set": ["xoxp"],
   "users status clear": ["xoxp"],
   "messages search": ["xoxp"],
+  "messages unreads": ["xoxp"],
+  "messages mark": ["xoxp"],
   "messages pin": ["xoxp"],
 };
 

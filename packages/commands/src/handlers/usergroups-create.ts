@@ -12,7 +12,7 @@ import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "usergroups.create";
 const USAGE_HINT =
-  "Usage: slack usergroups create <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]";
+  "Usage: slack usergroups create <name(required,non-empty)> [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]";
 
 const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   switch (error.code) {
@@ -123,6 +123,24 @@ const readChannelsOption = (options: CliOptions): string[] | undefined | CliResu
   return channels;
 };
 
+const readHandleOption = (options: CliOptions): string | undefined | CliResult => {
+  const rawHandle = options.handle;
+  if (rawHandle === undefined) {
+    return undefined;
+  }
+
+  if (typeof rawHandle !== "string" || rawHandle.trim().length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      "usergroups create --handle requires a non-empty value. [MISSING_ARGUMENT]",
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  return rawHandle.trim();
+};
+
 export const createUsergroupsCreateHandler = (
   depsOverrides: Partial<UsergroupsCreateHandlerDeps> = {},
 ) => {
@@ -142,27 +160,30 @@ export const createUsergroupsCreateHandler = (
       );
     }
 
-    const rawHandle = request.positionals[1];
-    if (rawHandle === undefined || rawHandle.trim().length === 0) {
-      return createError(
-        "INVALID_ARGUMENT",
-        "usergroups create requires <handle>. [MISSING_ARGUMENT]",
-        USAGE_HINT,
-        COMMAND_ID,
-      );
-    }
-
     if (request.positionals.length > 2) {
       return createError(
         "INVALID_ARGUMENT",
-        "usergroups create accepts exactly 2 positional arguments: <name> <handle>.",
+        "usergroups create accepts at most 2 positional arguments: <name> [handle].",
         USAGE_HINT,
         COMMAND_ID,
       );
     }
 
     const name = rawName.trim();
-    const handle = rawHandle.trim();
+    const handleOrError = readHandleOption(request.options);
+    if (isCliErrorResult(handleOrError)) {
+      return handleOrError;
+    }
+
+    const positionalHandle = request.positionals[1]?.trim();
+    if (handleOrError !== undefined && positionalHandle !== undefined) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "usergroups create handle must be provided only once.",
+        "Use either positional [handle] or --handle=<handle>, not both.",
+        COMMAND_ID,
+      );
+    }
 
     const descriptionOrError = readDescriptionOption(request.options);
     if (isCliErrorResult(descriptionOrError)) {
@@ -183,7 +204,7 @@ export const createUsergroupsCreateHandler = (
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const usergroup = await client.createUsergroup({
         name,
-        handle,
+        handle: handleOrError ?? positionalHandle,
         description: descriptionOrError,
         channels: channelsOrError,
       });

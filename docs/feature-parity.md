@@ -4,7 +4,7 @@ Progressive migration: **org Go MCP Server** → **main Bun CLI**
 
 Maturity ladder: `unicycle → bicycle → motorcycle → car`
 
-**Org baseline**: 14 MCP tools + 2 resources, fully implemented Go server (worktree-org `original` branch)
+**Org baseline**: 16 MCP tools + 2 resources, upstream `source/master` v1.2.3 (`b24b1b0`)
 
 ---
 
@@ -66,6 +66,14 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
   - **Progress**: Advanced boolean controls delivered (`--unfurl-links[=<bool>]`, `--unfurl-media[=<bool>]`, `--reply-broadcast[=<bool>]`)
   - **Progress**: Markdown conversion utility + channel policy utility integrated in command execution with coverage
   - **Gap**: Non-boundary mark-read behavior remains deferred
+
+- [x] `messages unreads` - get unread messages across channels
+  - **Org equiv**: `conversations_unreads` tool
+  - **Status**: xoxp fallback path delivered (`users.conversations` + `conversations.info/history` scan); xoxc/xoxd edge `client.counts` path not supported by current CLI token resolver
+
+- [x] `messages mark` - mark channel/DM as read
+  - **Org equiv**: `conversations_mark` tool
+  - **Status**: Delivered with upstream safety gate (`SLACK_MCP_MARK_TOOL=true`)
 
 ### Utilities (4 commands)
 
@@ -136,12 +144,14 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 
 ### Org Tool Coverage
 
-| Org Tool (14 total)             | Main CLI Status | Priority | Complexity |
+| Org Tool (16 total)             | Main CLI Status | Priority | Complexity |
 | ------------------------------- | --------------- | -------- | ---------- |
 | `conversations_history`         | ✅ Implemented  | **P0**   | Medium     |
 | `conversations_replies`         | ✅ Implemented  | **P1**   | Medium     |
 | `conversations_add_message`     | ✅ Implemented  | **P1**   | High       |
 | `conversations_search_messages` | ✅ Implemented  | **P0**   | Low        |
+| `conversations_unreads`         | ⚠️ Partial      | **P0**   | High       |
+| `conversations_mark`            | ✅ Implemented  | P1       | Low        |
 | `channels_list`                 | ✅ Implemented  | **P0**   | Low        |
 | `reactions_add`                 | ✅ Implemented  | P2       | Low        |
 | `reactions_remove`              | ✅ Implemented  | P2       | Low        |
@@ -153,7 +163,7 @@ Maturity ladder: `unicycle → bicycle → motorcycle → car`
 | `usergroups_users_update`       | ✅ Implemented  | P2       | Medium     |
 | `usergroups_me`                 | ✅ Implemented  | P3       | High       |
 
-**Summary**: 13 implemented, 1 partial, 0 missing
+**Summary**: 15 implemented, 1 partial, 0 missing
 
 ---
 

@@ -42,11 +42,17 @@ export type SlackChannelInfo = {
   name: string;
   isPrivate: boolean;
   isArchived: boolean;
+  isExtShared?: boolean;
+  isIm?: boolean;
+  isMpim?: boolean;
   memberCount?: number;
   topic?: string;
   purpose?: string;
   creator?: string;
   created?: number;
+  lastRead?: string;
+  unreadCount?: number;
+  latestTs?: string;
 };
 
 export type SlackChannelInfoResult = {
@@ -73,6 +79,8 @@ export type SlackChannelsSort = "name" | "popularity";
 export type SlackListChannelsOptions = {
   types: SlackChannelType[];
   limit: number;
+  cursor?: string;
+  userOnly?: boolean;
 };
 
 export type SlackListChannelsResult = {
@@ -86,9 +94,20 @@ export type SlackUser = {
   displayName?: string;
   realName?: string;
   email?: string;
+  avatar?: SlackUserAvatar;
   isBot: boolean;
   isDeleted: boolean;
   isAdmin: boolean;
+};
+
+export type SlackUserAvatar = {
+  image24?: string;
+  image32?: string;
+  image48?: string;
+  image72?: string;
+  image192?: string;
+  image512?: string;
+  imageOriginal?: string;
 };
 
 export type SlackListUsersResult = {
@@ -127,8 +146,8 @@ export type SlackListUsergroupsOptions = {
 
 export type SlackUpdateUsergroupParams = {
   id: string;
-  name: string;
-  handle: string;
+  name?: string;
+  handle?: string;
   description?: string;
   channels?: string[];
 };
@@ -149,7 +168,7 @@ export type SlackUsergroupsUsersUpdateResult = {
 
 export type SlackCreateUsergroupParams = {
   name: string;
-  handle: string;
+  handle?: string;
   description?: string;
   channels?: string[];
 };
@@ -207,6 +226,7 @@ export type SlackSearchMessagesResult = {
   query: string;
   total: number;
   messages: SlackSearchMessage[];
+  nextCursor?: string;
 };
 
 export type SlackMessage = {
@@ -296,6 +316,22 @@ export type SlackUpdateMessageResult = {
   message?: SlackMessage;
 };
 
+export type SlackView = {
+  id?: string;
+  type?: string;
+  hash?: string;
+};
+
+export type SlackPublishViewParams = {
+  userId: string;
+  view: Record<string, unknown>;
+  hash?: string;
+};
+
+export type SlackPublishViewResult = {
+  view: SlackView;
+};
+
 export type SlackReactionParams = {
   channel: string;
   timestamp: string;
@@ -321,6 +357,7 @@ export type SlackMessageRepliesParams = {
   oldest?: string;
   latest?: string;
   cursor?: string;
+  includeActivity?: boolean;
 };
 
 export type SlackChannelRepliesResult = {
@@ -338,6 +375,10 @@ export type SlackPostWebApiClient = {
   deleteMessage: (params: SlackDeleteMessageParams) => Promise<SlackDeleteMessageResult>;
   postEphemeral: (params: SlackPostEphemeralParams) => Promise<SlackPostEphemeralResult>;
   updateMessage: (params: SlackUpdateMessageParams) => Promise<SlackUpdateMessageResult>;
+};
+
+export type SlackViewsWebApiClient = {
+  publishView: (params: SlackPublishViewParams) => Promise<SlackPublishViewResult>;
 };
 
 export type SlackReactionsWebApiClient = {
@@ -367,7 +408,10 @@ export type SlackReactionsGetWebApiClient = {
 export type SlackWebApiClient = {
   listChannels: (options: SlackListChannelsOptions) => Promise<SlackListChannelsResult>;
   listUsers: (options?: SlackListUsersOptions) => Promise<SlackListUsersResult>;
-  searchMessages: (query: string) => Promise<SlackSearchMessagesResult>;
+  searchMessages: (
+    query: string,
+    options?: { limit?: number; cursor?: string },
+  ) => Promise<SlackSearchMessagesResult>;
   fetchChannelHistory: (params: {
     channel: string;
     limit?: number;
@@ -377,6 +421,20 @@ export type SlackWebApiClient = {
     includeActivity?: boolean;
     inclusive?: boolean;
   }) => Promise<SlackChannelHistoryResult>;
+};
+
+export type SlackMarkConversationParams = {
+  channel: string;
+  ts: string;
+};
+
+export type SlackMarkConversationResult = {
+  channel: string;
+  ts: string;
+};
+
+export type SlackConversationMarkWebApiClient = {
+  markConversation: (params: SlackMarkConversationParams) => Promise<SlackMarkConversationResult>;
 };
 
 export type SlackUsersInfoWebApiClient = {
@@ -428,6 +486,7 @@ export type SlackUserProfile = {
   displayName?: string;
   realName?: string;
   email?: string;
+  avatar?: SlackUserAvatar;
   status: SlackUserStatus;
 };
 

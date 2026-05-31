@@ -12,7 +12,7 @@ import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "usergroups.update";
 const USAGE_HINT =
-  "Usage: slack usergroups update <usergroup-id(required,non-empty)> <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]";
+  "Usage: slack usergroups update <usergroup-id(required,non-empty)> [--name=<name>] [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]";
 
 const mapSlackErrorToCliResult = (error: SlackClientError): CliResult => {
   switch (error.code) {
@@ -129,6 +129,27 @@ const readChannelsOption = (options: CliOptions): string[] | undefined | CliResu
   return channelIds;
 };
 
+const readStringUpdateOption = (
+  options: CliOptions,
+  key: "name" | "handle",
+): string | undefined | CliResult => {
+  const value = options[key];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `usergroups update --${key} requires a non-empty value. [MISSING_ARGUMENT]`,
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+
+  return value.trim();
+};
+
 const isCliErrorResult = (value: string | string[] | undefined | CliResult): value is CliResult => {
   return typeof value === "object" && value !== null && "ok" in value;
 };
@@ -152,38 +173,45 @@ export const createUsergroupsUpdateHandler = (
       );
     }
 
-    const rawName = request.positionals[1];
-    if (rawName === undefined || rawName.trim().length === 0) {
-      return createError(
-        "INVALID_ARGUMENT",
-        "usergroups update requires <name>. [MISSING_ARGUMENT]",
-        USAGE_HINT,
-        COMMAND_ID,
-      );
-    }
-
-    const rawHandle = request.positionals[2];
-    if (rawHandle === undefined || rawHandle.trim().length === 0) {
-      return createError(
-        "INVALID_ARGUMENT",
-        "usergroups update requires <handle>. [MISSING_ARGUMENT]",
-        USAGE_HINT,
-        COMMAND_ID,
-      );
-    }
-
     if (request.positionals.length > 3) {
       return createError(
         "INVALID_ARGUMENT",
-        "usergroups update accepts exactly 3 positional arguments.",
+        "usergroups update accepts at most 3 positional arguments: <usergroup-id> [name] [handle].",
         USAGE_HINT,
         COMMAND_ID,
       );
     }
 
     const id = rawId.trim();
-    const name = rawName.trim();
-    const handle = rawHandle.trim();
+    const nameOrError = readStringUpdateOption(request.options, "name");
+    if (isCliErrorResult(nameOrError)) {
+      return nameOrError;
+    }
+
+    const handleOrError = readStringUpdateOption(request.options, "handle");
+    if (isCliErrorResult(handleOrError)) {
+      return handleOrError;
+    }
+
+    const positionalName = request.positionals[1]?.trim();
+    const positionalHandle = request.positionals[2]?.trim();
+    if (nameOrError !== undefined && positionalName !== undefined) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "usergroups update name must be provided only once.",
+        "Use either positional [name] or --name=<name>, not both.",
+        COMMAND_ID,
+      );
+    }
+    if (handleOrError !== undefined && positionalHandle !== undefined) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "usergroups update handle must be provided only once.",
+        "Use either positional [handle] or --handle=<handle>, not both.",
+        COMMAND_ID,
+      );
+    }
+
     const descriptionOrError = readDescriptionOption(request.options);
     if (isCliErrorResult(descriptionOrError)) {
       return descriptionOrError;
@@ -192,6 +220,22 @@ export const createUsergroupsUpdateHandler = (
     const channelsOrError = readChannelsOption(request.options);
     if (isCliErrorResult(channelsOrError)) {
       return channelsOrError;
+    }
+
+    if (
+      nameOrError === undefined &&
+      positionalName === undefined &&
+      handleOrError === undefined &&
+      positionalHandle === undefined &&
+      descriptionOrError === undefined &&
+      channelsOrError === undefined
+    ) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "usergroups update requires at least one update field.",
+        "Pass --name, --handle, --description, or --channels.",
+        COMMAND_ID,
+      );
     }
 
     try {
@@ -203,8 +247,8 @@ export const createUsergroupsUpdateHandler = (
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
       const updateParams = {
         id,
-        name,
-        handle,
+        name: nameOrError ?? positionalName,
+        handle: handleOrError ?? positionalHandle,
         description: descriptionOrError,
         channels: channelsOrError,
       };

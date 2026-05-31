@@ -34,6 +34,8 @@ describe("users list command", () => {
               profile: {
                 display_name: "Alice",
                 real_name: "Alice Kim",
+                image_48: "https://cdn.slack.com/avatar/alice-48.png",
+                image_512: "https://cdn.slack.com/avatar/alice-512.png",
               },
             },
             {
@@ -98,6 +100,17 @@ describe("users list command", () => {
     expect(parsed.data.count).toBe(2);
     expect(parsed.data.nextCursor).toBe("cursor-123");
     expect(Array.isArray(parsed.data.users)).toBe(true);
+    if (Array.isArray(parsed.data.users)) {
+      const [firstUser] = parsed.data.users;
+      expect(isRecord(firstUser)).toBe(true);
+      if (isRecord(firstUser)) {
+        expect(isRecord(firstUser.avatar)).toBe(true);
+        if (isRecord(firstUser.avatar)) {
+          expect(firstUser.avatar.image48).toBe("https://cdn.slack.com/avatar/alice-48.png");
+          expect(firstUser.avatar.image512).toBe("https://cdn.slack.com/avatar/alice-512.png");
+        }
+      }
+    }
 
     expect(Array.isArray(parsed.textLines)).toBe(true);
     if (!Array.isArray(parsed.textLines)) {

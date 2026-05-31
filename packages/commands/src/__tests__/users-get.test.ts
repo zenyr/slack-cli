@@ -183,6 +183,9 @@ describe("users get command", () => {
               profile: {
                 display_name: "Alice",
                 real_name: "Alice Kim",
+                image_24: "https://cdn.slack.com/avatar/alice-24.png",
+                image_72: "https://cdn.slack.com/avatar/alice-72.png",
+                image_original: "https://cdn.slack.com/avatar/alice.png",
               },
             },
           }),
@@ -216,6 +219,19 @@ describe("users get command", () => {
     }
 
     expect(parsed.data.foundCount).toBe(1);
+    expect(Array.isArray(parsed.data.users)).toBe(true);
+    if (Array.isArray(parsed.data.users)) {
+      const [user] = parsed.data.users;
+      expect(isRecord(user)).toBe(true);
+      if (isRecord(user)) {
+        expect(isRecord(user.avatar)).toBe(true);
+        if (isRecord(user.avatar)) {
+          expect(user.avatar.image24).toBe("https://cdn.slack.com/avatar/alice-24.png");
+          expect(user.avatar.image72).toBe("https://cdn.slack.com/avatar/alice-72.png");
+          expect(user.avatar.imageOriginal).toBe("https://cdn.slack.com/avatar/alice.png");
+        }
+      }
+    }
     expect(Array.isArray(parsed.data.missingUserIds)).toBe(true);
     if (Array.isArray(parsed.data.missingUserIds)) {
       expect(parsed.data.missingUserIds).toEqual(["U404"]);

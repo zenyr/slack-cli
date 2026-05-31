@@ -7,7 +7,7 @@ import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.search";
 const USAGE_HINT =
-  "Usage: slack messages search <query(required,non-empty)> [--channel=<id>] [--user=<id>] [--after=<date>] [--before=<date>] [--threads] [--json]";
+  "Usage: slack messages search <query(required,non-empty)> [--channel=<id>] [--im=<id>] [--with=<user>] [--user=<id>] [--after=<date>] [--before=<date>] [--on=<date>] [--during=<date>] [--threads] [--limit=<n>] [--cursor=<page>] [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -195,6 +195,14 @@ const buildFilterParts = (
     filterParts.push(`in:${String(options.channel)}`);
   }
 
+  if (options.im !== undefined) {
+    filterParts.push(`in:${String(options.im)}`);
+  }
+
+  if (options.with !== undefined) {
+    filterParts.push(`with:${String(options.with)}`);
+  }
+
   if (options.user !== undefined) {
     filterParts.push(`from:${String(options.user)}`);
   }
@@ -241,11 +249,77 @@ const buildFilterParts = (
     filterParts.push(`before:${normalizedBeforeDate}`);
   }
 
+  if (options.on !== undefined) {
+    if (typeof options.on !== "string") {
+      return {
+        filterParts,
+        invalidDateMessage: `invalid messages search --on value: ${String(options.on)}`,
+        invalidDateHint: dateHint("--on"),
+      };
+    }
+
+    const normalizedOnDate = parseFlexibleCalendarDate(options.on);
+    if (normalizedOnDate === undefined) {
+      return {
+        filterParts,
+        invalidDateMessage: `invalid messages search --on value: ${String(options.on)}`,
+        invalidDateHint: dateHint("--on"),
+      };
+    }
+
+    filterParts.push(`on:${normalizedOnDate}`);
+  }
+
+  if (options.during !== undefined) {
+    if (typeof options.during !== "string") {
+      return {
+        filterParts,
+        invalidDateMessage: `invalid messages search --during value: ${String(options.during)}`,
+        invalidDateHint: dateHint("--during"),
+      };
+    }
+
+    const normalizedDuringDate = parseFlexibleCalendarDate(options.during);
+    filterParts.push(`during:${normalizedDuringDate ?? options.during}`);
+  }
+
   if (options.threads === true) {
     filterParts.push("is:thread");
   }
 
   return { filterParts };
+};
+
+const readPositiveIntegerOption = (
+  options: Record<string, string | boolean>,
+  key: "limit" | "cursor",
+): number | undefined | CliResult => {
+  const value = options[key];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || !/^\d+$/.test(value.trim())) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages search --${key} requires a positive integer value.`,
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (parsed <= 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `messages search --${key} must be greater than 0. Received: ${value}`,
+      USAGE_HINT,
+      COMMAND_ID,
+    );
+  }
+  return parsed;
+};
+
+const isCliErrorResult = (value: number | undefined | CliResult): value is CliResult => {
+  return typeof value === "object" && value !== null && "ok" in value;
 };
 
 const formatSuccessLinesWithFilters = (
@@ -331,6 +405,16 @@ export const createMessagesSearchHandler = (
       );
     }
 
+    const limitOrError = readPositiveIntegerOption(request.options, "limit");
+    if (isCliErrorResult(limitOrError)) {
+      return limitOrError;
+    }
+
+    const cursorOrError = readPositiveIntegerOption(request.options, "cursor");
+    if (isCliErrorResult(cursorOrError)) {
+      return cursorOrError;
+    }
+
     const filteredQuery = [
       ...normalizedBaseQuery.split(" ").filter((segment) => segment.length > 0),
       ...filterParts,
@@ -351,7 +435,10 @@ export const createMessagesSearchHandler = (
           assertNoEdgeToken(resolvedToken.token, COMMAND_ID);
 
           const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
-          const data = await client.searchMessages(filteredQuery);
+          const data = await client.searchMessages(filteredQuery, {
+            limit: limitOrError,
+            cursor: cursorOrError === undefined ? undefined : String(cursorOrError),
+          });
 
           return {
             ok: true,

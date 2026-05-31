@@ -10,8 +10,8 @@ import { formatUser, resolveUserIds } from "../users/resolve";
 
 const COMMAND_ID = "messages.replies";
 const USAGE_HINT =
-  "Usage: slack messages replies <channel-id(required,non-empty)> <thread-ts(required,non-empty)> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]\n" +
-  "       slack messages replies <thread-permalink(required,non-empty)> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]";
+  "Usage: slack messages replies <channel-id(required,non-empty)> <thread-ts(required,non-empty)> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]] [--json]\n" +
+  "       slack messages replies <thread-permalink(required,non-empty)> [--limit=<n>] [--oldest=<ts>] [--latest=<ts>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]] [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -254,6 +254,31 @@ const readRangeOption = (options: CliOptions, key: string): string | undefined |
   return trimmed;
 };
 
+const parseIncludeActivityOption = (options: CliOptions): boolean | CliResult => {
+  const value = options["include-activity"];
+  if (value === undefined) {
+    return false;
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
+    return false;
+  }
+
+  return createError(
+    "INVALID_ARGUMENT",
+    `messages replies --include-activity expects boolean value when provided with '=...'. Received: ${value}`,
+    "Use --include-activity, --include-activity=true, or --include-activity=false.",
+    COMMAND_ID,
+  );
+};
+
 const isCliErrorResult = (
   value: number | string | boolean | undefined | CliResult | RepliesTarget,
 ): value is CliResult => {
@@ -355,6 +380,7 @@ const fetchRepliesWithAutoPagination = async (
     latest?: string;
     limit?: number;
     cursor?: string;
+    includeActivity?: boolean;
   },
 ): Promise<RepliesPage> => {
   const requestedLimit = params.limit;
@@ -368,6 +394,7 @@ const fetchRepliesWithAutoPagination = async (
       oldest: params.oldest,
       latest: params.latest,
       cursor: params.cursor,
+      includeActivity: params.includeActivity,
     });
   }
 
@@ -384,6 +411,7 @@ const fetchRepliesWithAutoPagination = async (
       oldest: params.oldest,
       latest: params.latest,
       cursor,
+      includeActivity: params.includeActivity,
     });
 
     mergedMessages.push(...page.messages);
@@ -446,6 +474,11 @@ export const createMessagesRepliesHandler = (
       return cursorOrError;
     }
 
+    const includeActivityOrError = parseIncludeActivityOption(request.options);
+    if (isCliErrorResult(includeActivityOrError)) {
+      return includeActivityOrError;
+    }
+
     const resolveUsersOrError = readResolveUsersOption(request.options);
     if (isCliErrorResult(resolveUsersOrError)) {
       return resolveUsersOrError;
@@ -475,6 +508,7 @@ export const createMessagesRepliesHandler = (
         oldest: oldestOrError,
         latest: latestOrError,
         cursor: cursorOrError,
+        includeActivity: includeActivityOrError,
       });
 
       let lookup: UserLookup | undefined;

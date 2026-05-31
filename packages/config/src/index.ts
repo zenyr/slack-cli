@@ -121,7 +121,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "usergroups create",
-    args: "<name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+    args: "<name(required,non-empty)> [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     description: "Create user group",
   },
   {
@@ -141,7 +141,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "usergroups update",
-    args: "<usergroup-id(required,non-empty)> <name(required,non-empty)> <handle(required,non-empty)> [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+    args: "<usergroup-id(required,non-empty)> [--name=<name>] [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
     description: "Update user group metadata",
   },
   {
@@ -151,7 +151,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages search",
-    args: "<query> [--channel <value>] [--user <value>] [--after <YYYY-MM-DD|1d|1w|30d|90d>] [--before <YYYY-MM-DD|1d|1w|30d|90d>] [--threads] [--json]",
+    args: "<query> [--channel <value>] [--im <value>] [--with <value>] [--user <value>] [--after <YYYY-MM-DD|1d|1w|30d|90d>] [--before <YYYY-MM-DD|1d|1w|30d|90d>] [--on <YYYY-MM-DD|1d|1w|30d|90d>] [--during <period>] [--threads] [--limit=<n>] [--cursor=<page>] [--json]",
     description: "Search messages",
   },
   {
@@ -196,8 +196,18 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages replies",
-    args: "<channel-id(required,non-empty)> <thread-ts(required,non-empty)> OR <thread-permalink(required,non-empty)> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users[=<bool>]] [--json]",
+    args: "<channel-id(required,non-empty)> <thread-ts(required,non-empty)> OR <thread-permalink(required,non-empty)> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]] [--json]",
     description: "Fetch full thread by channel+thread timestamp or thread permalink",
+  },
+  {
+    name: "messages unreads",
+    args: "[--include-messages[=<bool>]] [--channel-types=<all|dm|group_dm|partner|internal>] [--max-channels=<n>] [--max-messages-per-channel=<n>] [--mentions-only[=<bool>]] [--include-muted[=<bool>]] [--json]",
+    description: "Get unread messages across channels (xoxp fallback mode)",
+  },
+  {
+    name: "messages mark",
+    args: "<channel-id(required,non-empty)> [--ts=<timestamp>] [--json]",
+    description: "Mark a channel or DM as read (requires SLACK_MCP_MARK_TOOL=true)",
   },
   {
     name: "messages pin",
@@ -213,6 +223,16 @@ export const COMMANDS: CliCommand[] = [
     name: "messages pins",
     args: "<channel-id> [--json]",
     description: "List pinned messages in channel",
+  },
+  {
+    name: "views publish",
+    args: "<user-id(required,non-empty)> --view=<json|-> [--hash=<hash>] [--payload=<json|->] [--dry-run[=<bool>]] [--json]",
+    description: "Publish or update a user's App Home view",
+  },
+  {
+    name: "views clear",
+    args: "<user-id(required,non-empty)> [--dry-run[=<bool>]] [--json]",
+    description: "Clear a user's App Home view by publishing an empty Home view",
   },
   {
     name: "reactions add",
@@ -271,6 +291,8 @@ export const TOOLS = [
   "conversations_replies",
   "conversations_add_message",
   "conversations_search_messages",
+  "conversations_unreads",
+  "conversations_mark",
   "channels_list",
   "reactions_add",
   "reactions_remove",
