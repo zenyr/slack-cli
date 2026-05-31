@@ -219,7 +219,7 @@ describe("attachment get command", () => {
         },
         fetchFileBinary: async (urlPrivate: string, maxBytes: number) => {
           expect(urlPrivate).toBe("https://files.slack.com/files-pri/T123-F-BINARY/download");
-          expect(maxBytes).toBe(256 * 1024 * 1024);
+          expect(maxBytes).toBe(5 * 1024 * 1024);
           return {
             contentBase64: "AP9/",
             byteLength: 3,
@@ -249,12 +249,15 @@ describe("attachment get command", () => {
     expect(result.command).toBe("attachment.get");
     expect(writeCalls.length).toBe(1);
     expect(writeCalls[0]?.filePath).toBe(
-      "/tmp/slack-attachment-test-0001/01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "/tmp/slack-attachment-test-0001/01ARZ3NDEKTSV4RRFFQ69G5FAV.png",
     );
     expect(Array.from(writeCalls[0]?.data ?? [])).toEqual([0, 255, 127]);
     expect(chmodCalls).toEqual([
       { filePath: "/tmp/slack-attachment-test-0001", mode: 0o700 },
-      { filePath: "/tmp/slack-attachment-test-0001/01ARZ3NDEKTSV4RRFFQ69G5FAV", mode: 0o600 },
+      {
+        filePath: "/tmp/slack-attachment-test-0001/01ARZ3NDEKTSV4RRFFQ69G5FAV.png",
+        mode: 0o600,
+      },
     ]);
 
     expect(isRecord(result.data)).toBe(true);
@@ -264,10 +267,68 @@ describe("attachment get command", () => {
 
     expect(result.data.saved).toBe(true);
     expect(result.data.saved_path).toBe(
-      "/tmp/slack-attachment-test-0001/01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "/tmp/slack-attachment-test-0001/01ARZ3NDEKTSV4RRFFQ69G5FAV.png",
     );
     expect(result.data.saved_bytes).toBe(3);
     expect(result.data.saved_content_type).toBe("image/png");
+  });
+
+  test("saves attachment with extension inferred from known text and image metadata", async () => {
+    const savedPaths: string[] = [];
+    const cases = [
+      { name: "README", mimetype: "text/markdown", filetype: "markdown", expected: ".md" },
+      {
+        name: "preview",
+        mimetype: "text/html; charset=utf-8",
+        filetype: "html",
+        expected: ".html",
+      },
+      { name: "photo", mimetype: "image/jpeg", filetype: "jpg", expected: ".jpg" },
+      {
+        name: "animation",
+        mimetype: "application/octet-stream",
+        filetype: "gif",
+        expected: ".gif",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const handler = createAttachmentGetHandler({
+        env: {},
+        createClient: () => ({
+          fetchFileInfo: async () => {
+            return {
+              id: "F-EXT",
+              name: testCase.name,
+              mimetype: testCase.mimetype,
+              filetype: testCase.filetype,
+              size: 3,
+              urlPrivate: "https://files.slack.com/files-pri/T123-F-EXT/download",
+            };
+          },
+          fetchFileBinary: async () => ({
+            contentBase64: "AP9/",
+            byteLength: 3,
+            contentType: testCase.mimetype,
+            encoding: "base64",
+          }),
+        }),
+        resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+        createTempDirectory: async () => "/tmp/slack-attachment-test-0002",
+        generateUlid: () => "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        writeBinaryFile: async (filePath: string) => {
+          savedPaths.push(filePath);
+        },
+        setPathPermissions: async () => {},
+      });
+
+      const result = await runAttachmentGet(handler, { save: true });
+
+      expect(result.ok).toBe(true);
+      expect(savedPaths.at(-1)).toBe(
+        `/tmp/slack-attachment-test-0002/01ARZ3NDEKTSV4RRFFQ69G5FAV${testCase.expected}`,
+      );
+    }
   });
 
   test("maps SLACK_CONFIG_ERROR to INVALID_ARGUMENT without marker or details", async () => {

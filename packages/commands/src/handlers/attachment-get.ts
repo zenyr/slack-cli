@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 
 import {
   isCliErrorResult,
@@ -19,9 +19,17 @@ import type { CliOptions, CliResult, CommandRequest } from "../types";
 const COMMAND_ID = "attachment.get";
 const USAGE_HINT =
   "Usage: slack attachment get <file-id(required,non-empty)> [--save[=<bool>]] [--json]";
-const MAX_ATTACHMENT_DOWNLOAD_BYTES = 256 * 1024 * 1024;
+const MAX_ATTACHMENT_DOWNLOAD_BYTES = 5 * 1024 * 1024;
 const TEMP_DIR_PREFIX = "slack-attachment-";
 const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const MIME_TYPE_EXTENSIONS: Record<string, string> = {
+  "image/gif": ".gif",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "text/html": ".html",
+  "text/markdown": ".md",
+  "text/plain": ".txt",
+};
 
 type SlackAttachmentOutputMetadata = {
   id: string;
@@ -153,6 +161,30 @@ const buildTextLines = (metadata: SlackAttachmentOutputMetadata): string[] => {
   return lines;
 };
 
+const resolveSavedFileExtension = (metadata: SlackFileInfoMetadata): string => {
+  const nameExtension = extname(metadata.name).toLowerCase();
+  if (/^\.[a-z0-9]{1,16}$/.test(nameExtension)) {
+    return nameExtension;
+  }
+
+  if (metadata.mimetype !== undefined) {
+    const [mimeType] = metadata.mimetype.toLowerCase().split(";");
+    if (mimeType !== undefined) {
+      const extension = MIME_TYPE_EXTENSIONS[mimeType.trim()];
+      if (extension !== undefined) {
+        return extension;
+      }
+    }
+  }
+
+  const filetype = metadata.filetype?.toLowerCase();
+  if (filetype !== undefined && /^[a-z0-9]{1,16}$/.test(filetype)) {
+    return `.${filetype === "jpeg" ? "jpg" : filetype}`;
+  }
+
+  return "";
+};
+
 export const createAttachmentGetHandler = (
   depsOverrides: Partial<AttachmentGetHandlerDeps> = {},
 ) => {
@@ -230,7 +262,10 @@ export const createAttachmentGetHandler = (
       const tempDirectoryPath = await deps.createTempDirectory();
       await deps.setPathPermissions(tempDirectoryPath, 0o700);
 
-      const outputFilePath = join(tempDirectoryPath, deps.generateUlid());
+      const outputFilePath = join(
+        tempDirectoryPath,
+        `${deps.generateUlid()}${resolveSavedFileExtension(fileMetadata)}`,
+      );
       const binaryContent = Buffer.from(binaryPayload.contentBase64, "base64");
 
       await deps.writeBinaryFile(outputFilePath, binaryContent);
