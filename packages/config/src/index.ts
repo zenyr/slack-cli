@@ -91,7 +91,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "users search",
-    args: "[<query>] [--cursor=<cursor>] [--limit=<n>] [--json]",
+    args: "<query(required,non-empty)> [--cursor=<cursor>] [--limit=<n>] [--json]",
     description: "Search users",
   },
   {
@@ -177,7 +177,8 @@ export const COMMANDS: CliCommand[] = [
   {
     name: "messages post",
     args: "<channel-id> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
-    description: "Post message to channel (markdown auto-converted to mrkdwn)",
+    description:
+      "Post message to channel (payload text optional only with non-empty blocks; markdown auto-converted to mrkdwn)",
   },
   {
     name: "messages post-ephemeral",

@@ -283,6 +283,88 @@ describe("messages post command", () => {
     expect(result.exitCode).toBe(0);
   });
 
+  test("accepts blocks-only payload with empty fallback text in dry-run", async () => {
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      '--payload={"channel":"C777","blocks":[{"type":"divider"}]}',
+      "--dry-run",
+      "--json",
+      "--xoxb",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !isRecord(parsed.data.request)) {
+      return;
+    }
+
+    expect(parsed.data.request.text).toBe("");
+    expect(Array.isArray(parsed.data.request.blocks)).toBe(true);
+  });
+
+  test("posts blocks-only payload with empty fallback text", async () => {
+    let postedText: string | undefined;
+    let postedBlocks: unknown;
+    globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      postedText = body.text;
+      postedBlocks = body.blocks;
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          channel: "C777",
+          ts: "1700000002.000100",
+          message: { type: "message", text: "", ts: "1700000002.000100" },
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const result = await runCliWithBuffer([
+      "messages",
+      "post",
+      '--payload={"channel":"C777","text":"   ","blocks":[{"type":"divider"}]}',
+      "--json",
+      "--xoxb",
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(postedText).toBe("");
+    expect(Array.isArray(postedBlocks)).toBe(true);
+  });
+
+  test("requires text when payload has no non-empty blocks", async () => {
+    const payloads = [
+      '{"channel":"C777"}',
+      '{"channel":"C777","text":"","blocks":[]}',
+      '{"channel":"C777","attachments":[{"text":"legacy"}]}',
+    ];
+
+    for (const payload of payloads) {
+      const result = await runCliWithBuffer([
+        "messages",
+        "post",
+        `--payload=${payload}`,
+        "--dry-run",
+        "--json",
+        "--xoxb",
+      ]);
+
+      expect(result.exitCode).toBe(2);
+      const parsed = parseJsonOutput(result.stdout);
+      expect(isRecord(parsed)).toBe(true);
+      if (!isRecord(parsed) || !isRecord(parsed.error)) {
+        continue;
+      }
+      expect(parsed.error.message).toContain(
+        "requires non-empty string field 'text' unless 'blocks' is a non-empty array",
+      );
+    }
+  });
+
   test("rejects unsupported payload fields", async () => {
     process.env[XOXB_ENV_KEY] = "xoxb-test-token";
 

@@ -111,6 +111,110 @@ describe("users search command", () => {
     }
   });
 
+  test("requires a non-empty query before calling Slack", async () => {
+    let fetchCalled = false;
+    globalThis.fetch = Object.assign(
+      async () => {
+        fetchCalled = true;
+        throw new Error("Slack should not be called");
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+
+    const missingResult = await runCliWithBuffer(["users", "search", "--json"]);
+    const emptyResult = await runCliWithBuffer(["users", "search", "   ", "--json"]);
+
+    expect(missingResult.exitCode).toBe(2);
+    expect(emptyResult.exitCode).toBe(2);
+    expect(fetchCalled).toBe(false);
+
+    const parsed = parseJsonOutput(missingResult.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.error)) {
+      return;
+    }
+
+    expect(parsed.error.message).toBe(
+      "users search requires a non-empty query. [MISSING_ARGUMENT]",
+    );
+    expect(parsed.error.hint).toContain("<query(required,non-empty)>");
+  });
+
+  test("uses users.info directly for an exact user id", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    delete process.env[XOXB_ENV_KEY];
+
+    const requestedPaths: string[] = [];
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = new URL(input instanceof URL ? input.toString() : String(input));
+      requestedPaths.push(url.pathname);
+      expect(url.pathname).toContain("/users.info");
+      expect(url.searchParams.get("user")).toBe("UABC123");
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          user: {
+            id: "UABC123",
+            name: "alice",
+            deleted: false,
+            is_bot: false,
+            is_admin: false,
+            profile: { display_name: "Alice", real_name: "Alice Kim" },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    const result = await runCliWithBuffer(["users", "search", "UABC123", "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(requestedPaths).toHaveLength(1);
+    expect(requestedPaths.some((path) => path.includes("users.list"))).toBe(false);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data)) {
+      return;
+    }
+
+    expect(parsed.command).toBe("users.search");
+    expect(parsed.data.count).toBe(1);
+    expect(Array.isArray(parsed.data.users)).toBe(true);
+  });
+
+  test("returns an empty search result when an exact user id is missing", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    delete process.env[XOXB_ENV_KEY];
+
+    const requestedPaths: string[] = [];
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = new URL(input instanceof URL ? input.toString() : String(input));
+      requestedPaths.push(url.pathname);
+      return new Response(JSON.stringify({ ok: false, error: "user_not_found" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const result = await runCliWithBuffer(["users", "search", "WZZ999", "--json"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(requestedPaths).toHaveLength(1);
+    expect(requestedPaths[0]).toContain("/users.info");
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data)) {
+      return;
+    }
+
+    expect(parsed.ok).toBe(true);
+    expect(parsed.data.count).toBe(0);
+    expect(parsed.data.users).toEqual([]);
+  });
+
   test("auto-paginates in query mode without explicit cursor", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
     delete process.env[XOXB_ENV_KEY];

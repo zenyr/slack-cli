@@ -93,7 +93,7 @@ describe("help command", () => {
     expect(result.stderr.length).toBe(0);
   });
 
-  test("users namespace help shows optional query syntax", async () => {
+  test("users namespace help shows required search query syntax", async () => {
     const result = await runCliWithBuffer(["users", "--help"]);
 
     expect(result.exitCode).toBe(0);
@@ -107,13 +107,26 @@ describe("help command", () => {
     ).toBe(true);
     expect(
       result.stdout.some((line) =>
-        line.includes("search [<query>] [--cursor=<cursor>] [--limit=<n>] [--json]"),
+        line.includes(
+          "search <query(required,non-empty)> [--cursor=<cursor>] [--limit=<n>] [--json]",
+        ),
       ),
     ).toBe(true);
     expect(result.stdout.some((line) => line.includes("xoxc"))).toBe(false);
     expect(result.stdout.some((line) => line.includes("xoxd"))).toBe(false);
     expect(result.stdout.some((line) => line.includes("list [<query>] [--json]"))).toBe(false);
     expect(result.stderr.length).toBe(0);
+  });
+
+  test("messages namespace help shows blocks-only payload rule", async () => {
+    const result = await runCliWithBuffer(["messages", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(
+      result.stdout.some((line) =>
+        line.includes("payload text optional only with non-empty blocks"),
+      ),
+    ).toBe(true);
   });
 
   test("attachment namespace help shows content and save modes", async () => {

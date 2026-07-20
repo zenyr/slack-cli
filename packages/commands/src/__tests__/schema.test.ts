@@ -31,6 +31,24 @@ describe("schema command", () => {
     expect(parsed.data.schema.supportsRawPayload).toBe(true);
     expect(parsed.data.schema.supportsDryRun).toBe(true);
     expect(parsed.data.schema.mutating).toBe(true);
+    expect(parsed.data.schema.description).toContain(
+      "payload text optional only with non-empty blocks",
+    );
+  });
+
+  test("shows required users search query", async () => {
+    const result = await runCliWithBuffer(["schema", "users", "search", "--json"]);
+    const parsed = parseJsonOutput(result.stdout);
+
+    expect(result.exitCode).toBe(0);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !isRecord(parsed.data.schema)) {
+      return;
+    }
+
+    expect(parsed.data.schema.args).toBe(
+      "<query(required,non-empty)> [--cursor=<cursor>] [--limit=<n>] [--json]",
+    );
   });
 
   test("shows payload and dry-run capability for views publish", async () => {

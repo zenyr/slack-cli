@@ -17,7 +17,7 @@ const isCliErrorResult = (value: unknown): value is CliResult => {
   return typeof value === "object" && value !== null && "ok" in value;
 };
 
-const parseCursorOption = (
+export const parseCursorOption = (
   options: CliOptions,
   command: string,
 ): string | undefined | CliResult => {
@@ -58,7 +58,10 @@ const parseCursorOption = (
   return trimmed;
 };
 
-const parseLimitOption = (options: CliOptions, command: string): number | undefined | CliResult => {
+export const parseLimitOption = (
+  options: CliOptions,
+  command: string,
+): number | undefined | CliResult => {
   const value = options.limit;
   if (value === undefined) {
     return undefined;

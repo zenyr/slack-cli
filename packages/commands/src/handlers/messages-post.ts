@@ -25,7 +25,7 @@ import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post";
 const USAGE_HINT =
-  "Usage: slack messages post <channel-id> <text(required,non-empty)|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]";
+  "Usage: slack messages post <channel-id> <text(required,non-empty)|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]. In --payload, text may be omitted or empty only when blocks is a non-empty array.";
 
 const PAYLOAD_KEYS = [
   "channel",
@@ -149,17 +149,6 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
         return channelIdOrError;
       }
 
-      const textOrError = readRequiredPayloadString(
-        payloadOrError,
-        "text",
-        "messages post",
-        USAGE_HINT,
-        COMMAND_ID,
-      );
-      if (isCliErrorResult(textOrError)) {
-        return textOrError;
-      }
-
       const threadTsOrError = readOptionalPayloadTimestamp(
         payloadOrError,
         "thread_ts",
@@ -187,6 +176,26 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
           : undefined;
       if (isCliErrorResult(blocksPayloadOrError)) {
         return blocksPayloadOrError;
+      }
+
+      const rawText = payloadOrError.text;
+      if (rawText !== undefined && typeof rawText !== "string") {
+        return createError(
+          "INVALID_ARGUMENT",
+          "messages post --payload requires string field 'text' when provided.",
+          USAGE_HINT,
+          COMMAND_ID,
+        );
+      }
+
+      const text = typeof rawText === "string" ? rawText.trim() : "";
+      if (text.length === 0 && (blocksPayloadOrError?.blocks.length ?? 0) === 0) {
+        return createError(
+          "INVALID_ARGUMENT",
+          "messages post --payload requires non-empty string field 'text' unless 'blocks' is a non-empty array.",
+          USAGE_HINT,
+          COMMAND_ID,
+        );
       }
 
       const unfurlLinksOrError = readOptionalPayloadBoolean(
@@ -224,7 +233,7 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
 
       requestShape = {
         channelId: channelIdOrError,
-        text: textOrError,
+        text,
         threadTs: threadTsOrError,
         blocksPayload: blocksPayloadOrError,
         unfurlLinks: unfurlLinksOrError,
