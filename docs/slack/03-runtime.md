@@ -1,122 +1,64 @@
 # runtime
 
-## request-flow
-
-| transport | entry | middleware | handler dispatch |
-|---|---|---|---|
-| stdio | stdin JSON-RPC → mcp-go `ServeStdio` | error-recovery → logger → auth(skip) | `server.MCPServer` route by tool name |
-| sse | HTTP `GET /sse` + `POST /messages` → mcp-go `SSEServer` | error-recovery → logger → auth(API key) | same |
-| http | HTTP `POST /mcp` → mcp-go `StreamableHTTPServer` | error-recovery → logger → auth(API key) | same |
-
 ## tool-flow
 
-| tool | handler | read/write | gate env | gate logic | output |
-|---|---|---|---|---|---|
-| `conversations_history` | `ConversationsHandler.ConversationsHistoryHandler` | read | — | always (or in enabled-tool) | CSV msg list |
-| `conversations_replies` | `ConversationsHandler.ConversationsRepliesHandler` | read | — | always (or in enabled-tool) | CSV msg list |
-| `conversations_add_message` | `ConversationsHandler.ConversationsAddMessageHandler` | write | `SLACK_MCP_ADD_MESSAGE_TOOL` | env set OR in enabled-tool | posted msg confirm |
-| `conversations_search_messages` | `ConversationsHandler.ConversationsSearchHandler` | read | — | always + NOT bot tok | CSV msg list |
-| `channels_list` | `ChannelsHandler.ChannelsHandler` | read | — | always (or in enabled-tool) | CSV channel list |
-| `reactions_add` | `ConversationsHandler.ReactionsAddHandler` | write | `SLACK_MCP_REACTION_TOOL` | env set OR in enabled-tool | ok confirm |
-| `reactions_remove` | `ConversationsHandler.ReactionsRemoveHandler` | write | `SLACK_MCP_REACTION_TOOL` | env set OR in enabled-tool | ok confirm |
-| `attachment_get_data` | `ConversationsHandler.FilesGetHandler` | read | `SLACK_MCP_ATTACHMENT_TOOL` | env set OR in enabled-tool | file content (text/base64) |
-| `users_search` | `ConversationsHandler.UsersSearchHandler` | read | — | always (no shouldAddTool gate) | CSV user list |
-| `usergroups_list` | `UsergroupsHandler.UsergroupsListHandler` | read | — | always (or in enabled-tool) | CSV usergroup list |
-| `usergroups_me` | `UsergroupsHandler.UsergroupsMeHandler` | read/write | — | always (or in enabled-tool) | CSV or confirm |
-| `usergroups_create` | `UsergroupsHandler.UsergroupsCreateHandler` | write | — | always (or in enabled-tool) | JSON usergroup |
-| `usergroups_update` | `UsergroupsHandler.UsergroupsUpdateHandler` | write | — | always (or in enabled-tool) | JSON usergroup |
-| `usergroups_users_update` | `UsergroupsHandler.UsergroupsUsersUpdateHandler` | write | — | always (or in enabled-tool) | JSON usergroup |
-
-## resource
-
-| uri | handler | mime | content |
+| tool | handler | capability/gate | output |
 |---|---|---|---|
-| `slack://<ws>/channels` | `ChannelsHandler.ChannelsResource` | `text/csv` | channel directory (id, name, topic, purpose, member_count) |
-| `slack://<ws>/users` | `ConversationsHandler.UsersResource` | `text/csv` | user directory (id, username, realname, displayname, email, title, dm_channel_id) |
+| `conversations_history` | `ConversationsHistoryHandler` | enabled subset | message CSV |
+| `conversations_replies` | `ConversationsRepliesHandler` | enabled subset | message CSV |
+| `conversations_add_message` | `ConversationsAddMessageHandler` | add-message env or enabled subset | confirmation |
+| `reactions_add` | `ReactionsAddHandler` | reaction env or enabled subset | confirmation |
+| `reactions_remove` | `ReactionsRemoveHandler` | reaction env or enabled subset | confirmation |
+| `attachment_get_data` | `FilesGetHandler` | attachment env or enabled subset; max 5 MiB | JSON text/base64 or MCP image |
+| `conversations_search_messages` | `ConversationsSearchHandler` | non-bot token | message CSV |
+| `conversations_unreads` | `ConversationsUnreadsHandler` | non-bot; Edge exact or xoxp fallback | note + CSV |
+| `conversations_mark` | `ConversationsMarkHandler` | mark env checked in handler | confirmation |
+| `conversations_leave` | `ConversationsLeaveHandler` | enabled subset | confirmation |
+| `conversations_join` | `ConversationsJoinHandler` | enabled subset | confirmation |
+| `channels_list` | `ChannelsHandler` | enabled subset | channel CSV |
+| `channels_me` | `ChannelsMeHandler` | enabled subset | member-channel CSV |
+| `usergroups_list` | `UsergroupsListHandler` | enabled subset | usergroup CSV |
+| `usergroups_me` | `UsergroupsMeHandler` | enabled subset | CSV/confirmation |
+| `usergroups_create` | `UsergroupsCreateHandler` | enabled subset | JSON |
+| `usergroups_update` | `UsergroupsUpdateHandler` | enabled subset | JSON |
+| `usergroups_users_update` | `UsergroupsUsersUpdateHandler` | enabled subset | JSON |
+| `users_search` | `UsersSearchHandler` | enabled subset | user CSV |
+| `saved_list` | `SavedListHandler` | xoxc/xoxd only | saved/message CSV |
+| `saved_update` | `SavedUpdateHandler` | xoxc/xoxd only | confirmation |
+| `saved_clear_completed` | `SavedClearCompletedHandler` | xoxc/xoxd only | confirmation |
 
-## env-var
+## notable-schema
 
-### auth & tok
+- `users_search.query` is required; `U...`/`W...` IDs use direct `users.info`.
+- `channels_list` supports `query` and `query_targets=name,topic,purpose`.
+- `channels_me` uses `users.conversations` and native cursor pagination.
+- message post accepts raw Block Kit; non-empty blocks can be sent without text.
+- message conversion preserves non-empty `text`, otherwise uses blocks then email-file metadata;
+  legacy attachment text is appended.
+- search uses Tier2 plus at most two `Retry-After` retries.
+- unreads uses Edge `client.counts` for browser tokens; xoxp scans bounded channel groups and may
+  include muted channels when prefs are unavailable.
 
-| var | type | default | effect |
-|---|---|---|---|
-| `SLACK_MCP_XOXP_TOKEN` | string | — | user OAuth tok (priority 1) |
-| `SLACK_MCP_XOXB_TOKEN` | string | — | bot tok (priority 2); no search API |
-| `SLACK_MCP_XOXC_TOKEN` | string | — | browser session tok (priority 3, pair w/ xoxd) |
-| `SLACK_MCP_XOXD_TOKEN` | string | — | browser cookie tok (pair w/ xoxc) |
-| `SLACK_MCP_API_KEY` | string | — | SSE/HTTP auth API key |
-| `SLACK_MCP_SSE_API_KEY` | string | — | deprecated fallback for API_KEY |
+## cache
 
-### tool registration
+| setting | default | behavior |
+|---|---|---|
+| `SLACK_MCP_CACHE_TTL` | `24h` | `0` keeps cache indefinitely |
+| `SLACK_MCP_MIN_REFRESH_INTERVAL` | `30s` | bounds forced refresh |
+| `SLACK_MCP_USERS_CACHE` | team-prefixed cache path | user snapshot override |
+| `SLACK_MCP_CHANNELS_CACHE` | team-prefixed cache path | channel snapshot override |
 
-| var | type | default | effect |
-|---|---|---|---|
-| `SLACK_MCP_ENABLED_TOOLS` | csv string | — | restrict tool set (fallback for `-e` flag) |
-| `SLACK_MCP_ADD_MESSAGE_TOOL` | string | — | enable msg tool; `"true"`/`"1"` or channel whitelist |
-| `SLACK_MCP_REACTION_TOOL` | string | — | enable reaction tool if non-empty |
-| `SLACK_MCP_ATTACHMENT_TOOL` | string | — | enable attachment tool if non-empty |
-
-### server & network
-
-| var | type | default | effect |
-|---|---|---|---|
-| `SLACK_MCP_HOST` | string | `127.0.0.1` | SSE/HTTP bind host |
-| `SLACK_MCP_PORT` | int | `13080` | SSE/HTTP bind port |
-| `SLACK_MCP_GOVSLACK` | string | — | `"true"` → use `slack-gov.com` domain |
-| `SLACK_MCP_USER_AGENT` | string | Chrome 136 UA | custom User-Agent for Slack req |
-
-### TLS & security
-
-| var | type | default | effect |
-|---|---|---|---|
-| `SLACK_MCP_PROXY` | string | — | proxy URL; exclusive w/ CUSTOM_TLS |
-| `SLACK_MCP_CUSTOM_TLS` | string | — | enable uTLS fingerprint |
-| `SLACK_MCP_SERVER_CA` | string | — | custom CA cert file path |
-| `SLACK_MCP_SERVER_CA_TOOLKIT` | string | — | append embedded HTTP Toolkit CA |
-| `SLACK_MCP_SERVER_CA_INSECURE` | string | — | `InsecureSkipVerify`; exclusive w/ SERVER_CA |
-
-### cache
-
-| var | type | default | effect |
-|---|---|---|---|
-| `SLACK_MCP_CACHE_TTL` | duration/sec | `1h` | cache TTL (0 = never expire) |
-| `SLACK_MCP_MIN_REFRESH_INTERVAL` | duration/sec | `30s` | min forced refresh interval |
-| `SLACK_MCP_USERS_CACHE` | string | auto | override user cache file path |
-| `SLACK_MCP_CHANNELS_CACHE` | string | auto | override channel cache file path |
-
-### logging
-
-| var | type | default | effect |
-|---|---|---|---|
-| `SLACK_MCP_LOG_LEVEL` | string | `info` | zap log level |
-| `SLACK_MCP_LOG_FORMAT` | string | auto | `"json"` force JSON log |
-| `SLACK_MCP_LOG_COLOR` | string | auto | `"true"`/`"1"` force color |
-| `ENVIRONMENT` | string | — | `prod`/`staging` → JSON; `dev` → console |
-| `KUBERNETES_SERVICE_HOST` | string | — | if set → JSON log |
-| `DOCKER_CONTAINER` | string | — | if set → JSON log |
-| `container` | string | — | if set → JSON log |
-| `NO_COLOR` | string | — | if set → disable color |
-| `FORCE_COLOR` | string | — | if set → force color |
+Fresh cache loads synchronously. Expired cache is served immediately and refreshed once in the
+background. Cold start and forced refresh fetch synchronously. Snapshot replacement is atomic;
+disk writes use temp-file rename and mode `0600`.
 
 ## resilience
 
-| signal | action | reason |
-|---|---|---|
-| Slack 429 | retry once after `Retry-After` | edge client `do()` fn |
-| cache miss on channel resolve | force refresh → retry lookup | `resolveChannelID` in handler |
-| cache TTL expired | re-fetch from API on next access | `refreshUsersInternal` / `refreshChannelsInternal` |
-| forced refresh rate limit | return `ErrRefreshRateLimited`, skip | prevent API flood |
-| panic in tool handler | recover, return MCP error | `buildErrorRecoveryMiddleware` |
-| auth fail (SSE/HTTP) | reject w/ "Unauthorized" | `auth.BuildMiddleware` |
-| demo tok (`"demo"`) | skip cache warmup, return mock auth | `main.go` + `MCPSlackClient.AuthTest` |
-
-## xref
-
-| from | to |
+| signal | action |
 |---|---|
-| tool-flow | xref:11-pkg-handler#contract |
-| env-var.auth | xref:01-overview#risk |
-| env-var.cache | xref:13-pkg-provider#cfg |
-| env-var.tls | xref:15-pkg-transport#cfg |
-| resilience.rate-limit | xref:17-pkg-limiter#contract |
-| request-flow | xref:02-architecture#middleware-chain |
+| handler error/panic | return MCP `isError=true` result |
+| channel/user miss | targeted patch or rate-limited forced refresh |
+| stale cache | serve stale snapshot while revalidating |
+| zero-row refresh | preserve existing ready snapshot |
+| Slack search/unread 429 | bounded limiter retry |
+| Edge channel failure | fall back to official API where supported |

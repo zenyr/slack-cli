@@ -1,88 +1,62 @@
 # overview
 
-## meta
+## baseline
 
 | field | val |
 |---|---|
+| source | local `source/master@b88c0de` |
+| runtime | `v1.3.0` tag, `a079b3c` |
+| post-tag delta | docs only through `b88c0de` |
 | module | `github.com/korotovsky/slack-mcp-server` |
-| lang | Go 1.24.4 |
+| lang | Go 1.25 |
 | binary | `slack-mcp-server` |
-| transport | stdio, sse, http |
-| protocol | MCP (Model Context Protocol) via `github.com/mark3labs/mcp-go` |
+| transport | stdio, SSE, Streamable HTTP |
+| protocol | MCP via `github.com/mark3labs/mcp-go` |
 | license | MIT |
-| repo | `https://github.com/korotovsky/slack-mcp-server` |
 
 ## scope
 
-- MCP server bridging LLM agent to Slack workspace API
-- 14 tool: conversation history/reply/search/msg, channel list, reaction add/remove, attachment get, user search, usergroup CRUD
-- 2 resource: channel directory (CSV), user directory (CSV)
-- 3 auth method: xoxp (user OAuth), xoxb (bot), xoxc/xoxd (browser session)
-- Edge API client for undocumented Slack internal endpoint (Enterprise Grid support)
-- Atomic cache for user + channel w/ disk persistence + TTL
-- Rate limit tier (Tier2/Tier2boost/Tier3) via `golang.org/x/time/rate`
-- uTLS transport fingerprint, proxy support, custom CA
+- 22 MCP tools: conversation, reaction, attachment, channel, usergroup, user search, saved item
+- 2 CSV resources: channel directory and user directory
+- auth: xoxp user OAuth, xoxb bot, xoxc/xoxd browser session
+- Edge API for Enterprise Grid, complete unread state, user search, muted prefs, saved items
+- atomic user/channel cache with disk persistence, 24h default TTL, stale-while-revalidate
+- tiered Slack rate limiting and bounded retries
+- uTLS transport fingerprint, proxy, custom CA
 
 ## pkg-map
 
-| id | path | role | dep |
-|---|---|---|---|
-| cmd | `cmd/slack-mcp-server` | entrypoint, CLI arg parse, logger init, cache warmup | server, provider |
-| handler | `pkg/handler` | MCP tool handler impl (conversation, channel, usergroup) | provider, server/auth, text, mcp-go |
-| server | `pkg/server` | MCP server setup, tool registration, middleware chain | handler, provider, server/auth, text, version, mcp-go |
-| auth | `pkg/server/auth` | SSE/HTTP API key auth middleware | mcp-go, zap |
-| provider | `pkg/provider` | Slack API abstraction, cache mgmt, token detection | edge, transport, limiter, slack-go, slackdump |
-| edge | `pkg/provider/edge` | Slack Edge API client (undocumented internal endpoint) | limiter, fasttime, slack-go, slackauth |
-| fasttime | `pkg/provider/edge/fasttime` | Optimized Slack timestamp parse (platform-specific) | — |
-| transport | `pkg/transport` | HTTP client factory, uTLS fingerprint, proxy, CA cfg | text, utls, zap |
-| text | `pkg/text` | Text processing, unfurl security, cert display | slack-go, publicsuffix, zap |
-| limiter | `pkg/limiter` | Rate limit tier definition | `golang.org/x/time/rate` |
-| version | `pkg/version` | Build-time version injection via ldflags | — |
-| test/util | `pkg/test/util` | Integration test helper (MCP server launch, ngrok tunnel) | mcp-go, ngrok |
-
-## glossary
-
-| abbr | full | usage |
+| id | path | role |
 |---|---|---|
-| req | request | fn input, HTTP req |
-| res | response | fn output, HTTP res |
-| msg | message | Slack msg or generic payload |
-| fn | function | operation unit |
-| pkg | package | Go module |
-| cfg | configuration | runtime option |
-| env | environment variable | `os.Getenv` source |
-| param | parameter | fn/tool input key |
-| auth | authentication/authorization | access control |
-| tok | token | Slack API tok (xoxp/xoxb/xoxc/xoxd) |
-| ws | workspace | Slack ws instance |
-| mgmt | management | non-business support logic |
-| arr | array | slice type |
-| obj | object | struct/map type |
-| IM | instant message | Slack DM (1:1) |
-| MPIM | multi-person IM | Slack group DM |
-| DXT | Desktop Extension | Claude Desktop plugin format |
-| SSE | Server-Sent Event | streaming transport |
-| xref | cross-reference | link between doc |
+| cmd | `cmd/slack-mcp-server` | flag parse, logger, cache startup, transport selection |
+| handler | `pkg/handler` | 22 tool handlers and 2 resource handlers |
+| server | `pkg/server` | MCP setup, tool/resource registration, middleware |
+| auth | `pkg/server/auth` | SSE/HTTP API-key middleware |
+| provider | `pkg/provider` | Slack API facade, token routing, cache management |
+| edge | `pkg/provider/edge` | undocumented Slack Edge API client |
+| transport | `pkg/transport` | HTTP client, uTLS, proxy, CA configuration |
+| text | `pkg/text` | message fallback rendering, normalization, security filtering |
+| limiter | `pkg/limiter` | rate tiers and retry helper |
+| version | `pkg/version` | linker-injected build identity |
 
 ## risk
 
 | item | impact | guard |
 |---|---|---|
-| Edge API undocumented | break on Slack update | isolated in `pkg/provider/edge`, fallback to official API |
-| xoxc/xoxd tok expiry | session invalidation | user re-extract from browser |
-| cache stale | outdated user/channel data | TTL-based expiry + forced refresh w/ rate limit |
-| bot tok limitation | no `search.messages` API | runtime guard: skip tool registration if bot tok |
-| Enterprise Grid | different channel fetch path | `isEnterprise` flag, edge client `SearchChannels` fallback |
-| rate limit | Slack API 429 | per-tier rate limiter + retry-once in edge client |
+| Edge API undocumented | endpoint/schema break | isolated client; official API fallback where available |
+| xoxc/xoxd expiry | session invalidation | browser token re-extraction |
+| stale cache | outdated names/channels | 24h TTL, SWR, forced refresh on miss |
+| bot token | no search or unread state | conditional tool registration |
+| Slack 429 | delayed/partial result | tier limiter and bounded `Retry-After` retry |
+| saved tools | browser-session dependency | register only for non-bot, non-OAuth tokens |
 
 ## xref
 
 | from | to |
 |---|---|
-| pkg-map | xref:02-architecture#component-map |
-| scope.tool | xref:11-pkg-handler#contract |
-| scope.auth | xref:03-runtime#env-var |
-| scope.cache | xref:13-pkg-provider#contract |
-| scope.edge | xref:14-pkg-provider-edge#contract |
-| scope.transport | xref:15-pkg-transport#contract |
-| risk.rate-limit | xref:17-pkg-limiter#contract |
+| architecture | `02-architecture.md` |
+| runtime | `03-runtime.md` |
+| handler | `11-pkg-handler.md` |
+| server | `12-pkg-server.md` |
+| provider | `13-pkg-provider.md` |
+| edge | `14-pkg-provider-edge.md` |

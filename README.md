@@ -102,9 +102,14 @@ Resources:
 
 ### `slack tools [--json]`
 
-List referenced MCP tools from spec.
+List the 22 MCP tools referenced by authoritative upstream `source/master@b88c0de`, in
+`server.go` order. This is spec metadata, not a claim that every tool is an implemented CLI
+command.
 
-Tools: `conversations_history`, `conversations_replies`, `conversations_add_message`, `conversations_search_messages`, `channels_list`, `reactions_add`, `reactions_remove`, `attachment_get_data`, `users_search`, `usergroups_list`, `usergroups_create`, `usergroups_update`, `usergroups_users_update`, `usergroups_me`
+Tools: `conversations_history`, `conversations_replies`, `conversations_add_message`, `reactions_add`, `reactions_remove`, `attachment_get_data`, `conversations_search_messages`, `conversations_unreads`, `conversations_mark`, `conversations_leave`, `conversations_join`, `channels_list`, `channels_me`, `usergroups_list`, `usergroups_me`, `usergroups_create`, `usergroups_update`, `usergroups_users_update`, `users_search`, `saved_list`, `saved_update`, `saved_clear_completed`
+
+The Edge-only `saved_*` tools require browser session tokens (`xoxc`/`xoxd`) upstream and are
+not supported by this CLI. See `docs/feature-parity.md` for command mappings and remaining gaps.
 
 ---
 
@@ -121,7 +126,7 @@ Run multiple commands in one process.
 ### `slack channels list`
 
 ```
-slack channels list [--type <public|private|im|mpim>] [--sort <name|popularity>] [--limit <n>] [--cursor <cursor>] [--json]
+slack channels list [--type <public|private|im|mpim>] [--sort <name|popularity>] [--query=<text>] [--query-targets=<name,topic,purpose>] [--limit <n>] [--cursor <cursor>] [--json]
 ```
 
 List channels.
@@ -130,8 +135,13 @@ List channels.
 |---|---|---|
 | `--type` | `public\|private\|im\|mpim` | Filter by channel type |
 | `--sort` | `name\|popularity` | Sort order |
+| `--query` | text | Case-insensitive substring filter |
+| `--query-targets` | `name,topic,purpose` | Fields searched by `--query` (default: `name`) |
 | `--limit` | `n` | Max results |
 | `--cursor` | cursor string | Pagination cursor |
+
+Query mode scans at most five Slack API pages before filtering. Results can therefore be partial
+on very large workspaces.
 
 ---
 
@@ -169,20 +179,33 @@ Get users by user ID. Supports batch lookup in one call.
 ### `slack users search`
 
 ```
-slack users search [<query>] [--cursor=<cursor>] [--limit=<n>] [--json]
+slack users search <query> [--cursor=<cursor>] [--limit=<n>] [--json]
 ```
 
-Search users by query string.
+Search users by required, non-empty query string. A Slack user ID beginning with `U` or `W`
+(for example, `U07VCEPP4N5`) uses a direct `users.info` lookup instead of list filtering.
 
 ---
 
 ### `slack attachment get`
 
 ```
-slack attachment get <file-id> [--json]
+slack attachment get <file-id> [--content[=<bool>]] [--save[=<bool>]] [--json]
 ```
 
-Get attachment metadata by file ID.
+Get attachment metadata by file ID. The command is disabled unless
+`SLACK_MCP_ATTACHMENT_TOOL=true` (also accepts `1`/`yes`) or
+`SLACK_MCP_ENABLED_TOOLS` contains `attachment_get_data`.
+
+| Mode | Result |
+|---|---|
+| default | Metadata only; no content download |
+| `--content` | Text MIME content with `encoding: "none"`; other MIME content as base64 with `encoding: "base64"` |
+| `--save` | Binary download to a private temporary directory and randomized file path |
+
+`--content` and `--save` are mutually exclusive. Downloads are limited to 5 MiB. Saved
+directories use mode `0700` and files use `0600`. Treat returned text/base64 as untrusted Slack
+content; base64 is transport encoding, not validation or executable content.
 
 ---
 

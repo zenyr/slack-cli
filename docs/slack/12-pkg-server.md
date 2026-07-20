@@ -1,164 +1,69 @@
 # pkg/server
 
-## meta
-
-| field | val |
-|---|---|
-| path | `pkg/server/server.go`, `pkg/server/auth/sse_auth.go` |
-| pkg | `server`, `server/auth` |
-| line | 555 (server.go), 145 (sse_auth.go) |
-| test | `server_test.go` (465 line) |
-
 ## responsibility
 
-- MCP server lifecycle mgmt (stdio/sse/http mode)
-- tool + resource registration w/ conditional gate
-- middleware chain: error-recovery → logger → auth
-- SSE/HTTP API key auth via context injection
-- tool name validation
+- create stdio, SSE, and Streamable HTTP MCP servers
+- validate the authoritative 22-name tool set
+- conditionally register tools and always register 2 resources
+- apply error-recovery, logging, and transport-auth middleware
 
-## contract
+## authoritative-tool-order
 
-### server.MCPServer
+1. `conversations_history`
+2. `conversations_replies`
+3. `conversations_add_message`
+4. `reactions_add`
+5. `reactions_remove`
+6. `attachment_get_data`
+7. `conversations_search_messages`
+8. `conversations_unreads`
+9. `conversations_mark`
+10. `conversations_leave`
+11. `conversations_join`
+12. `channels_list`
+13. `channels_me`
+14. `usergroups_list`
+15. `usergroups_me`
+16. `usergroups_create`
+17. `usergroups_update`
+18. `usergroups_users_update`
+19. `users_search`
+20. `saved_list`
+21. `saved_update`
+22. `saved_clear_completed`
 
-| fn | sig | param | return | err |
-|---|---|---|---|---|
-| `NewMCPServer` | `func(provider *provider.ApiProvider, logger *zap.Logger, enabledTools []string) *MCPServer` | provider, logger, enabled-tool subset | `*MCPServer` | — |
-| `ServeSSE` | `func(s *MCPServer) ServeSSE(addr string) *server.SSEServer` | bind addr | SSE server | — |
-| `ServeHTTP` | `func(s *MCPServer) ServeHTTP(addr string) *server.StreamableHTTPServer` | bind addr | HTTP server | — |
-| `ServeStdio` | `func(s *MCPServer) ServeStdio() error` | — | — | stdio err |
-| `ValidateEnabledTools` | `func(tools []string) error` | tool name arr | — | unknown tool name |
+## registration
 
-### auth middleware
-
-| fn | sig | param | return | err |
-|---|---|---|---|---|
-| `BuildMiddleware` | `func(transport string, logger *zap.Logger) server.ToolHandlerMiddleware` | transport, logger | middleware | — |
-| `IsAuthenticated` | `func(ctx context.Context, transport string, logger *zap.Logger) (bool, error)` | ctx, transport, logger | bool, err | invalid tok |
-| `AuthFromRequest` | `func(logger *zap.Logger) func(context.Context, *http.Request) context.Context` | logger | context injector | — |
-
-### gate logic
-
-| fn | sig | param | return | note |
-|---|---|---|---|---|
-| `shouldAddTool` | `func(name string, enabledTools []string, envVarName string) bool` | tool name, enabled list, env gate | bool | read-only: always OR in enabled-tool; write: env OR in enabled-tool |
-
-## type
-
-| name | kind | key field |
-|---|---|---|
-| `MCPServer` | struct | `server *server.MCPServer`, `logger *zap.Logger` |
-| `authKey` | struct | (empty, context key only) |
-
-## tool-constant
-
-| name | val |
+| class | rule |
 |---|---|
-| `ToolConversationsHistory` | `"conversations_history"` |
-| `ToolConversationsReplies` | `"conversations_replies"` |
-| `ToolConversationsAddMessage` | `"conversations_add_message"` |
-| `ToolReactionsAdd` | `"reactions_add"` |
-| `ToolReactionsRemove` | `"reactions_remove"` |
-| `ToolAttachmentGetData` | `"attachment_get_data"` |
-| `ToolConversationsSearchMessages` | `"conversations_search_messages"` |
-| `ToolChannelsList` | `"channels_list"` |
-| `ToolUsergroupsList` | `"usergroups_list"` |
-| `ToolUsergroupsMe` | `"usergroups_me"` |
-| `ToolUsergroupsCreate` | `"usergroups_create"` |
-| `ToolUsergroupsUpdate` | `"usergroups_update"` |
-| `ToolUsergroupsUsersUpdate` | `"usergroups_users_update"` |
+| standard read/workflow tools | all when enabled list empty; otherwise named subset |
+| add message | env gate or named enabled tool; handler also enforces channel policy |
+| reactions | env gate or named enabled tool; handler also enforces channel policy |
+| attachment | env gate or named enabled tool; handler validates explicit true value |
+| search messages | omitted for bot tokens |
+| unreads | omitted for bot tokens |
+| saved tools | omitted for bot and OAuth tokens; available only to xoxc/xoxd sessions |
 
-## registration-flow
+`ValidateEnabledTools` accepts only the 22 names above. `shouldAddTool` combines the explicit
+enabled subset with optional env gates. Saved registration additionally depends on token type.
 
-| order | step | gate | handler |
-|---|---|---|---|
-| 1 | create mcp-go server | — | `server.New()` w/ option arr |
-| 2 | add middleware | — | error-recovery, logger, auth |
-| 3 | create handler instance | — | `handler.NewConversationsHandler()`, `handler.NewChannelsHandler()`, `handler.NewUsergroupsHandler()` |
-| 4 | register 14 tool | `shouldAddTool()` | per-tool call to `s.AddTool()` |
-| 5 | register 2 resource | — | `s.AddResource()` for channel + user dir |
+## resource
 
-## shouldAddTool-matrix
-
-| tool | env gate | enabled-tool gate | read-only | note |
-|---|---|---|---|---|
-| `conversations_history` | — | yes | yes | — |
-| `conversations_replies` | — | yes | yes | — |
-| `conversations_add_message` | `SLACK_MCP_ADD_MESSAGE_TOOL` | yes | no | — |
-| `conversations_search_messages` | — | yes | yes | skip if bot tok |
-| `channels_list` | — | yes | yes | — |
-| `reactions_add` | `SLACK_MCP_REACTION_TOOL` | yes | no | — |
-| `reactions_remove` | `SLACK_MCP_REACTION_TOOL` | yes | no | — |
-| `attachment_get_data` | `SLACK_MCP_ATTACHMENT_TOOL` | yes | yes | — |
-| `users_search` | — | no (always on) | yes | — |
-| `usergroups_list` | — | yes | yes | — |
-| `usergroups_me` | — | yes | read/write | — |
-| `usergroups_create` | — | yes | no | — |
-| `usergroups_update` | — | yes | no | — |
-| `usergroups_users_update` | — | yes | no | — |
-
-## middleware-chain
-
-| order | name | fn | effect |
-|---|---|---|---|
-| 1 | error-recovery | `buildErrorRecoveryMiddleware` | catch panic → MCP error res |
-| 2 | logger | `buildLoggerMiddleware` | log tool name + duration + result |
-| 3 | auth | `auth.BuildMiddleware` | validate API key for SSE/HTTP; skip for stdio |
-
-## cfg
-
-| env | default | source | effect |
-|---|---|---|---|
-| `SLACK_MCP_API_KEY` | — | `sse_auth.go:27` | primary API key for SSE/HTTP auth |
-| `SLACK_MCP_SSE_API_KEY` | — | `sse_auth.go:29` | deprecated fallback |
-| `SLACK_MCP_ADD_MESSAGE_TOOL` | — | `server.go` | gate for add-msg tool |
-| `SLACK_MCP_REACTION_TOOL` | — | `server.go` | gate for reaction tool |
-| `SLACK_MCP_ATTACHMENT_TOOL` | — | `server.go` | gate for attachment tool |
-
-## deps
-
-| dep | why |
-|---|---|
-| `pkg/handler` | tool handler impl |
-| `pkg/provider` | Slack API provider + cache |
-| `pkg/text` | `Workspace()` parse ws name from auth res URL |
-| `pkg/version` | inject version into MCP server info |
-| `github.com/mark3labs/mcp-go` | MCP protocol framework |
-| `go.uber.org/zap` | structured logging |
-
-## edge-case
-
-| case | symptom | fix |
+| URI | handler | MIME |
 |---|---|---|
-| unknown tool name in enabled-tool | validation fail at startup | `ValidateEnabledTools()` check against `ValidToolNames` |
-| SSE/HTTP transport but no API key | auth reject all req | `IsAuthenticated()` return false + err |
-| stdio transport w/ API key | API key ignored | `BuildMiddleware()` skip auth for stdio |
-| panic in tool handler | crash MCP server | `buildErrorRecoveryMiddleware()` catch + return MCP err |
-| bot tok + search tool | tool not available | `NewMCPServer()` skip registration if `provider.IsBotToken()` |
-| enabled-tool empty | all read-only tool on | `shouldAddTool()` return true for read-only when empty |
-| enabled-tool non-empty but missing write tool | write tool off | `shouldAddTool()` return false if not in list + env not set |
+| `slack://<workspace>/channels` | `ChannelsResource` | `text/csv` |
+| `slack://<workspace>/users` | `UsersResource` | `text/csv` |
 
-## test-scope
+## middleware
 
-| test | target | expected |
-|---|---|---|
-| `TestShouldAddTool_ReadOnly_EmptyEnabledTools` | read-only tool, empty list | return true |
-| `TestShouldAddTool_ReadOnly_ExplicitEnabledTools` | read-only tool, explicit list | return true if in list |
-| `TestShouldAddTool_SingleToolEnabled` | single tool in list | only that tool true |
-| `TestValidToolNames` | `ValidToolNames` arr | 13 tool name (14 total, users_search always on) |
-| `TestValidateEnabledTools` | `ValidateEnabledTools()` | reject unknown name |
-| `TestShouldAddTool_WriteTool_AddMessage` | add-msg tool gate | env OR in list |
-| `TestShouldAddTool_WriteTool_Reactions` | reaction tool gate | env OR in list |
-| `TestShouldAddTool_WriteTool_Attachment` | attachment tool gate | env OR in list |
-| `TestIntegrationErrorRecoveryMiddleware` | panic in handler | catch + MCP err res |
-| `TestShouldAddTool_Matrix` | full matrix | validate all combination |
-
-## xref
-
-| from | to |
+| order | effect |
 |---|---|
-| contract | xref:02-architecture#component-map |
-| registration-flow | xref:02-architecture#startup |
-| shouldAddTool-matrix | xref:03-runtime#tool-flow |
-| middleware-chain | xref:02-architecture#middleware-chain |
-| cfg | xref:03-runtime#env-var |
+| error recovery | convert returned handler errors to MCP error results |
+| logger | log request name/params and duration |
+| auth | validate API key for SSE/HTTP; stdio bypasses API-key auth |
+
+## transport
+
+- SSE uses `/sse` and message endpoints supplied by mcp-go.
+- Streamable HTTP uses `/mcp`.
+- stdio logs to stderr and serves MCP on stdin/stdout.

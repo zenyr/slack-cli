@@ -6,7 +6,6 @@
 |---|---|
 | path | `cmd/slack-mcp-server/main.go` |
 | pkg | `main` |
-| line | 375 |
 | binary | `slack-mcp-server` |
 
 ## responsibility
@@ -24,6 +23,7 @@
 |---|---|---|---|---|
 | `-transport` | `-t` | string | `"stdio"` | transport type: stdio, sse, http |
 | `-enabled-tools` | `-e` | string | `""` | comma-sep tool name subset; empty = all |
+| `-no-cache` | — | bool | `false` | skip user/channel cache loading; direct IDs only |
 
 ## startup-order
 
@@ -35,9 +35,9 @@
 | 4 | `validateToolConfig()` | validate `SLACK_MCP_ADD_MESSAGE_TOOL` format | fatal on error |
 | 5 | `server.ValidateEnabledTools()` | check name against `ValidToolNames` | fatal on error |
 | 6 | `provider.New(transport, logger)` | create ApiProvider; detect tok type; init slack-go + edge client | fatal on auth fail |
-| 7 | `server.NewMCPServer(p, logger, enabledTools)` | register 14 tool + 2 resource + 3 middleware | `shouldAddTool` gate |
-| 8 | goroutine: `newUsersWatcher()` | fetch user list → disk cache; retry loop w/ backoff | — |
-| 9 | goroutine: `newChannelsWatcher()` | fetch channel list → disk cache; after user watcher | sync.Once "fully ready" log |
+| 7 | `server.NewMCPServer(p, logger, enabledTools)` | register up to 22 tool + 2 resource + 3 middleware | tool/env/token gates |
+| 8 | cache branch | `--no-cache`: mark ready; otherwise load users then channels | fresh, SWR, or cold fetch |
+| 9 | goroutine: cache watchers | load user then channel snapshots | sync.Once "fully ready" log |
 | 10 | transport serve | start serving | see run-mode |
 
 ## run-mode
