@@ -11,6 +11,9 @@ import { createSlackWebApiClient, isSlackClientError, resolveSlackToken } from "
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "channels.list";
+const QUERY_AUTOPAGE_MAX_PAGES = 5;
+
+type ChannelQueryTarget = "name" | "topic" | "purpose";
 
 const formatVisibility = (isPrivate: boolean): string => {
   return isPrivate ? "private" : "public";
@@ -80,6 +83,69 @@ const parseSort = (options: CliOptions): string | undefined => {
   }
 
   return normalizedValue;
+};
+
+const parseQuery = (options: CliOptions): string | undefined => {
+  const value = options.query;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new Error("query must be a string");
+  }
+  return value.length === 0 ? undefined : value;
+};
+
+const isChannelQueryTarget = (value: string): value is ChannelQueryTarget => {
+  return value === "name" || value === "topic" || value === "purpose";
+};
+
+const parseQueryTargets = (options: CliOptions): ChannelQueryTarget[] => {
+  const value = options["query-targets"];
+  if (value === undefined) {
+    return ["name"];
+  }
+  if (typeof value !== "string") {
+    throw new Error("query-targets must be a string");
+  }
+
+  const targets = new Set<ChannelQueryTarget>();
+  for (const token of value.split(",")) {
+    const target = token.trim().toLowerCase();
+    if (isChannelQueryTarget(target)) {
+      targets.add(target);
+    }
+  }
+  return targets.size === 0 ? ["name"] : [...targets];
+};
+
+const matchesChannelQuery = (
+  channel: SlackChannel,
+  query: string,
+  targets: ChannelQueryTarget[],
+): boolean => {
+  const normalizedQuery = query.toLowerCase();
+  return targets.some((target) => (channel[target] ?? "").toLowerCase().includes(normalizedQuery));
+};
+
+const listChannelsWithOptionalAutoPagination = async (
+  client: SlackWebApiClient,
+  options: { types: SlackChannelType[]; limit: number },
+  autoPaginate: boolean,
+): Promise<SlackChannel[]> => {
+  const channels: SlackChannel[] = [];
+  let cursor: string | undefined;
+
+  for (let pagesFetched = 0; pagesFetched < QUERY_AUTOPAGE_MAX_PAGES; pagesFetched += 1) {
+    const page = await client.listChannels({ ...options, cursor });
+    channels.push(...page.channels);
+    if (!autoPaginate || page.nextCursor === undefined) {
+      break;
+    }
+    cursor = page.nextCursor;
+  }
+
+  return channels;
 };
 
 const parseLimit = (options: CliOptions): number => {
@@ -181,6 +247,8 @@ export const createChannelsListHandler = (depsOverrides: Partial<ChannelsListHan
       const types = parseChannelTypes(request.options);
       const sort = parseSort(request.options);
       const limit = parseLimit(request.options);
+      const query = parseQuery(request.options);
+      const queryTargets = parseQueryTargets(request.options);
 
       const cursorStr = request.options.cursor;
       let cursorChannelId: string | undefined;
@@ -200,9 +268,15 @@ export const createChannelsListHandler = (depsOverrides: Partial<ChannelsListHan
         deps.resolveToken,
       );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
-      const result = await client.listChannels({ types, limit });
+      let channels = await listChannelsWithOptionalAutoPagination(
+        client,
+        { types, limit },
+        query !== undefined,
+      );
 
-      let channels = result.channels;
+      if (query !== undefined) {
+        channels = channels.filter((channel) => matchesChannelQuery(channel, query, queryTargets));
+      }
 
       if (sort === "popularity") {
         channels = [...channels].sort((a, b) => {

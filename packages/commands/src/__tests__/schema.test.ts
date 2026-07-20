@@ -51,6 +51,20 @@ describe("schema command", () => {
     );
   });
 
+  test("shows channels list query metadata", async () => {
+    const result = await runCliWithBuffer(["schema", "channels", "list", "--json"]);
+    const parsed = parseJsonOutput(result.stdout);
+
+    expect(result.exitCode).toBe(0);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !isRecord(parsed.data.schema)) {
+      return;
+    }
+
+    expect(parsed.data.schema.args).toContain("[--query=<text>]");
+    expect(parsed.data.schema.args).toContain("[--query-targets=<name,topic,purpose>]");
+  });
+
   test("shows payload and dry-run capability for views publish", async () => {
     const result = await runCliWithBuffer(["schema", "views", "publish", "--json"]);
 

@@ -228,12 +228,17 @@ const mapChannel = (value: unknown): SlackChannel | undefined => {
     return undefined;
   }
 
+  const topicRecord = readRecord(value, "topic");
+  const purposeRecord = readRecord(value, "purpose");
+
   return {
     id,
     name,
     isPrivate: readBoolean(value, "is_private") ?? false,
     isArchived: readBoolean(value, "is_archived") ?? false,
     memberCount: readNumber(value, "num_members"),
+    topic: topicRecord === undefined ? undefined : readString(topicRecord, "value"),
+    purpose: purposeRecord === undefined ? undefined : readString(purposeRecord, "value"),
   };
 };
 

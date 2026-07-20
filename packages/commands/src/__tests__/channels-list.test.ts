@@ -45,6 +45,8 @@ describe("channels list command", () => {
                 is_private: false,
                 is_archived: false,
                 num_members: 42,
+                topic: { value: "Company announcements" },
+                purpose: { value: "Workspace-wide discussion" },
               },
             ],
             response_metadata: {
@@ -93,6 +95,155 @@ describe("channels list command", () => {
 
     expect(first.id).toBe("C123");
     expect(first.name).toBe("general");
+    expect(first.topic).toBe("Company announcements");
+    expect(first.purpose).toBe("Workspace-wide discussion");
+  });
+
+  describe("query filtering", () => {
+    const channels: SlackChannel[] = [
+      {
+        id: "C1",
+        name: "marketing",
+        topic: "Quarterly planning",
+        purpose: "Campaign coordination",
+        isPrivate: false,
+        isArchived: false,
+      },
+      {
+        id: "C2",
+        name: "engineering",
+        topic: "Marketing integrations",
+        purpose: "Build [launch].* tooling",
+        isPrivate: false,
+        isArchived: false,
+      },
+      {
+        id: "C3",
+        name: "launch-[plan].*",
+        topic: "Release room",
+        purpose: "Ship safely",
+        isPrivate: false,
+        isArchived: false,
+      },
+    ];
+
+    const createHandler = () =>
+      createChannelsListHandler({
+        createClient: () =>
+          ({
+            listChannels: async () => ({ channels }),
+          }) as any,
+      });
+
+    test("matches name, topic, and purpose targets case-insensitively", async () => {
+      const handler = createHandler();
+      const cases = [
+        { query: "MARKETING", targets: "name", expectedId: "C1" },
+        { query: "INTEGRATIONS", targets: "topic", expectedId: "C2" },
+        { query: "CAMPAIGN", targets: "purpose", expectedId: "C1" },
+      ];
+
+      for (const testCase of cases) {
+        const result = await handler({
+          commandPath: ["channels", "list"],
+          positionals: [],
+          options: { query: testCase.query, "query-targets": testCase.targets },
+          flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
+          context: { version: "1.2.3" },
+        });
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const data = result.data as any;
+        expect(data.channels.map((channel: SlackChannel) => channel.id)).toEqual([
+          testCase.expectedId,
+        ]);
+      }
+    });
+
+    test("treats query metacharacters as literal text", async () => {
+      const handler = createHandler();
+      const result = await handler({
+        commandPath: ["channels", "list"],
+        positionals: [],
+        options: { query: "[plan].*" },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
+        context: { version: "1.2.3" },
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const data = result.data as any;
+      expect(data.channels.map((channel: SlackChannel) => channel.id)).toEqual(["C3"]);
+    });
+
+    test("ignores invalid targets and falls back to name when none are valid", async () => {
+      const handler = createHandler();
+      const result = await handler({
+        commandPath: ["channels", "list"],
+        positionals: [],
+        options: { query: "marketing", "query-targets": "unknown,invalid" },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
+        context: { version: "1.2.3" },
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const data = result.data as any;
+      expect(data.channels.map((channel: SlackChannel) => channel.id)).toEqual(["C1"]);
+    });
+
+    test("fetches later Slack pages before filtering", async () => {
+      const cursors: Array<string | undefined> = [];
+      const handler = createChannelsListHandler({
+        createClient: () =>
+          ({
+            listChannels: async (options: { cursor?: string }) => {
+              cursors.push(options.cursor);
+              if (options.cursor === undefined) {
+                return { channels: [channels[0]], nextCursor: "page-2" };
+              }
+              return { channels: [channels[1]] };
+            },
+          }) as any,
+      });
+      const result = await handler({
+        commandPath: ["channels", "list"],
+        positionals: [],
+        options: { query: "integrations", "query-targets": "topic" },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
+        context: { version: "1.2.3" },
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const data = result.data as any;
+      expect(cursors).toEqual([undefined, "page-2"]);
+      expect(data.channels.map((channel: SlackChannel) => channel.id)).toEqual(["C2"]);
+    });
+
+    test("stops query auto-pagination after five Slack pages", async () => {
+      let calls = 0;
+      const handler = createChannelsListHandler({
+        createClient: () =>
+          ({
+            listChannels: async () => {
+              calls += 1;
+              return { channels: [], nextCursor: `page-${calls + 1}` };
+            },
+          }) as any,
+      });
+      const result = await handler({
+        commandPath: ["channels", "list"],
+        positionals: [],
+        options: { query: "missing" },
+        flags: { json: true, help: false, version: false, xoxp: false, xoxb: false },
+        context: { version: "1.2.3" },
+      });
+
+      expect(result.ok).toBe(true);
+      expect(calls).toBe(5);
+    });
   });
 
   test("returns config error when Slack token is missing", async () => {

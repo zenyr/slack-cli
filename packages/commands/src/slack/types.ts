@@ -35,6 +35,8 @@ export type SlackChannel = {
   isPrivate: boolean;
   isArchived: boolean;
   memberCount?: number;
+  topic?: string;
+  purpose?: string;
 };
 
 export type SlackChannelInfo = {

@@ -65,6 +65,15 @@ describe("help command", () => {
     expect(result.stderr.length).toBe(0);
   });
 
+  test("channels help shows list query options", async () => {
+    const result = await runCliWithBuffer(["channels", "--help"]);
+    const output = result.stdout.join("\n");
+
+    expect(result.exitCode).toBe(0);
+    expect(output).toContain("[--query=<text>]");
+    expect(output).toContain("[--query-targets=<name,topic,purpose>]");
+  });
+
   test("messages namespace help includes supported search and replies options", async () => {
     const result = await runCliWithBuffer(["messages", "--help"]);
 
