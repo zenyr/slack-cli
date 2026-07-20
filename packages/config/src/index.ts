@@ -55,6 +55,11 @@ export const COMMANDS: CliCommand[] = [
     description: "List channels",
   },
   {
+    name: "channels me",
+    args: "[--type <public|private|im|mpim>] [--limit <n>] [--cursor <cursor>] [--json]",
+    description: "List channels you belong to",
+  },
+  {
     name: "channels info",
     args: "<channel-id> [--json]",
     description: "Get channel info by ID",
@@ -294,6 +299,7 @@ export const TOOLS = [
   "conversations_unreads",
   "conversations_mark",
   "channels_list",
+  "channels_me",
   "reactions_add",
   "reactions_remove",
   "attachment_get_data",

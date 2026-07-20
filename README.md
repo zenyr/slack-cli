@@ -135,6 +135,17 @@ List channels.
 
 ---
 
+### `slack channels me`
+
+```
+slack channels me [--type <public|private|im|mpim>] [--limit <n>] [--cursor <cursor>] [--json]
+```
+
+List channels you belong to. Defaults to public and private channels with a limit of 100. The
+maximum limit is 999, and `--cursor` accepts the native Slack pagination cursor.
+
+---
+
 ### `slack users list`
 
 ```

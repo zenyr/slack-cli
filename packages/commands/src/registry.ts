@@ -30,6 +30,7 @@ import {
   authUseHandler,
   authWhoamiHandler,
   channelsListHandler,
+  channelsMeHandler,
   messagesRepliesHandler,
   messagesSearchHandler,
   usersGetHandler,
@@ -113,6 +114,11 @@ export const COMMAND_REGISTRY: CommandStrategy[] = [
     id: "channels-list",
     path: ["channels", "list"],
     execute: channelsListHandler,
+  },
+  {
+    id: "channels-me",
+    path: ["channels", "me"],
+    execute: channelsMeHandler,
   },
   {
     id: "channels-info",
