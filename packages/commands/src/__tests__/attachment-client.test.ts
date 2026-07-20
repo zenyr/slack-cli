@@ -40,6 +40,7 @@ describe("attachment client path", () => {
               filetype: "pdf",
               size: 4096,
               url_private: "https://files.slack.test/F123",
+              url_private_download: "https://files.slack.test/F123/download",
             },
           }),
           { status: 200 },
@@ -61,8 +62,32 @@ describe("attachment client path", () => {
       mimetype: "application/pdf",
       filetype: "pdf",
       size: 4096,
-      urlPrivate: "https://files.slack.test/F123",
+      urlPrivate: "https://files.slack.test/F123/download",
     });
+  });
+
+  test("fetchFileInfo falls back to url_private", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+    globalThis.fetch = Object.assign(
+      async () => {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            file: {
+              id: "F123",
+              name: "design-spec.pdf",
+              url_private: "https://files.slack.test/F123",
+            },
+          }),
+          { status: 200 },
+        );
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+
+    const result = await createSlackWebApiClient().fetchFileInfo("F123");
+
+    expect(result.urlPrivate).toBe("https://files.slack.test/F123");
   });
 
   test("fetchFileInfo rejects empty file id", async () => {

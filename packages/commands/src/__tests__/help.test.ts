@@ -116,6 +116,17 @@ describe("help command", () => {
     expect(result.stderr.length).toBe(0);
   });
 
+  test("attachment namespace help shows content and save modes", async () => {
+    const result = await runCliWithBuffer(["attachment", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(
+      result.stdout.some((line) =>
+        line.includes("get <file-id> [--content[=<bool>]] [--save[=<bool>]] [--json]"),
+      ),
+    ).toBe(true);
+  });
+
   test("users list pagination options are exposed in command diagnostics", async () => {
     const cursorResult = await runCliWithBuffer(["users", "list", "--cursor"]);
     const limitResult = await runCliWithBuffer(["users", "list", "--limit"]);

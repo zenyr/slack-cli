@@ -5,6 +5,8 @@ import { createAttachmentGetHandler } from "../handlers/attachment-get";
 import { createSlackClientError } from "../slack";
 
 describe("attachment get command", () => {
+  const ENABLED_ENV = { SLACK_MCP_ATTACHMENT_TOOL: "true" };
+
   const createHandlerThrowingSlackError = (errorOptions: {
     code:
       | "SLACK_CONFIG_ERROR"
@@ -17,12 +19,15 @@ describe("attachment get command", () => {
     details?: string;
   }) => {
     return createAttachmentGetHandler({
-      env: {},
+      env: ENABLED_ENV,
       createClient: () => ({
         fetchFileInfo: async () => {
           throw createSlackClientError(errorOptions);
         },
         fetchFileBinary: async () => {
+          throw new Error("should not be called");
+        },
+        fetchFileText: async () => {
           throw new Error("should not be called");
         },
       }),
@@ -79,7 +84,7 @@ describe("attachment get command", () => {
     const calls: string[] = [];
 
     const handler = createAttachmentGetHandler({
-      env: {},
+      env: ENABLED_ENV,
       createClient: () => ({
         fetchFileInfo: async (fileId: string) => {
           calls.push(fileId);
@@ -94,6 +99,9 @@ describe("attachment get command", () => {
         },
         fetchFileBinary: async () => {
           fetchBinaryCalled = true;
+          throw new Error("should not be called");
+        },
+        fetchFileText: async () => {
           throw new Error("should not be called");
         },
       }),
@@ -145,12 +153,15 @@ describe("attachment get command", () => {
 
   test("returns INVALID_ARGUMENT for invalid --save option value", async () => {
     const handler = createAttachmentGetHandler({
-      env: {},
+      env: ENABLED_ENV,
       createClient: () => ({
         fetchFileInfo: async () => {
           throw new Error("should not be called");
         },
         fetchFileBinary: async () => {
+          throw new Error("should not be called");
+        },
+        fetchFileText: async () => {
           throw new Error("should not be called");
         },
       }),
@@ -171,7 +182,7 @@ describe("attachment get command", () => {
 
   test("returns INVALID_ARGUMENT when --save is enabled and private URL is missing", async () => {
     const handler = createAttachmentGetHandler({
-      env: {},
+      env: ENABLED_ENV,
       createClient: () => ({
         fetchFileInfo: async () => {
           return {
@@ -183,6 +194,9 @@ describe("attachment get command", () => {
           };
         },
         fetchFileBinary: async () => {
+          throw new Error("should not be called");
+        },
+        fetchFileText: async () => {
           throw new Error("should not be called");
         },
       }),
@@ -205,7 +219,7 @@ describe("attachment get command", () => {
     const chmodCalls: Array<{ filePath: string; mode: number }> = [];
 
     const handler = createAttachmentGetHandler({
-      env: {},
+      env: ENABLED_ENV,
       createClient: () => ({
         fetchFileInfo: async () => {
           return {
@@ -226,6 +240,9 @@ describe("attachment get command", () => {
             contentType: "image/png",
             encoding: "base64",
           };
+        },
+        fetchFileText: async () => {
+          throw new Error("should not be called");
         },
       }),
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
@@ -294,7 +311,7 @@ describe("attachment get command", () => {
 
     for (const testCase of cases) {
       const handler = createAttachmentGetHandler({
-        env: {},
+        env: ENABLED_ENV,
         createClient: () => ({
           fetchFileInfo: async () => {
             return {
@@ -312,6 +329,9 @@ describe("attachment get command", () => {
             contentType: testCase.mimetype,
             encoding: "base64",
           }),
+          fetchFileText: async () => {
+            throw new Error("should not be called");
+          },
         }),
         resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
         createTempDirectory: async () => "/tmp/slack-attachment-test-0002",
@@ -328,6 +348,218 @@ describe("attachment get command", () => {
       expect(savedPaths.at(-1)).toBe(
         `/tmp/slack-attachment-test-0002/01ARZ3NDEKTSV4RRFFQ69G5FAV${testCase.expected}`,
       );
+    }
+  });
+
+  test("returns INVALID_ARGUMENT for invalid --content option value", async () => {
+    const handler = createAttachmentGetHandler({
+      env: ENABLED_ENV,
+      createClient: () => ({
+        fetchFileInfo: async () => {
+          throw new Error("should not be called");
+        },
+        fetchFileText: async () => {
+          throw new Error("should not be called");
+        },
+        fetchFileBinary: async () => {
+          throw new Error("should not be called");
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await runAttachmentGet(handler, { content: "maybe" });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("--content");
+  });
+
+  test("rejects enabled --content and --save before auth", async () => {
+    let resolveTokenCalled = false;
+    const handler = createAttachmentGetHandler({
+      env: ENABLED_ENV,
+      createClient: () => {
+        throw new Error("should not be called");
+      },
+      resolveToken: () => {
+        resolveTokenCalled = true;
+        return { token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" };
+      },
+    });
+
+    const result = await runAttachmentGet(handler, { content: true, save: true });
+
+    expect(result.ok).toBe(false);
+    expect(resolveTokenCalled).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.code).toBe("INVALID_ARGUMENT");
+    expect(result.error.message).toContain("CONFLICTING_ARGUMENTS");
+  });
+
+  test("enforces attachment safety gate before auth and API", async () => {
+    let resolveTokenCalled = false;
+    let createClientCalled = false;
+    const handler = createAttachmentGetHandler({
+      env: {},
+      createClient: () => {
+        createClientCalled = true;
+        return {};
+      },
+      resolveToken: () => {
+        resolveTokenCalled = true;
+        return { token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" };
+      },
+    });
+
+    const result = await runAttachmentGet(handler);
+
+    expect(result.ok).toBe(false);
+    expect(resolveTokenCalled).toBe(false);
+    expect(createClientCalled).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.message).toContain("ATTACHMENT_TOOL_DISABLED");
+  });
+
+  test("allows all supported attachment safety gate values", async () => {
+    const enabledEnvironments = [
+      { SLACK_MCP_ATTACHMENT_TOOL: "true" },
+      { SLACK_MCP_ATTACHMENT_TOOL: "1" },
+      { SLACK_MCP_ATTACHMENT_TOOL: "YES" },
+      { SLACK_MCP_ENABLED_TOOLS: "channels_list, attachment_get_data,users_search" },
+    ];
+
+    for (const env of enabledEnvironments) {
+      const handler = createAttachmentGetHandler({
+        env,
+        createClient: () => ({
+          fetchFileInfo: async () => ({ id: "F404", name: "file.txt" }),
+          fetchFileText: async () => {
+            throw new Error("should not be called");
+          },
+          fetchFileBinary: async () => {
+            throw new Error("should not be called");
+          },
+        }),
+        resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+      });
+
+      const result = await runAttachmentGet(handler);
+      expect(result.ok).toBe(true);
+    }
+  });
+
+  test("rejects metadata larger than 5 MiB before content download", async () => {
+    let downloadCalled = false;
+    const handler = createAttachmentGetHandler({
+      env: ENABLED_ENV,
+      createClient: () => ({
+        fetchFileInfo: async () => ({
+          id: "F-LARGE",
+          name: "large.txt",
+          mimetype: "text/plain",
+          size: 5 * 1024 * 1024 + 1,
+          urlPrivate: "https://files.slack.test/F-LARGE",
+        }),
+        fetchFileText: async () => {
+          downloadCalled = true;
+          throw new Error("should not be called");
+        },
+        fetchFileBinary: async () => {
+          downloadCalled = true;
+          throw new Error("should not be called");
+        },
+      }),
+      resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+    });
+
+    const result = await runAttachmentGet(handler, { content: true });
+
+    expect(result.ok).toBe(false);
+    expect(downloadCalled).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error.message).toContain("ATTACHMENT_TOO_LARGE");
+  });
+
+  test("uses text download only for the exact textual MIME set", async () => {
+    const cases = [
+      { mimetype: "text/plain", encoding: "none", text: true },
+      { mimetype: "text/x-custom; charset=utf-8", encoding: "none", text: true },
+      { mimetype: "application/json", encoding: "none", text: true },
+      { mimetype: "application/xml", encoding: "none", text: true },
+      { mimetype: "application/javascript", encoding: "none", text: true },
+      { mimetype: "application/x-yaml", encoding: "none", text: true },
+      { mimetype: "application/x-sh", encoding: "none", text: true },
+      { mimetype: "application/yaml", encoding: "base64", text: false },
+      { mimetype: "application/ld+json", encoding: "base64", text: false },
+      { mimetype: "application/octet-stream", encoding: "base64", text: false },
+    ];
+
+    for (const testCase of cases) {
+      let textCalls = 0;
+      let binaryCalls = 0;
+      const handler = createAttachmentGetHandler({
+        env: ENABLED_ENV,
+        createClient: () => ({
+          fetchFileInfo: async () => ({
+            id: "F-CONTENT",
+            name: "content.dat",
+            mimetype: testCase.mimetype,
+            size: 100,
+            urlPrivate: "https://files.slack.test/F-CONTENT",
+          }),
+          fetchFileText: async (urlPrivate: string, maxBytes: number) => {
+            expect(urlPrivate).toBe("https://files.slack.test/F-CONTENT");
+            expect(maxBytes).toBe(5 * 1024 * 1024);
+            textCalls += 1;
+            return { content: "hello", byteLength: 5, contentType: testCase.mimetype };
+          },
+          fetchFileBinary: async (urlPrivate: string, maxBytes: number) => {
+            expect(urlPrivate).toBe("https://files.slack.test/F-CONTENT");
+            expect(maxBytes).toBe(5 * 1024 * 1024);
+            binaryCalls += 1;
+            return {
+              contentBase64: "AAE=",
+              byteLength: 2,
+              contentType: testCase.mimetype,
+              encoding: "base64" as const,
+            };
+          },
+        }),
+        resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
+      });
+
+      const result = await runAttachmentGet(handler, { content: true });
+
+      expect(result.ok).toBe(true);
+      expect(textCalls).toBe(testCase.text ? 1 : 0);
+      expect(binaryCalls).toBe(testCase.text ? 0 : 1);
+      if (!result.ok || !isRecord(result.data)) {
+        continue;
+      }
+      expect(Object.keys(result.data).sort()).toEqual([
+        "content",
+        "encoding",
+        "file_id",
+        "filename",
+        "mimetype",
+        "size",
+      ]);
+      expect(result.data.file_id).toBe("F-CONTENT");
+      expect(result.data.filename).toBe("content.dat");
+      expect(result.data.mimetype).toBe(testCase.mimetype);
+      expect(result.data.size).toBe(testCase.text ? 5 : 2);
+      expect(result.data.encoding).toBe(testCase.encoding);
+      expect(result.data.content).toBe(testCase.text ? "hello" : "AAE=");
     }
   });
 
@@ -448,7 +680,7 @@ describe("attachment get command", () => {
 
   test("returns internal error when attachment client contract is unavailable", async () => {
     const handler = createAttachmentGetHandler({
-      env: {},
+      env: ENABLED_ENV,
       createClient: () => ({ listChannels: async () => ({ channels: [] }) }),
       resolveToken: () => ({ token: "xoxp-test", source: "SLACK_MCP_XOXP_TOKEN" }),
     });

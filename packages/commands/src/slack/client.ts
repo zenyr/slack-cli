@@ -691,7 +691,7 @@ const mapFileMetadata = (value: unknown): SlackFileMetadata | undefined => {
     mode: readString(value, "mode"),
     title: readString(value, "title"),
     size: readNumber(value, "size"),
-    urlPrivate: readString(value, "url_private"),
+    urlPrivate: readString(value, "url_private_download") ?? readString(value, "url_private"),
     email: mapEmailMetadata(value),
   };
 };

@@ -18,10 +18,18 @@ import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "attachment.get";
 const USAGE_HINT =
-  "Usage: slack attachment get <file-id(required,non-empty)> [--save[=<bool>]] [--json]";
+  "Usage: slack attachment get <file-id(required,non-empty)> [--content[=<bool>]] [--save[=<bool>]] [--json]";
 const MAX_ATTACHMENT_DOWNLOAD_BYTES = 5 * 1024 * 1024;
 const TEMP_DIR_PREFIX = "slack-attachment-";
 const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const ATTACHMENT_TOOL_NAME = "attachment_get_data";
+const TEXTUAL_APPLICATION_MIME_TYPES = new Set([
+  "application/json",
+  "application/xml",
+  "application/javascript",
+  "application/x-yaml",
+  "application/x-sh",
+]);
 const MIME_TYPE_EXTENSIONS: Record<string, string> = {
   "image/gif": ".gif",
   "image/jpeg": ".jpg",
@@ -50,6 +58,14 @@ type SlackFileInfoMetadata = {
 
 type AttachmentMetadataClient = {
   fetchFileInfo: (fileId: string) => Promise<SlackFileInfoMetadata>;
+  fetchFileText: (
+    urlPrivate: string,
+    maxBytes: number,
+  ) => Promise<{
+    content: string;
+    byteLength: number;
+    contentType?: string;
+  }>;
   fetchFileBinary: (
     urlPrivate: string,
     maxBytes: number,
@@ -125,12 +141,41 @@ const hasAttachmentMetadataClient = (value: unknown): value is AttachmentMetadat
   return (
     isRecord(value) &&
     typeof value.fetchFileInfo === "function" &&
+    typeof value.fetchFileText === "function" &&
     typeof value.fetchFileBinary === "function"
   );
 };
 
 const readSaveOption = (options: CliOptions): boolean | CliResult => {
   return readBooleanOption(options, "save", "attachment get", USAGE_HINT, COMMAND_ID, false);
+};
+
+const readContentOption = (options: CliOptions): boolean | CliResult => {
+  return readBooleanOption(options, "content", "attachment get", USAGE_HINT, COMMAND_ID, false);
+};
+
+const isAttachmentToolEnabled = (env: Record<string, string | undefined>): boolean => {
+  const attachmentToolValue = env.SLACK_MCP_ATTACHMENT_TOOL?.trim().toLowerCase();
+  if (
+    attachmentToolValue === "true" ||
+    attachmentToolValue === "1" ||
+    attachmentToolValue === "yes"
+  ) {
+    return true;
+  }
+
+  return (env.SLACK_MCP_ENABLED_TOOLS ?? "")
+    .split(",")
+    .some((toolName) => toolName.trim() === ATTACHMENT_TOOL_NAME);
+};
+
+const normalizeMimeType = (mimetype: string | undefined): string => {
+  return (mimetype ?? "").split(";", 1)[0]?.trim().toLowerCase() ?? "";
+};
+
+const isTextualMimeType = (mimetype: string | undefined): boolean => {
+  const normalized = normalizeMimeType(mimetype);
+  return normalized.startsWith("text/") || TEXTUAL_APPLICATION_MIME_TYPES.has(normalized);
 };
 
 const mapFileMetadata = (value: SlackFileInfoMetadata): SlackAttachmentOutputMetadata => {
@@ -210,6 +255,29 @@ export const createAttachmentGetHandler = (
       return saveToFileOrError;
     }
 
+    const includeContentOrError = readContentOption(request.options);
+    if (isCliErrorResult(includeContentOrError)) {
+      return includeContentOrError;
+    }
+
+    if (saveToFileOrError && includeContentOrError) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "attachment get cannot use --content and --save together. [CONFLICTING_ARGUMENTS]",
+        USAGE_HINT,
+        COMMAND_ID,
+      );
+    }
+
+    if (!isAttachmentToolEnabled(deps.env)) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "attachment get is disabled. [ATTACHMENT_TOOL_DISABLED]",
+        "Set SLACK_MCP_ATTACHMENT_TOOL=true or include attachment_get_data in SLACK_MCP_ENABLED_TOOLS.",
+        COMMAND_ID,
+      );
+    }
+
     try {
       const resolvedToken = await resolveTokenForContext(
         request.context,
@@ -229,7 +297,7 @@ export const createAttachmentGetHandler = (
       const fileMetadata = await client.fetchFileInfo(fileId);
       const outputMetadata = mapFileMetadata(fileMetadata);
 
-      if (saveToFileOrError === false) {
+      if (saveToFileOrError === false && includeContentOrError === false) {
         return {
           ok: true,
           command: COMMAND_ID,
@@ -246,13 +314,64 @@ export const createAttachmentGetHandler = (
         };
       }
 
+      if (fileMetadata.size !== undefined && fileMetadata.size > MAX_ATTACHMENT_DOWNLOAD_BYTES) {
+        return createError(
+          "INVALID_ARGUMENT",
+          `Attachment exceeds max size: ${fileMetadata.size} bytes. [ATTACHMENT_TOO_LARGE]`,
+          `Use a file at or below ${MAX_ATTACHMENT_DOWNLOAD_BYTES} bytes.`,
+          COMMAND_ID,
+        );
+      }
+
       if (fileMetadata.urlPrivate === undefined || fileMetadata.urlPrivate.trim().length === 0) {
         return createError(
           "INVALID_ARGUMENT",
           "Attachment metadata does not include a private download URL. [ATTACHMENT_DOWNLOAD_UNAVAILABLE]",
-          "Ensure file is accessible and files.info includes url_private.",
+          "Ensure file is accessible and files.info includes url_private_download or url_private.",
           COMMAND_ID,
         );
+      }
+
+      if (includeContentOrError) {
+        if (isTextualMimeType(fileMetadata.mimetype)) {
+          const textPayload = await client.fetchFileText(
+            fileMetadata.urlPrivate,
+            MAX_ATTACHMENT_DOWNLOAD_BYTES,
+          );
+          return {
+            ok: true,
+            command: COMMAND_ID,
+            message: `Attachment content loaded for ${outputMetadata.id}.`,
+            data: {
+              file_id: outputMetadata.id,
+              filename: outputMetadata.name,
+              mimetype: fileMetadata.mimetype ?? textPayload.contentType ?? "",
+              size: textPayload.byteLength,
+              encoding: "none",
+              content: textPayload.content,
+            },
+            textLines: [textPayload.content],
+          };
+        }
+
+        const binaryPayload = await client.fetchFileBinary(
+          fileMetadata.urlPrivate,
+          MAX_ATTACHMENT_DOWNLOAD_BYTES,
+        );
+        return {
+          ok: true,
+          command: COMMAND_ID,
+          message: `Attachment content loaded for ${outputMetadata.id}.`,
+          data: {
+            file_id: outputMetadata.id,
+            filename: outputMetadata.name,
+            mimetype: fileMetadata.mimetype ?? binaryPayload.contentType ?? "",
+            size: binaryPayload.byteLength,
+            encoding: "base64",
+            content: binaryPayload.contentBase64,
+          },
+          textLines: [binaryPayload.contentBase64],
+        };
       }
 
       const binaryPayload = await client.fetchFileBinary(

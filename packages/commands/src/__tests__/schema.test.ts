@@ -65,4 +65,19 @@ describe("schema command", () => {
     expect(parsed.data.schema.supportsDryRun).toBe(true);
     expect(parsed.data.schema.mutating).toBe(true);
   });
+
+  test("shows attachment content and save modes", async () => {
+    const result = await runCliWithBuffer(["schema", "attachment", "get", "--json"]);
+    const parsed = parseJsonOutput(result.stdout);
+
+    expect(result.exitCode).toBe(0);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !isRecord(parsed.data.schema)) {
+      return;
+    }
+
+    expect(parsed.data.schema.args).toBe(
+      "<file-id> [--content[=<bool>]] [--save[=<bool>]] [--json]",
+    );
+  });
 });
