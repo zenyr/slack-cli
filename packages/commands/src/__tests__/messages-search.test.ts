@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 
 import { isRecord, parseJsonOutput, runCliWithBuffer } from "./test-utils";
 import { createMessagesSearchHandler } from "../handlers/messages-search";
-import { createSlackClientError } from "../slack";
+import { createSlackClientError, createSlackWebApiClient } from "../slack";
 
 describe("messages search command", () => {
   const XOXP_ENV_KEY = "SLACK_MCP_XOXP_TOKEN";
@@ -108,6 +108,124 @@ describe("messages search command", () => {
 
     expect(parsed.data.query).toBe("deploy done");
     expect(parsed.data.total).toBe(1);
+  });
+
+  test("uses block fallback for empty search message text", async () => {
+    const client = createSlackWebApiClient({
+      token: "xoxp-test-token",
+      fetchImpl: Object.assign(
+        async () =>
+          new Response(
+            JSON.stringify({
+              ok: true,
+              messages: {
+                total: 1,
+                matches: [
+                  {
+                    text: "",
+                    ts: "1700000000.000100",
+                    blocks: [
+                      {
+                        type: "section",
+                        text: { type: "mrkdwn", text: "Search block fallback" },
+                      },
+                    ],
+                  },
+                ],
+              },
+            }),
+            { status: 200 },
+          ),
+        { preconnect: originalFetch.preconnect },
+      ),
+    });
+
+    await expect(client.searchMessages("deploy")).resolves.toMatchObject({
+      messages: [{ text: "Search block fallback" }],
+    });
+  });
+
+  test("retries search 429 responses twice and respects Retry-After", async () => {
+    let callCount = 0;
+    const sleepCalls: number[] = [];
+    const client = createSlackWebApiClient({
+      token: "xoxp-test-token",
+      sleep: async (milliseconds) => {
+        sleepCalls.push(milliseconds);
+      },
+      fetchImpl: Object.assign(
+        async () => {
+          callCount += 1;
+          if (callCount < 3) {
+            return new Response("", {
+              status: 429,
+              headers: { "Retry-After": String(callCount) },
+            });
+          }
+          return new Response(JSON.stringify({ ok: true, messages: { total: 0, matches: [] } }), {
+            status: 200,
+          });
+        },
+        { preconnect: originalFetch.preconnect },
+      ),
+    });
+
+    await expect(client.searchMessages("deploy")).resolves.toMatchObject({ total: 0 });
+    expect(callCount).toBe(3);
+    expect(sleepCalls).toEqual([1000, 2000]);
+  });
+
+  test("stops search retry after two retries", async () => {
+    let callCount = 0;
+    const sleepCalls: number[] = [];
+    const client = createSlackWebApiClient({
+      token: "xoxp-test-token",
+      sleep: async (milliseconds) => {
+        sleepCalls.push(milliseconds);
+      },
+      fetchImpl: Object.assign(
+        async () => {
+          callCount += 1;
+          return new Response("", { status: 429, headers: { "Retry-After": "3" } });
+        },
+        { preconnect: originalFetch.preconnect },
+      ),
+    });
+
+    await expect(client.searchMessages("deploy")).rejects.toMatchObject({
+      code: "SLACK_HTTP_ERROR",
+      status: 429,
+      retryAfterSeconds: 3,
+    });
+    expect(callCount).toBe(3);
+    expect(sleepCalls).toEqual([3000, 3000]);
+  });
+
+  test("does not retry non-search reads or writes", async () => {
+    let callCount = 0;
+    const sleepCalls: number[] = [];
+    const client = createSlackWebApiClient({
+      token: "xoxp-test-token",
+      sleep: async (milliseconds) => {
+        sleepCalls.push(milliseconds);
+      },
+      fetchImpl: Object.assign(
+        async () => {
+          callCount += 1;
+          return new Response("", { status: 429, headers: { "Retry-After": "5" } });
+        },
+        { preconnect: originalFetch.preconnect },
+      ),
+    });
+
+    await expect(client.fetchChannelHistory({ channel: "C123" })).rejects.toMatchObject({
+      status: 429,
+    });
+    await expect(client.postMessage({ channel: "C123", text: "hello" })).rejects.toMatchObject({
+      status: 429,
+    });
+    expect(callCount).toBe(2);
+    expect(sleepCalls).toEqual([]);
   });
 
   test("builds query with all message filters in stable order", async () => {

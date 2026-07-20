@@ -236,7 +236,14 @@ export type SlackMessage = {
   ts: string;
   threadTs?: string;
   blocks?: Record<string, unknown>[];
+  attachments?: Record<string, unknown>[];
   files?: SlackFileMetadata[];
+};
+
+export type SlackEmailMetadata = {
+  from?: string[];
+  cc?: string[];
+  subject?: string;
 };
 
 export type SlackFileMetadata = {
@@ -244,8 +251,11 @@ export type SlackFileMetadata = {
   name: string;
   mimetype?: string;
   filetype?: string;
+  mode?: string;
+  title?: string;
   size?: number;
   urlPrivate?: string;
+  email?: SlackEmailMetadata;
 };
 
 export type SlackFileText = {

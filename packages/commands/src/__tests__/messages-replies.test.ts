@@ -537,7 +537,7 @@ describe("messages replies command", () => {
     expect(parsed.data.next_cursor).toBe("cursor-page-3");
   });
 
-  test("reconstructs message text from rich_text blocks when text is truncated", async () => {
+  test("preserves non-empty message text when rich_text blocks contain more text", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
     const fullText =
@@ -604,7 +604,7 @@ describe("messages replies command", () => {
       return;
     }
 
-    expect(first.text).toBe(fullText);
+    expect(first.text).toBe("좋습니다. 질문하신 내용에 대해 정리해드리겠습니다.");
   });
 
   const deterministicSlackErrorCases = [

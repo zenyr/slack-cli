@@ -16,6 +16,7 @@ import type {
   SlackCreateUsergroupParams,
   SlackDeleteMessageParams,
   SlackDeleteMessageResult,
+  SlackEmailMetadata,
   SlackFileBinary,
   SlackFileMetadata,
   SlackGetReactionsResult,
@@ -84,6 +85,7 @@ type CreateSlackWebApiClientOptions = {
   env?: Record<string, string | undefined>;
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  sleep?: (milliseconds: number) => Promise<void>;
 };
 
 const textEncoder = new TextEncoder();
@@ -432,10 +434,18 @@ const renderRichTextElements = (elements: unknown): string => {
     if (type === "link") {
       const text = readString(element, "text");
       const url = readString(element, "url");
-      if (text !== undefined && text.length > 0) {
-        renderedParts.push(text);
+      if (url !== undefined && text !== undefined && text.length > 0 && text !== url) {
+        renderedParts.push(`<${url}|${text}>`);
       } else if (url !== undefined) {
-        renderedParts.push(url);
+        renderedParts.push(`<${url}>`);
+      }
+      continue;
+    }
+
+    if (type === "broadcast") {
+      const range = readString(element, "range");
+      if (range !== undefined) {
+        renderedParts.push(`<!${range}>`);
       }
       continue;
     }
@@ -466,18 +476,34 @@ const renderRichTextElements = (elements: unknown): string => {
 
     if (type === "rich_text_section") {
       renderedParts.push(renderRichTextElements(readArray(element, "elements")));
+      renderedParts.push("\n");
       continue;
     }
 
-    if (type === "rich_text_quote" || type === "rich_text_preformatted") {
-      renderedParts.push(renderRichTextElements(readArray(element, "elements")));
+    if (type === "rich_text_quote") {
+      const quote = renderRichTextElements(readArray(element, "elements"));
+      renderedParts.push(
+        quote
+          .split("\n")
+          .map((line) => `> ${line}`)
+          .join("\n"),
+      );
+      renderedParts.push("\n");
+      continue;
+    }
+
+    if (type === "rich_text_preformatted") {
+      renderedParts.push(`\`\`\`${renderRichTextElements(readArray(element, "elements"))}\`\`\``);
       renderedParts.push("\n");
       continue;
     }
 
     if (type === "rich_text_list") {
       const listItems = toRecordArray(readArray(element, "elements"));
-      for (const listItem of listItems) {
+      const style = readString(element, "style");
+      for (const [index, listItem] of listItems.entries()) {
+        const prefix = style === "ordered" ? `${index + 1}. ` : "- ";
+        renderedParts.push(prefix);
         renderedParts.push(renderRichTextElements(readArray(listItem, "elements")));
         renderedParts.push("\n");
       }
@@ -493,6 +519,17 @@ const renderRichTextElements = (elements: unknown): string => {
   return renderedParts.join("");
 };
 
+const readTextObject = (value: Record<string, unknown>, key: string): string | undefined => {
+  const textObject = readRecord(value, key);
+  return textObject === undefined ? undefined : readString(textObject, "text");
+};
+
+const appendText = (parts: string[], value: string | undefined): void => {
+  if (value !== undefined && value.trim().length > 0) {
+    parts.push(value.trim());
+  }
+};
+
 const renderMessageTextFromBlocks = (blocks: Record<string, unknown>[]): string | undefined => {
   if (blocks.length === 0) {
     return undefined;
@@ -502,6 +539,34 @@ const renderMessageTextFromBlocks = (blocks: Record<string, unknown>[]): string 
 
   for (const block of blocks) {
     const blockType = readString(block, "type") ?? "";
+
+    if (blockType === "header") {
+      appendText(blockTexts, readTextObject(block, "text"));
+      continue;
+    }
+
+    if (blockType === "section") {
+      appendText(blockTexts, readTextObject(block, "text"));
+      for (const field of toRecordArray(readArray(block, "fields"))) {
+        appendText(blockTexts, readString(field, "text"));
+      }
+      continue;
+    }
+
+    if (blockType === "context") {
+      const contextParts: string[] = [];
+      for (const element of toRecordArray(readArray(block, "elements"))) {
+        appendText(contextParts, readString(element, "text"));
+        if (readString(element, "type") === "image") {
+          appendText(contextParts, readString(element, "alt_text"));
+        }
+      }
+      if (contextParts.length > 0) {
+        blockTexts.push(contextParts.join(" "));
+      }
+      continue;
+    }
+
     if (blockType !== "rich_text") {
       continue;
     }
@@ -520,27 +585,91 @@ const renderMessageTextFromBlocks = (blocks: Record<string, unknown>[]): string 
   return blockTexts.join("\n");
 };
 
-const mapSearchMessage = (value: unknown): SlackSearchMessage | undefined => {
-  if (!isRecord(value)) {
-    return undefined;
+const renderAttachmentText = (attachment: Record<string, unknown>): string | undefined => {
+  const parts: string[] = [];
+  const title = readString(attachment, "title");
+  const titleLink = readString(attachment, "title_link");
+  appendText(
+    parts,
+    title !== undefined && titleLink !== undefined ? `<${titleLink}|${title}>` : title,
+  );
+
+  const author = readString(attachment, "author_name");
+  const authorLink = readString(attachment, "author_link");
+  appendText(
+    parts,
+    author !== undefined && authorLink !== undefined ? `<${authorLink}|${author}>` : author,
+  );
+  appendText(parts, readString(attachment, "pretext"));
+  appendText(parts, readString(attachment, "text"));
+
+  for (const field of toRecordArray(readArray(attachment, "fields"))) {
+    const fieldTitle = readString(field, "title");
+    const fieldValue = readString(field, "value");
+    appendText(
+      parts,
+      fieldTitle !== undefined && fieldValue !== undefined
+        ? `${fieldTitle}: ${fieldValue}`
+        : (fieldTitle ?? fieldValue),
+    );
   }
 
-  const text = readString(value, "text");
-  const ts = readString(value, "ts");
-  if (text === undefined || ts === undefined) {
-    return undefined;
+  appendText(parts, readString(attachment, "footer"));
+  appendText(parts, renderMessageTextFromBlocks(toRecordArray(readArray(attachment, "blocks"))));
+  return parts.length > 0 ? parts.join("\n") : undefined;
+};
+
+const readEmailAddresses = (value: unknown): string[] | undefined => {
+  const entries = Array.isArray(value) ? value : [value];
+  const addresses: string[] = [];
+
+  for (const entry of entries) {
+    if (typeof entry === "string" && entry.trim().length > 0) {
+      addresses.push(entry.trim());
+      continue;
+    }
+    if (isRecord(entry)) {
+      const address = readString(entry, "address") ?? readString(entry, "email");
+      const name = readString(entry, "name");
+      if (address !== undefined) {
+        addresses.push(name === undefined ? address : `${name} <${address}>`);
+      }
+    }
   }
 
-  const channel = readRecord(value, "channel");
-  return {
-    channelId: channel === undefined ? undefined : readString(channel, "id"),
-    channelName: channel === undefined ? undefined : readString(channel, "name"),
-    userId: readString(value, "user"),
-    username: readString(value, "username"),
-    text: truncateText(text, SEARCH_TEXT_TRUNCATE_LENGTH),
-    ts,
-    permalink: readString(value, "permalink"),
-  };
+  return addresses.length > 0 ? addresses : undefined;
+};
+
+const mapEmailMetadata = (value: Record<string, unknown>): SlackEmailMetadata | undefined => {
+  const email = readRecord(value, "email");
+  const source = email ?? value;
+  const from = readEmailAddresses(source.from);
+  const cc = readEmailAddresses(source.cc);
+  const subject = readString(source, "subject");
+
+  if (from === undefined && cc === undefined && subject === undefined) {
+    return undefined;
+  }
+  return { from, cc, subject };
+};
+
+const renderEmailMetadata = (files: SlackFileMetadata[]): string | undefined => {
+  const parts: string[] = [];
+  for (const file of files) {
+    if (file.email === undefined) {
+      continue;
+    }
+    appendText(
+      parts,
+      file.email.from === undefined ? undefined : `From: ${file.email.from.join(", ")}`,
+    );
+    appendText(parts, file.email.cc === undefined ? undefined : `CC: ${file.email.cc.join(", ")}`);
+    appendText(
+      parts,
+      file.email.subject === undefined ? undefined : `Subject: ${file.email.subject}`,
+    );
+  }
+  return parts.length > 0 ? parts.join("\n") : undefined;
 };
 
 const mapFileMetadata = (value: unknown): SlackFileMetadata | undefined => {
@@ -559,8 +688,58 @@ const mapFileMetadata = (value: unknown): SlackFileMetadata | undefined => {
     name,
     mimetype: readString(value, "mimetype"),
     filetype: readString(value, "filetype"),
+    mode: readString(value, "mode"),
+    title: readString(value, "title"),
     size: readNumber(value, "size"),
     urlPrivate: readString(value, "url_private"),
+    email: mapEmailMetadata(value),
+  };
+};
+
+const resolveMessageText = (
+  value: Record<string, unknown>,
+  blocks: Record<string, unknown>[],
+  attachments: Record<string, unknown>[],
+  files: SlackFileMetadata[],
+): string | undefined => {
+  const text = readString(value, "text");
+  const renderedFromBlocks = renderMessageTextFromBlocks(blocks);
+  const baseText = text !== undefined && text.trim().length > 0 ? text : renderedFromBlocks;
+  const attachmentTexts = attachments
+    .map(renderAttachmentText)
+    .filter((entry): entry is string => entry !== undefined);
+  const fallbackText = baseText ?? renderEmailMetadata(files);
+  const resolvedText = [fallbackText, ...attachmentTexts]
+    .filter((entry): entry is string => entry !== undefined && entry.length > 0)
+    .join("\n");
+  return resolvedText.length > 0 ? resolvedText : undefined;
+};
+
+const mapSearchMessage = (value: unknown): SlackSearchMessage | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const ts = readString(value, "ts");
+  const blocks = toRecordArray(readArray(value, "blocks"));
+  const attachments = toRecordArray(readArray(value, "attachments"));
+  const files = toRecordArray(readArray(value, "files"))
+    .map(mapFileMetadata)
+    .filter((file): file is SlackFileMetadata => file !== undefined);
+  const text = resolveMessageText(value, blocks, attachments, files);
+  if (text === undefined || ts === undefined) {
+    return undefined;
+  }
+
+  const channel = readRecord(value, "channel");
+  return {
+    channelId: channel === undefined ? undefined : readString(channel, "id"),
+    channelName: channel === undefined ? undefined : readString(channel, "name"),
+    userId: readString(value, "user"),
+    username: readString(value, "username"),
+    text: truncateText(text, SEARCH_TEXT_TRUNCATE_LENGTH),
+    ts,
+    permalink: readString(value, "permalink"),
   };
 };
 
@@ -570,23 +749,17 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
   }
 
   const ts = readString(value, "ts");
-  const text = readString(value, "text");
   const blocks = toRecordArray(readArray(value, "blocks"));
-  const renderedFromBlocks = renderMessageTextFromBlocks(blocks);
-  const resolvedText =
-    renderedFromBlocks !== undefined &&
-    (text === undefined || renderedFromBlocks.length > text.length)
-      ? renderedFromBlocks
-      : text;
-
-  if (ts === undefined || resolvedText === undefined) {
-    return undefined;
-  }
-
+  const attachments = toRecordArray(readArray(value, "attachments"));
   const rawFiles = readArray(value, "files");
   const files = toRecordArray(rawFiles)
     .map(mapFileMetadata)
     .filter((f): f is SlackFileMetadata => f !== undefined);
+  const resolvedText = resolveMessageText(value, blocks, attachments, files);
+
+  if (ts === undefined || resolvedText === undefined) {
+    return undefined;
+  }
 
   return {
     type: readString(value, "type") ?? "message",
@@ -595,6 +768,7 @@ const mapMessage = (value: unknown): SlackMessage | undefined => {
     ts,
     threadTs: readString(value, "thread_ts"),
     ...(blocks.length > 0 ? { blocks } : {}),
+    ...(attachments.length > 0 ? { attachments } : {}),
     ...(files.length > 0 ? { files } : {}),
   };
 };
@@ -641,6 +815,7 @@ export const createSlackWebApiClient = (
   SlackConversationMarkWebApiClient &
   SlackViewsWebApiClient => {
   const fetchImpl = options.fetchImpl ?? fetch;
+  const sleep = options.sleep ?? Bun.sleep;
   const baseUrl = options.baseUrl ?? DEFAULT_SLACK_API_BASE_URL;
   const explicitToken = options.token;
   const env = options.env ?? process.env;
@@ -678,19 +853,30 @@ export const createSlackWebApiClient = (
   const callApi = async (
     method: string,
     params: URLSearchParams,
+    maxRateLimitRetries = 0,
   ): Promise<Record<string, unknown>> => {
     const token = (await getResolvedToken()).token;
     const url = buildApiUrl(baseUrl, method, params);
-    const response = await fetchImpl(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    let response: Response;
+    let retryCount = 0;
+    while (true) {
+      response = await fetchImpl(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status !== 429 || retryCount >= maxRateLimitRetries) {
+        break;
+      }
+      const retryAfterSeconds = parseRetryAfterHeader(response.headers.get("retry-after")) ?? 0;
+      retryCount += 1;
+      await sleep(retryAfterSeconds * 1000);
+    }
 
     if (response.status === 429) {
       const retryAfterSeconds = parseRetryAfterHeader(response.headers.get("retry-after"));
-      // TODO(commands-owner): Add bounded retry/backoff policy with jitter for 429 responses and remove once CLI supports retry telemetry/flags.
       throw createSlackClientError({
         code: "SLACK_HTTP_ERROR",
         message: "Slack API rate limit reached.",
@@ -1155,7 +1341,7 @@ export const createSlackWebApiClient = (
     if (options.cursor !== undefined) {
       params.set("page", options.cursor);
     }
-    const payload = await callApi("search.messages", params);
+    const payload = await callApi("search.messages", params, 2);
     const messagesContainer = readRecord(payload, "messages");
     const matchesRaw =
       messagesContainer === undefined ? [] : (readArray(messagesContainer, "matches") ?? []);

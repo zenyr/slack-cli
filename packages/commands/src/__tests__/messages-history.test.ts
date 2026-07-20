@@ -186,6 +186,194 @@ describe("messages history command", () => {
     expect(parsed.textLines).toContain("1700000002.000100 U001 deployed");
   });
 
+  test("preserves text and renders block, attachment, and email-file message content", async () => {
+    process.env[XOXP_ENV_KEY] = "xoxp-test-token";
+
+    globalThis.fetch = Object.assign(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            messages: [
+              {
+                type: "message",
+                user: "U001",
+                text: "original text",
+                ts: "1700000003.000100",
+                blocks: [
+                  {
+                    type: "section",
+                    text: { type: "mrkdwn", text: "longer block fallback must not replace text" },
+                  },
+                ],
+                attachments: [
+                  {
+                    title: "Release",
+                    title_link: "https://example.com/release",
+                    author_name: "Build bot",
+                    author_link: "https://example.com/bot",
+                    pretext: "Deployment",
+                    text: "Succeeded",
+                    fields: [{ title: "Region", value: "us-east-1" }],
+                    footer: "CI",
+                    blocks: [
+                      {
+                        type: "section",
+                        text: { type: "mrkdwn", text: "Nested attachment block" },
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                type: "message",
+                user: "U002",
+                text: "   ",
+                ts: "1700000002.000100",
+                blocks: [
+                  { type: "header", text: { type: "plain_text", text: "Header" } },
+                  {
+                    type: "section",
+                    text: { type: "mrkdwn", text: "Section" },
+                    fields: [{ type: "mrkdwn", text: "Field A" }],
+                  },
+                  {
+                    type: "context",
+                    elements: [
+                      { type: "mrkdwn", text: "Context" },
+                      { type: "image", alt_text: "diagram" },
+                    ],
+                  },
+                  {
+                    type: "rich_text",
+                    elements: [
+                      {
+                        type: "rich_text_section",
+                        elements: [
+                          { type: "link", url: "https://example.com/docs", text: "Docs" },
+                          { type: "text", text: " " },
+                          { type: "broadcast", range: "channel" },
+                        ],
+                      },
+                      {
+                        type: "rich_text_list",
+                        style: "bullet",
+                        elements: [
+                          {
+                            type: "rich_text_section",
+                            elements: [{ type: "text", text: "one" }],
+                          },
+                          {
+                            type: "rich_text_section",
+                            elements: [{ type: "text", text: "two" }],
+                          },
+                        ],
+                      },
+                      {
+                        type: "rich_text_quote",
+                        elements: [{ type: "text", text: "quoted" }],
+                      },
+                      {
+                        type: "rich_text_preformatted",
+                        elements: [{ type: "text", text: "code" }],
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                type: "message",
+                user: "U003",
+                text: "",
+                ts: "1700000001.000100",
+                files: [
+                  {
+                    id: "FEMAIL",
+                    name: "message.eml",
+                    mode: "email",
+                    mimetype: "text/plain",
+                    filetype: "email",
+                    title: "Imported email",
+                    size: 42,
+                    url_private: "https://files.slack.test/FEMAIL",
+                    email: {
+                      from: [{ name: "Alice", address: "alice@example.com" }],
+                      cc: "ops@example.com",
+                      subject: "Incident update",
+                    },
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      { preconnect: originalFetch.preconnect },
+    );
+
+    const result = await runCliWithBuffer(["messages", "history", "C123", "--json"]);
+    expect(result.exitCode).toBe(0);
+
+    const parsed = parseJsonOutput(result.stdout);
+    expect(isRecord(parsed)).toBe(true);
+    if (!isRecord(parsed) || !isRecord(parsed.data) || !Array.isArray(parsed.data.messages)) {
+      return;
+    }
+
+    const [withAttachment, fromBlocks, fromEmail] = parsed.data.messages;
+    expect(isRecord(withAttachment)).toBe(true);
+    expect(isRecord(fromBlocks)).toBe(true);
+    expect(isRecord(fromEmail)).toBe(true);
+    if (!isRecord(withAttachment) || !isRecord(fromBlocks) || !isRecord(fromEmail)) {
+      return;
+    }
+
+    expect(withAttachment.text).toBe(
+      [
+        "original text",
+        "<https://example.com/release|Release>",
+        "<https://example.com/bot|Build bot>",
+        "Deployment",
+        "Succeeded",
+        "Region: us-east-1",
+        "CI",
+        "Nested attachment block",
+      ].join("\n"),
+    );
+    expect(Array.isArray(withAttachment.attachments)).toBe(true);
+    expect(fromBlocks.text).toBe(
+      [
+        "Header",
+        "Section",
+        "Field A",
+        "Context diagram",
+        "<https://example.com/docs|Docs> <!channel>\n- one\n- two\n> quoted\n```code```",
+      ].join("\n"),
+    );
+    expect(fromEmail.text).toBe(
+      "From: Alice <alice@example.com>\nCC: ops@example.com\nSubject: Incident update",
+    );
+    expect(Array.isArray(fromEmail.files)).toBe(true);
+    if (!Array.isArray(fromEmail.files) || !isRecord(fromEmail.files[0])) {
+      return;
+    }
+    expect(fromEmail.files[0]).toEqual({
+      id: "FEMAIL",
+      name: "message.eml",
+      mimetype: "text/plain",
+      filetype: "email",
+      mode: "email",
+      title: "Imported email",
+      size: 42,
+      urlPrivate: "https://files.slack.test/FEMAIL",
+      email: {
+        from: ["Alice <alice@example.com>"],
+        cc: ["ops@example.com"],
+        subject: "Incident update",
+      },
+    });
+  });
+
   const slackClientErrorMappingCases: Array<{
     title: string;
     clientErrorArgs: Parameters<typeof createSlackClientError>[0];
