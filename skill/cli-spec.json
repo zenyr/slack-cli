@@ -1,0 +1,901 @@
+{
+  "schemaVersion": 1,
+  "cli": {
+    "name": "slack"
+  },
+  "commands": [
+    {
+      "name": "help",
+      "path": ["help"],
+      "args": "",
+      "description": "Show this help message",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "schema",
+      "path": ["schema"],
+      "args": "[<command> [subcommand ...]] [--json]",
+      "description": "Show machine-readable command schema metadata",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "auth check",
+      "path": ["auth", "check"],
+      "args": "[--json]",
+      "description": "Check current auth session status",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "auth whoami",
+      "path": ["auth", "whoami"],
+      "args": "[--json]",
+      "description": "Show active authenticated identity",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "auth login",
+      "path": ["auth", "login"],
+      "args": "--type <xoxp|xoxb> [--token <token>] [--json]",
+      "description": "Store Slack token (via --token or stdin) and activate selected type",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": true,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "auth logout",
+      "path": ["auth", "logout"],
+      "args": "[--json]",
+      "description": "Clear active auth session",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "auth use",
+      "path": ["auth", "use"],
+      "args": "<xoxp|xoxb> [--json]",
+      "description": "Switch active auth token type",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "channels list",
+      "path": ["channels", "list"],
+      "args": "[--type <public|private|im|mpim>] [--sort <name|popularity>] [--query=<text>] [--query-targets=<name,topic,purpose>] [--limit <n>] [--cursor <cursor>] [--json]",
+      "description": "List channels",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "channels me",
+      "path": ["channels", "me"],
+      "args": "[--type <public|private|im|mpim>] [--limit <n>] [--cursor <cursor>] [--json]",
+      "description": "List channels you belong to",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "channels info",
+      "path": ["channels", "info"],
+      "args": "<channel-id|#name|name> [--json]",
+      "description": "Get channel info by ID or name",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "channels search",
+      "path": ["channels", "search"],
+      "args": "<query> | --query=<text> [--type <public|private|im|mpim>] [--json]",
+      "description": "Search channels by name",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "channels join",
+      "path": ["channels", "join"],
+      "args": "<channel-id> [--json]",
+      "description": "Join a channel (xoxp only)",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "channels leave",
+      "path": ["channels", "leave"],
+      "args": "<channel-id> [--json]",
+      "description": "Leave a channel (xoxp only)",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "users list",
+      "path": ["users", "list"],
+      "args": "[<query>] [--cursor=<cursor>] [--limit=<n>] [--json]",
+      "description": "List users",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "users get",
+      "path": ["users", "get"],
+      "args": "<user-id> [user-id ...] [--json]",
+      "description": "Get users by ID (batch supported)",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "users search",
+      "path": ["users", "search"],
+      "args": "<query(required,non-empty)> [--cursor=<cursor>] [--limit=<n>] [--json]",
+      "description": "Search users",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "users status get",
+      "path": ["users", "status", "get"],
+      "args": "[user-id] [--json]",
+      "description": "Get user status",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "users status set",
+      "path": ["users", "status", "set"],
+      "args": "<emoji> <text> [--expiration=<30m|1h|2h|4h|today|unix-ts>] [--json]",
+      "description": "Set user status (xoxp only)",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "restricted",
+        "allowed": ["xoxp"]
+      }
+    },
+    {
+      "name": "users status clear",
+      "path": ["users", "status", "clear"],
+      "args": "[--json]",
+      "description": "Clear user status (xoxp only)",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "restricted",
+        "allowed": ["xoxp"]
+      }
+    },
+    {
+      "name": "attachment get",
+      "path": ["attachment", "get"],
+      "args": "<file-id> [--content[=<bool>]] [--save[=<bool>]] [--json]",
+      "description": "Get attachment metadata, content, or saved file by file id",
+      "mutating": false,
+      "conditionalSideEffects": [
+        {
+          "kind": "filesystem-write",
+          "when": "--save resolves to true and attachment download succeeds",
+          "description": "Creates a restricted temporary directory and writes the downloaded attachment to a restricted file."
+        }
+      ],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "usergroups list",
+      "path": ["usergroups", "list"],
+      "args": "[--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
+      "description": "List user groups",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "usergroups get",
+      "path": ["usergroups", "get"],
+      "args": "<usergroup-id> [usergroup-id ...] [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
+      "description": "Get user groups by ID (batch supported)",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "usergroups create",
+      "path": ["usergroups", "create"],
+      "args": "<name(required,non-empty)> [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+      "description": "Create user group",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "usergroups me list",
+      "path": ["usergroups", "me", "list"],
+      "args": "[--json]",
+      "description": "List current user memberships in user groups",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "usergroups me join",
+      "path": ["usergroups", "me", "join"],
+      "args": "<usergroup-id(required,non-empty)> [--json]",
+      "description": "Join current user to a user group",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "usergroups me leave",
+      "path": ["usergroups", "me", "leave"],
+      "args": "<usergroup-id(required,non-empty)> [--json]",
+      "description": "Remove current user from a user group",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "usergroups update",
+      "path": ["usergroups", "update"],
+      "args": "<usergroup-id(required,non-empty)> [--name=<name>] [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>] [--json]",
+      "description": "Update user group metadata",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "usergroups users update",
+      "path": ["usergroups", "users", "update"],
+      "args": "<usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]",
+      "description": "Replace user group members",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": true,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "messages search",
+      "path": ["messages", "search"],
+      "args": "<query> [--channel <value>] [--im <value>] [--with <value>] [--user <value>] [--after <YYYY-MM-DD|1d|1w|30d|90d>] [--before <YYYY-MM-DD|1d|1w|30d|90d>] [--on <YYYY-MM-DD|1d|1w|30d|90d>] [--during <period>] [--threads] [--limit=<n>] [--cursor=<page>] [--json]",
+      "description": "Search messages",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "restricted",
+        "allowed": ["xoxp"]
+      }
+    },
+    {
+      "name": "messages fetch",
+      "path": ["messages", "fetch"],
+      "args": "<message-url> [--thread[=<bool>]] [--resolve-users[=<bool>]] [--json]",
+      "description": "Fetch message by permalink URL (optionally include thread)",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "messages history",
+      "path": ["messages", "history"],
+      "args": "<channel-id> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]] [--json]",
+      "description": "Fetch channel message history",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "messages context",
+      "path": ["messages", "context"],
+      "args": "<message-url> [--before=<n>] [--after=<n>] [--resolve-users[=<bool>]] [--json]",
+      "description": "Fetch messages surrounding a permalink",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "messages post",
+      "path": ["messages", "post"],
+      "args": "<channel-id|#name|name> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|-|@file>] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+      "description": "Post message to channel (payload text optional only with non-empty blocks; markdown auto-converted to mrkdwn)",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": true,
+      "supportsRawPayload": true,
+      "supportsDryRun": true,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "explicit",
+        "allowed": ["xoxp", "xoxb"]
+      }
+    },
+    {
+      "name": "messages post-ephemeral",
+      "path": ["messages", "post-ephemeral"],
+      "args": "<channel-id> <user-id> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json]",
+      "description": "Post ephemeral message to channel user",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": true,
+      "supportsRawPayload": true,
+      "supportsDryRun": true,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "explicit",
+        "allowed": ["xoxp", "xoxb"]
+      }
+    },
+    {
+      "name": "messages delete",
+      "path": ["messages", "delete"],
+      "args": "<message-url> [--json] OR <channel-id> <timestamp> [--json]",
+      "description": "Delete message by URL or channel and timestamp",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "messages update",
+      "path": ["messages", "update"],
+      "args": "<message-url> <text|-> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json] OR <channel-id> <timestamp> <text|-> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--json]",
+      "description": "Update message text by URL or channel and timestamp",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": true,
+      "supportsRawPayload": true,
+      "supportsDryRun": true,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "messages reply",
+      "path": ["messages", "reply"],
+      "args": "<channel-id|#name|name|permalink> <thread-ts> <text|-> [--blocks[=<json|bool|->]] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--json] OR <thread-permalink> <text|-> [--blocks[=<json|bool|->]] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+      "description": "Reply to thread by channel+ts or thread permalink",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": true,
+      "supportsRawPayload": false,
+      "supportsDryRun": true,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "explicit",
+        "allowed": ["xoxp", "xoxb"]
+      }
+    },
+    {
+      "name": "messages replies",
+      "path": ["messages", "replies"],
+      "args": "<channel-id(required,non-empty)> <thread-ts(required,non-empty)> OR <thread-permalink(required,non-empty)> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]] [--json]",
+      "description": "Fetch full thread by channel+thread timestamp or thread permalink",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "messages unreads",
+      "path": ["messages", "unreads"],
+      "args": "[--include-messages[=<bool>]] [--channel-types=<all|dm|group_dm|partner|internal>] [--max-channels=<n>] [--max-messages-per-channel=<n>] [--mentions-only[=<bool>]] [--include-muted[=<bool>]] [--json]",
+      "description": "Get unread messages across channels (xoxp fallback mode)",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "restricted",
+        "allowed": ["xoxp"]
+      }
+    },
+    {
+      "name": "messages mark",
+      "path": ["messages", "mark"],
+      "args": "<channel-id(required,non-empty)> [--ts=<timestamp>] [--json]",
+      "description": "Mark a channel or DM as read (requires SLACK_MCP_MARK_TOOL=true)",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "restricted",
+        "allowed": ["xoxp"]
+      }
+    },
+    {
+      "name": "messages pin",
+      "path": ["messages", "pin"],
+      "args": "<channel-id> <timestamp> [--json]",
+      "description": "Pin a message",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "restricted",
+        "allowed": ["xoxp"]
+      }
+    },
+    {
+      "name": "messages unpin",
+      "path": ["messages", "unpin"],
+      "args": "<channel-id> <timestamp> [--json]",
+      "description": "Unpin a message",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "messages pins",
+      "path": ["messages", "pins"],
+      "args": "<channel-id> [--json]",
+      "description": "List pinned messages in channel",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "views publish",
+      "path": ["views", "publish"],
+      "args": "<user-id(required,non-empty)> --view=<json|-> [--hash=<hash>] [--payload=<json|->] [--dry-run[=<bool>]] [--json]",
+      "description": "Publish or update a user's App Home view",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": true,
+      "supportsRawPayload": true,
+      "supportsDryRun": true,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "views clear",
+      "path": ["views", "clear"],
+      "args": "<user-id(required,non-empty)> [--dry-run[=<bool>]] [--json]",
+      "description": "Clear a user's App Home view by publishing an empty Home view",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": true,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "reactions add",
+      "path": ["reactions", "add"],
+      "args": "<channel-id> <timestamp> <emoji-name> [--json]",
+      "description": "Add reaction emoji to message",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "explicit",
+        "allowed": ["xoxp", "xoxb"]
+      }
+    },
+    {
+      "name": "reactions remove",
+      "path": ["reactions", "remove"],
+      "args": "<channel-id> <timestamp> <emoji-name> [--json]",
+      "description": "Remove reaction emoji from message",
+      "mutating": true,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "explicit",
+        "allowed": ["xoxp", "xoxb"]
+      }
+    },
+    {
+      "name": "reactions list",
+      "path": ["reactions", "list"],
+      "args": "<channel-id> <timestamp> [--json]",
+      "description": "List reactions on a message",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "resources",
+      "path": ["resources"],
+      "args": "[--json]",
+      "description": "List available Slack MCP-style resources",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "tools",
+      "path": ["tools"],
+      "args": "[--json]",
+      "description": "List referenced MCP tools from spec",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "batch",
+      "path": ["batch"],
+      "args": "\"<command arg...>\" [\"<command arg...>\" ...] [--stop-on-error[=<bool>]] [--fail-on-error[=<bool>]] [--json]",
+      "description": "Run multiple commands in one process",
+      "mutating": false,
+      "conditionalSideEffects": [
+        {
+          "kind": "delegated-command",
+          "when": "one or more non-batch nested commands execute",
+          "description": "May perform every side effect of each nested command; nested batch commands are rejected."
+        }
+      ],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    },
+    {
+      "name": "version",
+      "path": ["version"],
+      "args": "",
+      "description": "Print CLI version",
+      "mutating": false,
+      "conditionalSideEffects": [],
+      "supportsJsonOutput": true,
+      "supportsStdin": false,
+      "supportsRawPayload": false,
+      "supportsDryRun": false,
+      "requiresConfirmation": false,
+      "tokenPolicy": {
+        "mode": "default"
+      }
+    }
+  ],
+  "resources": [
+    {
+      "uri": "slack://<workspace>/channels",
+      "title": "Directory of Channels",
+      "format": "text/csv",
+      "description": "List channels, DMs, group DMs with basic metadata"
+    },
+    {
+      "uri": "slack://<workspace>/users",
+      "title": "Directory of Users",
+      "format": "text/csv",
+      "description": "List workspace users for lookups and context enrichment"
+    }
+  ],
+  "tools": [
+    "conversations_history",
+    "conversations_replies",
+    "conversations_add_message",
+    "reactions_add",
+    "reactions_remove",
+    "attachment_get_data",
+    "conversations_search_messages",
+    "conversations_unreads",
+    "conversations_mark",
+    "conversations_leave",
+    "conversations_join",
+    "channels_list",
+    "channels_me",
+    "usergroups_list",
+    "usergroups_me",
+    "usergroups_create",
+    "usergroups_update",
+    "usergroups_users_update",
+    "users_search",
+    "saved_list",
+    "saved_update",
+    "saved_clear_completed"
+  ]
+}

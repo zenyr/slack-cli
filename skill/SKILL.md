@@ -17,7 +17,7 @@ description: Unified Slack skill for lookup, auth, Block Kit composition, dry-ru
 - Token resolve order: env `SLACK_MCP_XOXP_TOKEN` → env `SLACK_MCP_XOXB_TOKEN` → persisted store (active).
 - `xoxc`/`xoxd` unsupported.
 - Default: autoselect. use `--xoxp`/`--xoxb` only on target command invocation.
-- **`post`/`post-ephemeral`/`reply` require explicit `--xoxp` or `--xoxb`.** Omitting throws `MISSING_ARGUMENT`.
+- **`messages post`/`post-ephemeral`/`reply` and `reactions add`/`remove` require explicit `--xoxp` or `--xoxb`.** Omitting throws `MISSING_ARGUMENT`.
 - `auth login` uses `--type <xoxp|xoxb>`; `auth use` uses positional `<xoxp|xoxb>`.
 - Common mistake: `slack auth login --xoxb` -> `slack auth login --type xoxb --token <token>` or `slack auth use xoxb`.
 
@@ -32,7 +32,7 @@ description: Unified Slack skill for lookup, auth, Block Kit composition, dry-ru
 - Ephemeral target default: resolve with `slack auth whoami --json`; fall back to owner id only if identity is already known and unchanged
 
 ```sh
-slack auth login --type <xoxp|xoxb> --token <token>
+slack auth login --type <xoxp|xoxb> [--token <token>] [--json]
 printf '<token>' | slack auth login --type <xoxp|xoxb>
 slack auth use <xoxp|xoxb>
 slack auth whoami
@@ -51,7 +51,8 @@ slack auth logout
 ```
 
 - `--xoxp` and `--xoxb` are mutually exclusive.
-- Some commands are xoxp-only (`messages search`, `users status set/clear`) — using `--xoxb` with them throws immediately.
+- Restricted xoxp-only commands: `users status set`, `users status clear`, `messages search`, `messages unreads`, `messages mark`, `messages pin`. Using `--xoxb` with them throws immediately.
+- `channels join`/`leave` are described as xoxp-only because Slack requires a user token, although their schema token policy is `default`.
 
 ## ID lookup (before mutations)
 
@@ -65,9 +66,10 @@ slack usergroups list --json | jq '.data[] | {id,handle}'
 ## Channels
 
 ```sh
-slack channels list [--type <public|private|im|mpim>] [--sort <name|popularity>] [--limit <n>] [--cursor <cursor>]
-slack channels info <channel-id>
-slack channels search <query> [--type <public|private|im|mpim>]
+slack channels list [--type <public|private|im|mpim>] [--sort <name|popularity>] [--query=<text>] [--query-targets=<name,topic,purpose>] [--limit <n>] [--cursor <cursor>]
+slack channels me [--type <public|private|im|mpim>] [--limit <n>] [--cursor <cursor>]
+slack channels info <channel-id|#name|name>
+slack channels search <query> | --query=<text> [--type <public|private|im|mpim>]
 slack channels join <channel-id>
 slack channels leave <channel-id>
 ```
@@ -89,12 +91,16 @@ slack messages replies <channel-id> <thread-ts> --json
 ```
 
 ```sh
-slack messages search <query(required,non-empty)> [--channel <id>] [--user <uid>] [--after <YYYY-MM-DD|1d|1w|30d|90d>] [--before <...>] [--threads]
-slack messages fetch <message-url> [--thread] [--resolve-users]
-slack messages history <channel-id> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users]
-slack messages context <message-url> [--before=<n>] [--after=<n>] [--resolve-users]
-slack messages replies <channel-id> <thread-ts> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--resolve-users]
+slack messages search <query> [--channel <value>] [--im <value>] [--with <value>] [--user <value>] [--after <YYYY-MM-DD|1d|1w|30d|90d>] [--before <YYYY-MM-DD|1d|1w|30d|90d>] [--on <YYYY-MM-DD|1d|1w|30d|90d>] [--during <period>] [--threads] [--limit=<n>] [--cursor=<page>]
+slack messages fetch <message-url> [--thread[=<bool>]] [--resolve-users[=<bool>]]
+slack messages history <channel-id> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]]
+slack messages context <message-url> [--before=<n>] [--after=<n>] [--resolve-users[=<bool>]]
+slack messages replies <channel-id(required,non-empty)> <thread-ts(required,non-empty)> OR <thread-permalink(required,non-empty)> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]]
+slack messages unreads [--include-messages[=<bool>]] [--channel-types=<all|dm|group_dm|partner|internal>] [--max-channels=<n>] [--max-messages-per-channel=<n>] [--mentions-only[=<bool>]] [--include-muted[=<bool>]]
+slack messages mark <channel-id(required,non-empty)> [--ts=<timestamp>]
 ```
+
+- `messages search`, `unreads`, and `mark` are restricted to xoxp. `mark` also requires `SLACK_MCP_MARK_TOOL=true`.
 
 ## Block Kit
 
@@ -425,21 +431,21 @@ const ph = (w: number, h: number, bg: string, fg: string, text: string, font?: s
 > 동의 없이 raw CLI로 전송 금지.
 
 ```sh
-slack messages post <channel-id|#name|name> <text(required,non-empty)> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|-|@file>] [--payload-out=<file> --dry-run] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
-slack messages post-ephemeral <channel-id> <user-id> <text(required,non-empty)> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] --xoxp|--xoxb
-slack messages reply <channel-id|#name|name|permalink> <thread-ts> <text(required,non-empty)> [--blocks[=<json|bool|->]] [--payload-out=<file> --dry-run] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
-slack messages reply <thread-permalink> <text(required,non-empty)> [--blocks[=<json|bool|->]] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
-slack messages update <message-url> <text(required,non-empty)> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]]
-slack messages update <channel-id> <ts> <text(required,non-empty)> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]]
-slack messages delete <message-url>
-slack messages delete <channel-id> <ts>
+slack messages post <channel-id|#name|name> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|-|@file>] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
+slack messages post-ephemeral <channel-id> <user-id> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] --xoxp|--xoxb
+slack messages reply <channel-id|#name|name|permalink> <thread-ts> <text|-> [--blocks[=<json|bool|->]] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] --xoxp|--xoxb
+slack messages reply <thread-permalink> <text|-> [--blocks[=<json|bool|->]] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
+slack messages update <message-url> <text|-> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] OR <channel-id> <timestamp> <text|-> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]]
+slack messages delete <message-url> OR <channel-id> <timestamp>
 ```
 
 - raw CLI default: run `--dry-run --payload-out=message.json --json`, inspect it, then send the exact normalized artifact with `slack messages post --payload=@message.json --xoxp|--xoxb --json`.
-- `--blocks` behavior: bare `--blocks` reads stdin and auto-builds Block Kit payload. `text` still required even with `--blocks`.
-- `--payload`: object/stdin input, or `@file` for a normalized post artifact. rejects unknown fields.
+- `--blocks` behavior: bare `--blocks` reads stdin and auto-builds Block Kit payload. Positional mode still requires `<text|->` even with `--blocks`.
+- `messages post --payload`: object/stdin input, or `@file` for a normalized post artifact. Rejects unknown fields and cannot mix with positional args. `text` may be omitted only when `blocks` is a non-empty array.
+- `messages post-ephemeral --payload`: requires `channel`, `user`, and non-empty `text`; cannot mix with positional args.
+- `messages update --payload`: requires `channel`, valid `ts`, and non-empty `text`; cannot mix with positional args.
 - `--dry-run`: validates normalized req without posting. `--payload-out` writes that req for exact reuse.
-- `text` with `--blocks`: plaintext fallback (notification/accessibility). `blocks()` auto-generates from all block content (mrkdwn stripped). Raw CLI: `text` arg must be near-verbatim transcription of block content.
+- `text` with `--blocks`: plaintext fallback (notification/accessibility). `blocks()` auto-generates from all block content (mrkdwn stripped). Raw CLI: `text` should be a faithful plaintext summary/transcription of block content.
 - Channel post guard: allowlist/denylist policy may block post.
 - Post/reply channels accept IDs, `#name`, or bare names. Name resolution needs `channels:read` or `groups:read`; use an ID with write-only tokens.
 - Thread deletion: "delete thread" req → clarify root-only vs full thread. Deleting root leaves orphan replies; fetch via `replies <cid> <thread-ts>`, delete each ts.
@@ -448,21 +454,34 @@ slack messages delete <channel-id> <ts>
 ## Pins + reactions
 
 ```sh
-slack messages pin <channel-id> <ts>
-slack messages unpin <channel-id> <ts>
+slack messages pin <channel-id> <timestamp>
+slack messages unpin <channel-id> <timestamp>
 slack messages pins <channel-id>
 
-slack reactions add <channel-id> <ts> <emoji-name>
-slack reactions remove <channel-id> <ts> <emoji-name>
-slack reactions list <channel-id> <ts>
+slack reactions add <channel-id> <timestamp> <emoji-name>
+slack reactions remove <channel-id> <timestamp> <emoji-name>
+slack reactions list <channel-id> <timestamp>
 ```
+
+- `messages pin` is restricted to xoxp; `unpin`/`pins` use default token selection.
+- `reactions add`/`remove` require explicit `--xoxp` or `--xoxb`; `list` uses default token selection.
+
+## Views
+
+```sh
+slack views publish <user-id(required,non-empty)> --view=<json|-> [--hash=<hash>] [--payload=<json|->] [--dry-run[=<bool>]]
+slack views clear <user-id(required,non-empty)> [--dry-run[=<bool>]]
+```
+
+- `views publish --payload` accepts only `user_id`, `view`, and optional `hash`; it cannot mix with positional args or `--view`.
+- Both commands support dry-run. `publish` accepts stdin/raw payload; `clear` publishes an empty Home view.
 
 ## Users
 
 ```sh
 slack users list [<query>] [--cursor=<cursor>] [--limit=<n>]
 slack users get <user-id> [user-id ...]
-slack users search [<query>] [--cursor=<cursor>] [--limit=<n>]
+slack users search <query(required,non-empty)> [--cursor=<cursor>] [--limit=<n>]
 slack users status get [user-id]
 slack users status set <emoji> <text> [--expiration=<30m|1h|2h|4h|today|unix-ts>]
 slack users status clear
@@ -474,14 +493,14 @@ slack users status clear
 ## Usergroups
 
 ```sh
-slack usergroups list [--include-users] [--include-disabled] [--include-count]
-slack usergroups get <usergroup-id> [usergroup-id ...] [--include-users] [--include-disabled] [--include-count]
-slack usergroups create <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>]
-slack usergroups update <usergroup-id> <name> <handle> [--description=<text>] [--channels=<comma-separated-channel-ids>]
-slack usergroups users update <usergroup-id> <user-id> [user-id ...] --yes
+slack usergroups list [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]]
+slack usergroups get <usergroup-id> [usergroup-id ...] [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]]
+slack usergroups create <name(required,non-empty)> [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>]
+slack usergroups update <usergroup-id(required,non-empty)> [--name=<name>] [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>]
+slack usergroups users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes
 slack usergroups me list
-slack usergroups me join <usergroup-id>
-slack usergroups me leave <usergroup-id>
+slack usergroups me join <usergroup-id(required,non-empty)>
+slack usergroups me leave <usergroup-id(required,non-empty)>
 ```
 
 - `usergroups users update` is destructive replace. `--yes` mandatory.
@@ -489,10 +508,12 @@ slack usergroups me leave <usergroup-id>
 ## Attachment / misc
 
 ```sh
-slack attachment get <file-id>
+slack attachment get <file-id> [--content[=<bool>]] [--save[=<bool>]]
 slack resources [--json]
 slack tools [--json]
-slack batch "<command arg...>" "<command arg...>" [--stop-on-error[=<bool>]] [--fail-on-error[=<bool>]]
+slack batch "<command arg...>" ["<command arg...>" ...] [--stop-on-error[=<bool>]] [--fail-on-error[=<bool>]]
+slack help
+slack schema [<command> [subcommand ...]] [--json]
 slack version
 ```
 

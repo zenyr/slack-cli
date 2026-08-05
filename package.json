@@ -13,6 +13,8 @@
     "unlink": "bun run --cwd=apps/cli unlink",
     "start": "bun --env-file=.env run --cwd=apps/cli start",
     "slack": "bun --env-file=.env run --cwd=apps/cli start",
+    "generate": "bun run scripts/generate-cli-spec.ts",
+    "generate:check": "bun run scripts/generate-cli-spec.ts --check",
     "test": "turbo run test",
     "lint": "biome check --write --unsafe .",
     "lint:workspaces": "turbo run lint",
