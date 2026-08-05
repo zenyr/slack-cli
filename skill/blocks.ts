@@ -721,6 +721,13 @@ const ChannelIdSchema = v.pipe(
   v.string(),
   v.regex(/^[CGD][A-Z0-9]+$/, "channel must be a Slack channel ID (C.../G.../D...)"),
 );
+const ChannelReferenceSchema = v.pipe(
+  v.string(),
+  v.regex(
+    /^(?:[CGD][A-Z0-9]+|#?[a-z0-9_-]+)$/i,
+    "channel must be a Slack channel ID, #name, or bare name",
+  ),
+);
 
 const TransportSchema = v.object({
   token: TokenSchema,
@@ -728,8 +735,8 @@ const TransportSchema = v.object({
   json: v.optional(v.boolean()),
 });
 
-const PostTargetSchema = v.object({ channel: ChannelIdSchema });
-const ReplyTargetSchema = v.object({ channel: ChannelIdSchema, replyTs: TsSchema });
+const PostTargetSchema = v.object({ channel: ChannelReferenceSchema });
+const ReplyTargetSchema = v.object({ channel: ChannelReferenceSchema, replyTs: TsSchema });
 const UpdateTargetSchema = v.object({ channel: ChannelIdSchema, updateTs: TsSchema });
 const EphemeralPostTargetSchema = v.object({
   channel: ChannelIdSchema,
@@ -830,8 +837,10 @@ export type SchemaJson = {
   data: unknown;
 };
 
-export type SendPostResult = SendResult<SendPostJson>;
-export type SendReplyResult = SendResult<SendReplyJson>;
+type MessageCoordinates = { channel?: string; ts?: string };
+
+export type SendPostResult = SendResult<SendPostJson> & MessageCoordinates;
+export type SendReplyResult = SendResult<SendReplyJson> & MessageCoordinates;
 export type SendUpdateResult = SendResult<SendUpdateJson>;
 export type SendEphemeralPostResult = SendResult<SendEphemeralPostJson>;
 export type SendEphemeralReplyResult = SendResult<SendEphemeralReplyJson>;
@@ -1005,6 +1014,16 @@ const isSendReplyJson = (value: unknown): value is SendReplyJson => {
   );
 };
 
+const withMessageCoordinates = <TData extends SendPostJson | SendReplyJson>(
+  result: SendResult<TData>,
+): SendResult<TData> & MessageCoordinates => {
+  const responseData = result.data?.data;
+  if (!isPostSuccessData(responseData)) {
+    return result;
+  }
+  return { ...result, channel: responseData.channel, ts: responseData.ts };
+};
+
 const isSendUpdateJson = (value: unknown): value is SendUpdateJson => {
   return (
     isRecord(value) &&
@@ -1161,16 +1180,17 @@ export const createSendHelpers = (deps: Partial<SendDeps> = {}) => {
   ): Promise<SendPostResult> => {
     const t = v.parse(PostTargetSchema, target);
     const tr = v.parse(TransportSchema, transport);
-    return sendCore(
+    const result = await sendCore(
       buildCliRequestPayload(message, { channel: t.channel }),
       ["messages", "post"],
       {
-        json: true,
         ...tr,
+        json: true,
       },
       resolvedDeps,
       isSendPostJson,
     );
+    return withMessageCoordinates(result);
   };
 
   const sendReply = async (
@@ -1180,13 +1200,14 @@ export const createSendHelpers = (deps: Partial<SendDeps> = {}) => {
   ): Promise<SendReplyResult> => {
     const t = v.parse(ReplyTargetSchema, target);
     const tr = v.parse(TransportSchema, transport);
-    return sendCore(
+    const result = await sendCore(
       buildCliRequestPayload(message, { channel: t.channel, thread_ts: t.replyTs }),
       ["messages", "post"],
-      { json: true, ...tr },
+      { ...tr, json: true },
       resolvedDeps,
       isSendReplyJson,
     );
+    return withMessageCoordinates(result);
   };
 
   const sendUpdate = async (

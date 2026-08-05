@@ -26,5 +26,8 @@
     "lefthook": "^2.1.1",
     "turbo": "latest",
     "typescript": "^5"
+  },
+  "dependencies": {
+    "valibot": "^1.4.2"
   }
 }

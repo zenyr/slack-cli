@@ -265,7 +265,7 @@ Fetch channel message history.
 ### `slack messages post`
 
 ```
-slack messages post <channel-id> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--payload=<json|->] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]
+slack messages post <channel-id|#name|name> <text> [--thread-ts=<ts>] [--blocks[=<bool>]] [--payload=<json|-|@file>] [--payload-out=<file> --dry-run] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]
 ```
 
 Post plain text message to channel. Markdown is auto-converted to Slack mrkdwn.
@@ -274,7 +274,8 @@ Post plain text message to channel. Markdown is auto-converted to Slack mrkdwn.
 |---|---|
 | `--thread-ts` | Reply in thread (`seconds.fraction`) |
 | `--blocks` | Build Block Kit blocks from Markdown |
-| `--payload` | Read complete request object from JSON or stdin (`-`) |
+| `--payload` | Read request JSON, stdin (`-`), or a normalized artifact (`@file`) |
+| `--payload-out` | With `--dry-run`, write the normalized request to a new file |
 | `--dry-run` | Validate and print normalized request without posting |
 | `--unfurl-links` | Unfurl links (bool: `true\|false\|1\|0\|yes\|no\|on\|off`) |
 | `--unfurl-media` | Unfurl media |

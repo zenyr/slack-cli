@@ -27,6 +27,8 @@ export type SlackClientError = Error & {
   status?: number;
   retryAfterSeconds?: number;
   details?: string;
+  needed?: string;
+  provided?: string;
 };
 
 export type SlackChannel = {
@@ -64,6 +66,8 @@ export type SlackChannelInfoResult = {
 export type SlackChannelInfoWebApiClient = {
   fetchChannelInfo: (channelId: string) => Promise<SlackChannelInfoResult>;
 };
+
+export type SlackChannelResolverWebApiClient = Pick<SlackWebApiClient, "listChannels">;
 
 export type SlackChannelJoinResult = {
   channel: SlackChannel;

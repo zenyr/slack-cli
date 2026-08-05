@@ -193,7 +193,9 @@ const ensureSuccessPayload = (payload: unknown): Record<string, unknown> => {
   }
 
   const errorCode = readString(payload, "error") ?? "unknown_error";
-  const detail = readString(payload, "needed") ?? readString(payload, "provided");
+  const needed = readString(payload, "needed");
+  const provided = readString(payload, "provided");
+  const details = needed ?? provided;
 
   if (
     errorCode === "not_authed" ||
@@ -205,15 +207,22 @@ const ensureSuccessPayload = (payload: unknown): Record<string, unknown> => {
       code: "SLACK_AUTH_ERROR",
       message: `Slack authentication failed: ${errorCode}.`,
       hint: "Use a valid token with required scopes in SLACK_MCP_XOXP_TOKEN or SLACK_MCP_XOXB_TOKEN.",
-      details: detail,
+      details,
+      needed,
+      provided,
     });
   }
 
   throw createSlackClientError({
     code: "SLACK_API_ERROR",
     message: `Slack API request failed: ${errorCode}.`,
-    hint: "Confirm Slack scopes and command input values.",
-    details: detail,
+    hint:
+      needed === undefined
+        ? "Confirm Slack scopes and command input values."
+        : `Grant the required Slack scope: ${needed}.`,
+    details,
+    needed,
+    provided,
   });
 };
 
@@ -397,7 +406,7 @@ const truncateText = (text: string, maxLength: number): string => {
   return `${text.slice(0, maxLength)}…`;
 };
 
-const truncateBlockFallbackText = (text: string): string => {
+export const truncateBlockFallbackText = (text: string): string => {
   if (text.length <= BLOCK_FALLBACK_TEXT_MAX_LENGTH) {
     return text;
   }

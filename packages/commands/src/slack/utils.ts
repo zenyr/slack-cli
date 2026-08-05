@@ -7,6 +7,8 @@ type CreateSlackClientErrorArgs = {
   status?: number;
   retryAfterSeconds?: number;
   details?: string;
+  needed?: string;
+  provided?: string;
 };
 
 export const createSlackClientError = (args: CreateSlackClientErrorArgs): SlackClientError => {
@@ -19,6 +21,8 @@ export const createSlackClientError = (args: CreateSlackClientErrorArgs): SlackC
     status: args.status,
     retryAfterSeconds: args.retryAfterSeconds,
     details: args.details,
+    needed: args.needed,
+    provided: args.provided,
   });
 };
 

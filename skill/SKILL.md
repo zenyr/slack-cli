@@ -9,7 +9,7 @@ description: Unified Slack skill for lookup, auth, Block Kit composition, dry-ru
 
 - Binary: global `slack` command.
 - Introspection first: prefer `slack schema <command...> --json` when command capability/flags are unclear.
-- Mutation safety: prefer `--dry-run` before real send/update when request is generated or transformed by AI.
+- Mutation safety: typed `send*` helpers send once after local validation; raw CLI writes a dry-run payload artifact and sends that artifact.
 - Raw payload path: prefer `--payload=<json|->` for agent-generated message mutations over long bespoke flag chains.
 
 ## Auth
@@ -146,10 +146,8 @@ runMain(async () => {
 
   if (!schema.data) throw new Error("schema unavailable");
 
-  const preview = await sendPost(payload, { channel: "<test-channel-id>" }, { token: "xoxp", dryRun: true });
-  if (!preview.data) throw new Error("dry-run preview unavailable");
-
-  await sendPost(payload, { channel: "<test-channel-id>" }, { token: "xoxp" });
+  const result = await sendPost(payload, { channel: "<channel-id-or-name>" }, { token: "xoxp" });
+  if (!result.ts || !result.channel) throw new Error("post coordinates unavailable");
 });
 EOF
 )"
@@ -172,11 +170,13 @@ EOF
 - helper transport:
   - `token`: `xoxp | xoxb`
   - `dryRun?`: preview only, no mutation
-  - `json?`: default `true`; disable only if raw stdout really needed
+  - `json?`: default `true`; `sendPost`/`sendReply` always keep JSON enabled so coordinates are available
 - helper internals:
   - uses CLI `--payload=<json>` path, not fragile positional/`--blocks` composition
   - validates channel/user/ts before spawn
   - parses JSON stdout into `result.data` when possible
+  - `sendPost`/`sendReply` success exposes `result.channel` and `result.ts`; full CLI envelope remains at `result.data`
+  - type-checked builder calls do not need a preceding dry-run; call once after payload approval
 - helper-adjacent utilities:
   - `payload(...)`: normalize `{ text, blocks, attachments }` for direct CLI handoff
   - `inspectSchema([...])`: call `slack schema ... --json` before mutation when unsure
@@ -198,14 +198,6 @@ const message = blocks([
   b.header("배포 상태"),
   b.section("정상 배포되었습니다."),
 ]);
-
-const preview = await sendUpdate(
-  message,
-  { channel: "<test-channel-id>", updateTs: "1712345678.123456" },
-  { token: "xoxb", dryRun: true },
-);
-
-if (!preview.data) throw new Error("preview parse failed");
 
 await sendUpdate(
   message,
@@ -231,9 +223,8 @@ runMain(async () => {
     b.context(["하단 요약"]),
   ]);
 
-  const preview = await sendPost(message, { channel: "<test-channel-id>" }, { token: "xoxp", dryRun: true });
-  if (!preview.data) throw new Error("preview parse failed");
-  await sendPost(message, { channel: "<test-channel-id>" }, { token: "xoxp" });
+  const posted = await sendPost(message, { channel: "<channel-id-or-name>" }, { token: "xoxp" });
+  if (!posted.ts) throw new Error("posted ts unavailable");
 });
 EOF
 )"
@@ -434,9 +425,9 @@ const ph = (w: number, h: number, bg: string, fg: string, text: string, font?: s
 > 동의 없이 raw CLI로 전송 금지.
 
 ```sh
-slack messages post <channel-id> <text(required,non-empty)> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
+slack messages post <channel-id|#name|name> <text(required,non-empty)> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|-|@file>] [--payload-out=<file> --dry-run] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
 slack messages post-ephemeral <channel-id> <user-id> <text(required,non-empty)> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] --xoxp|--xoxb
-slack messages reply <channel-id-or-permalink> <thread-ts> <text(required,non-empty)> [--blocks[=<json|bool|->]] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
+slack messages reply <channel-id|#name|name|permalink> <thread-ts> <text(required,non-empty)> [--blocks[=<json|bool|->]] [--payload-out=<file> --dry-run] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
 slack messages reply <thread-permalink> <text(required,non-empty)> [--blocks[=<json|bool|->]] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
 slack messages update <message-url> <text(required,non-empty)> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]]
 slack messages update <channel-id> <ts> <text(required,non-empty)> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]]
@@ -444,17 +435,13 @@ slack messages delete <message-url>
 slack messages delete <channel-id> <ts>
 ```
 
-- agent-first default:
-  1. resolve ids/targets
-  2. if generated req, build JSON payload
-  3. run `--dry-run --json`
-  4. execute real mutation only after payload looks right
+- raw CLI default: run `--dry-run --payload-out=message.json --json`, inspect it, then send the exact normalized artifact with `slack messages post --payload=@message.json --xoxp|--xoxb --json`.
 - `--blocks` behavior: bare `--blocks` reads stdin and auto-builds Block Kit payload. `text` still required even with `--blocks`.
-- `--payload`: object input for agent-generated req. rejects unknown fields. use for `post`, `post-ephemeral`, `update`.
-- `--dry-run`: validates normalized req and returns structured preview without Slack API side effect.
+- `--payload`: object/stdin input, or `@file` for a normalized post artifact. rejects unknown fields.
+- `--dry-run`: validates normalized req without posting. `--payload-out` writes that req for exact reuse.
 - `text` with `--blocks`: plaintext fallback (notification/accessibility). `blocks()` auto-generates from all block content (mrkdwn stripped). Raw CLI: `text` arg must be near-verbatim transcription of block content.
 - Channel post guard: allowlist/denylist policy may block post.
-- Channel id expected pattern: `^[CGD][A-Z0-9]+$`.
+- Post/reply channels accept IDs, `#name`, or bare names. Name resolution needs `channels:read` or `groups:read`; use an ID with write-only tokens.
 - Thread deletion: "delete thread" req → clarify root-only vs full thread. Deleting root leaves orphan replies; fetch via `replies <cid> <thread-ts>`, delete each ts.
 - Delete/update token match: msg created by xoxp → must delete/update with `--xoxp`. Same for xoxb. No auto-fallback; mismatch throws `cant_delete_message`/`cant_update_message`.
 

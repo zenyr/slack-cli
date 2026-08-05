@@ -191,16 +191,25 @@ const mapSlackClientError = (error: SlackClientError): CliResult => {
     case "SLACK_CONFIG_ERROR":
     case "SLACK_AUTH_ERROR":
     case "SLACK_API_ERROR":
-      return createError("INVALID_ARGUMENT", error.message, error.hint, COMMAND_ID);
+      return createError("INVALID_ARGUMENT", error.message, error.hint, COMMAND_ID, {
+        needed: error.needed,
+        provided: error.provided,
+      });
     case "SLACK_HTTP_ERROR": {
       const retryHint =
         error.retryAfterSeconds === undefined
           ? error.hint
           : `${error.hint ?? "Retry later."} Retry after ${error.retryAfterSeconds}s.`;
-      return createError("INTERNAL_ERROR", error.message, retryHint, COMMAND_ID);
+      return createError("INTERNAL_ERROR", error.message, retryHint, COMMAND_ID, {
+        needed: error.needed,
+        provided: error.provided,
+      });
     }
     case "SLACK_RESPONSE_ERROR":
-      return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID);
+      return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID, {
+        needed: error.needed,
+        provided: error.provided,
+      });
   }
 };
 

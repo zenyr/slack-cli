@@ -1,15 +1,18 @@
 import { resolveTokenForContext } from "./messages-shared";
+import { isChannelId, resolveChannelReference } from "../channels/resolve";
 import { createError } from "../errors";
 import { createSlackWebApiClient } from "../slack/client";
 import { resolveSlackToken } from "../slack/token";
-import type { ResolvedSlackToken, SlackChannelInfoWebApiClient } from "../slack/types";
+import type {
+  ResolvedSlackToken,
+  SlackChannelInfoWebApiClient,
+  SlackChannelResolverWebApiClient,
+} from "../slack/types";
 import { isSlackClientError } from "../slack/utils";
 import type { CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "channels.info";
-const USAGE_HINT = "Usage: slack channels info <channel-id(required,non-empty)> [--json]";
-
-const CHANNEL_ID_RE = /^[CGD][A-Z0-9]+$/;
+const USAGE_HINT = "Usage: slack channels info <channel-id|#name|name> [--json]";
 
 type CreateClientOptions = {
   token?: string;
@@ -17,7 +20,9 @@ type CreateClientOptions = {
 };
 
 type ChannelsInfoHandlerDeps = {
-  createClient: (options?: CreateClientOptions) => SlackChannelInfoWebApiClient;
+  createClient: (
+    options?: CreateClientOptions,
+  ) => SlackChannelInfoWebApiClient & SlackChannelResolverWebApiClient;
   resolveToken: (
     env?: Record<string, string | undefined>,
   ) => ResolvedSlackToken | Promise<ResolvedSlackToken>;
@@ -42,22 +47,38 @@ const mapSlackClientError = (error: unknown): CliResult => {
 
   switch (error.code) {
     case "SLACK_CONFIG_ERROR":
-      return createError("INVALID_ARGUMENT", error.message, error.hint, COMMAND_ID);
+      return createError("INVALID_ARGUMENT", error.message, error.hint, COMMAND_ID, {
+        needed: error.needed,
+        provided: error.provided,
+      });
     case "SLACK_AUTH_ERROR":
       return createError(
         "INVALID_ARGUMENT",
         `${error.message} [AUTH_ERROR]`,
         error.hint,
         COMMAND_ID,
+        { needed: error.needed, provided: error.provided },
       );
     case "SLACK_API_ERROR": {
       const reason =
         error.details === undefined ? error.message : `${error.message} ${error.details}`;
-      return createError("INVALID_ARGUMENT", `${reason} [SLACK_API_ERROR]`, error.hint, COMMAND_ID);
+      return createError(
+        "INVALID_ARGUMENT",
+        `${reason} [SLACK_API_ERROR]`,
+        error.hint,
+        COMMAND_ID,
+        {
+          needed: error.needed,
+          provided: error.provided,
+        },
+      );
     }
     case "SLACK_HTTP_ERROR":
     case "SLACK_RESPONSE_ERROR":
-      return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID);
+      return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID, {
+        needed: error.needed,
+        provided: error.provided,
+      });
   }
 };
 
@@ -78,15 +99,7 @@ export const createChannelsInfoHandler = (depsOverrides: Partial<ChannelsInfoHan
       );
     }
 
-    const channelId = rawChannelId.trim();
-    if (!CHANNEL_ID_RE.test(channelId)) {
-      return createError(
-        "INVALID_ARGUMENT",
-        `Invalid channel ID format: ${channelId}. [INVALID_CHANNEL_ID]`,
-        "Channel IDs start with C, G, or D followed by uppercase letters and digits (e.g. C01AB2CDE).",
-        COMMAND_ID,
-      );
-    }
+    const channelReference = rawChannelId.trim();
 
     try {
       const resolvedToken = await resolveTokenForContext(
@@ -95,6 +108,9 @@ export const createChannelsInfoHandler = (depsOverrides: Partial<ChannelsInfoHan
         deps.resolveToken,
       );
       const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
+      const channelId = isChannelId(channelReference)
+        ? channelReference
+        : await resolveChannelReference(channelReference, client);
       const result = await client.fetchChannelInfo(channelId);
       const { channel } = result;
 

@@ -61,12 +61,12 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "channels info",
-    args: "<channel-id> [--json]",
-    description: "Get channel info by ID",
+    args: "<channel-id|#name|name> [--json]",
+    description: "Get channel info by ID or name",
   },
   {
     name: "channels search",
-    args: "<query> [--type <public|private|im|mpim>] [--json]",
+    args: "<query> | --query=<text> [--type <public|private|im|mpim>] [--json]",
     description: "Search channels by name",
   },
   {
@@ -176,7 +176,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages post",
-    args: "<channel-id> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+    args: "<channel-id|#name|name> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|-|@file>] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
     description:
       "Post message to channel (payload text optional only with non-empty blocks; markdown auto-converted to mrkdwn)",
   },
@@ -197,7 +197,7 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "messages reply",
-    args: "<channel-id-or-permalink> <thread-ts> <text|-> [--blocks[=<json|bool|->]] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--json] OR <thread-permalink> <text|-> [--blocks[=<json|bool|->]] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
+    args: "<channel-id|#name|name|permalink> <thread-ts> <text|-> [--blocks[=<json|bool|->]] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--json] OR <thread-permalink> <text|-> [--blocks[=<json|bool|->]] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
     description: "Reply to thread by channel+ts or thread permalink",
   },
   {

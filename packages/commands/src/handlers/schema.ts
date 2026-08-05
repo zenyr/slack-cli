@@ -107,7 +107,7 @@ const toCommandSchema = (name: string, args: string, description: string): Comma
     mutating: inferMutating(path),
     supportsJsonOutput: true,
     supportsStdin: inferSupportsStdin(args, description),
-    supportsRawPayload: args.includes("--payload=<json|->"),
+    supportsRawPayload: args.includes("--payload="),
     supportsDryRun: args.includes("--dry-run[=<bool>]"),
     requiresConfirmation: args.includes("--yes"),
     tokenPolicy: toTokenPolicy(name),

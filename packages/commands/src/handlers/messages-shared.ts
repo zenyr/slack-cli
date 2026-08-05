@@ -46,22 +46,32 @@ export const mapSlackClientError = (error: unknown, commandId: string): CliResul
 
   switch (error.code) {
     case "SLACK_CONFIG_ERROR":
-      return createError("INVALID_ARGUMENT", error.message, error.hint, commandId);
+      return createError("INVALID_ARGUMENT", error.message, error.hint, commandId, {
+        needed: error.needed,
+        provided: error.provided,
+      });
     case "SLACK_AUTH_ERROR":
       return createError(
         "INVALID_ARGUMENT",
         `${error.message} [AUTH_ERROR]`,
         error.hint,
         commandId,
+        { needed: error.needed, provided: error.provided },
       );
     case "SLACK_API_ERROR": {
       const reason =
         error.details === undefined ? error.message : `${error.message} ${error.details}`;
-      return createError("INVALID_ARGUMENT", `${reason} [SLACK_API_ERROR]`, error.hint, commandId);
+      return createError("INVALID_ARGUMENT", `${reason} [SLACK_API_ERROR]`, error.hint, commandId, {
+        needed: error.needed,
+        provided: error.provided,
+      });
     }
     case "SLACK_HTTP_ERROR":
     case "SLACK_RESPONSE_ERROR":
-      return createError("INTERNAL_ERROR", error.message, error.hint, commandId);
+      return createError("INTERNAL_ERROR", error.message, error.hint, commandId, {
+        needed: error.needed,
+        provided: error.provided,
+      });
   }
 };
 
@@ -426,6 +436,70 @@ export const readJsonObjectOption = async (
   }
 
   return parsed;
+};
+
+export const readJsonObjectOptionWithFile = async (
+  options: CliOptions,
+  optionName: string,
+  commandLabel: string,
+  usageHint: string,
+  commandId: string,
+  readStdin?: () => Promise<string | undefined>,
+): Promise<{ payload: Record<string, unknown> | undefined; fromFile: boolean } | CliResult> => {
+  const raw = options[optionName];
+  if (typeof raw !== "string" || !raw.startsWith("@")) {
+    const payload = await readJsonObjectOption(
+      options,
+      optionName,
+      commandLabel,
+      usageHint,
+      commandId,
+      readStdin,
+    );
+    return isCliErrorResult(payload) ? payload : { payload, fromFile: false };
+  }
+
+  const path = raw.slice(1).trim();
+  if (path.length === 0) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} --${optionName}=@file requires a file path. [MISSING_ARGUMENT]`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  const file = Bun.file(path);
+  if (!(await file.exists())) {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} payload file does not exist: ${path}.`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  let text: string;
+  try {
+    text = await file.text();
+  } catch {
+    return createError(
+      "INVALID_ARGUMENT",
+      `${commandLabel} could not read payload file: ${path}.`,
+      usageHint,
+      commandId,
+    );
+  }
+
+  const payload = await readJsonObjectOption(
+    { ...options, [optionName]: text },
+    optionName,
+    commandLabel,
+    usageHint,
+    commandId,
+    readStdin,
+  );
+  return isCliErrorResult(payload) ? payload : { payload, fromFile: true };
 };
 
 export const validatePayloadKeys = (

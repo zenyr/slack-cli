@@ -12,6 +12,7 @@ export const createError = (
   message: string,
   hint?: string,
   command?: string,
+  metadata?: { needed?: string; provided?: string },
 ): CliFailure => {
   return {
     ok: false,
@@ -20,6 +21,8 @@ export const createError = (
       code,
       message,
       hint,
+      needed: metadata?.needed,
+      provided: metadata?.provided,
     },
   };
 };

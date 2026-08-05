@@ -34,6 +34,8 @@ export type CliError = {
   code: CliErrorCode;
   message: string;
   hint?: string;
+  needed?: string;
+  provided?: string;
 };
 
 export type CliSuccess = {

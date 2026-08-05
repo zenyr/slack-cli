@@ -6,7 +6,7 @@ import {
   readBlocksOption,
   readBooleanOption,
   readCompositionPayload,
-  readJsonObjectOption,
+  readJsonObjectOptionWithFile,
   readOptionalPayloadBoolean,
   readOptionalPayloadTimestamp,
   readRequiredPayloadString,
@@ -15,17 +15,18 @@ import {
   resolveTokenForContext,
   validatePayloadKeys,
 } from "./messages-shared";
+import { isChannelId, resolveChannelReference } from "../channels/resolve";
 import { createError } from "../errors";
 import { convertMarkdownToSlackMrkdwn } from "../messages-post/markdown";
 import { evaluatePostChannelPolicy } from "../messages-post/policy";
-import { createSlackWebApiClient } from "../slack/client";
-import { resolveSlackToken, withTokenFallback } from "../slack/token";
+import { createSlackWebApiClient, truncateBlockFallbackText } from "../slack/client";
+import { resolveSlackToken } from "../slack/token";
 import type { ResolvedSlackToken, SlackPostWebApiClient } from "../slack/types";
 import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "messages.post";
 const USAGE_HINT =
-  "Usage: slack messages post <channel-id> <text(required,non-empty)|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]. In --payload, text may be omitted or empty only when blocks is a non-empty array.";
+  "Usage: slack messages post <channel-id|#name|name> <text(required,non-empty)|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|-|@file>] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]. In --payload, text may be omitted or empty only when blocks is a non-empty array.";
 
 const PAYLOAD_KEYS = [
   "channel",
@@ -54,12 +55,16 @@ type MessagesPostHandlerDeps = {
   resolveToken: (
     env: Record<string, string | undefined>,
   ) => Promise<ResolvedSlackToken> | ResolvedSlackToken;
+  resolveChannel: (reference: string, options: CreateClientOptions) => Promise<string>;
 };
 
 const defaultDeps: MessagesPostHandlerDeps = {
   createClient: createSlackWebApiClient,
   env: process.env,
   resolveToken: resolveSlackToken,
+  resolveChannel: async (reference, options) => {
+    return await resolveChannelReference(reference, createSlackWebApiClient(options));
+  },
 };
 
 const readOptionalBooleanOption = (
@@ -104,7 +109,7 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       return dryRunOrError;
     }
 
-    const payloadOrError = await readJsonObjectOption(
+    const payloadReadOrError = await readJsonObjectOptionWithFile(
       request.options,
       "payload",
       "messages post",
@@ -112,8 +117,31 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       COMMAND_ID,
       request.context.readStdin,
     );
-    if (isCliErrorResult(payloadOrError)) {
-      return payloadOrError;
+    if (isCliErrorResult(payloadReadOrError)) {
+      return payloadReadOrError;
+    }
+    const payloadOrError = payloadReadOrError.payload;
+    const payloadFromFile = payloadReadOrError.fromFile;
+
+    const payloadOut = request.options["payload-out"];
+    if (payloadOut !== undefined && dryRunOrError === false) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "messages post --payload-out requires --dry-run.",
+        USAGE_HINT,
+        COMMAND_ID,
+      );
+    }
+    if (
+      payloadOut !== undefined &&
+      (typeof payloadOut !== "string" || payloadOut.trim().length === 0)
+    ) {
+      return createError(
+        "INVALID_ARGUMENT",
+        "messages post --payload-out requires a file path.",
+        USAGE_HINT,
+        COMMAND_ID,
+      );
     }
 
     let requestShape: PostRequestShape | CliResult;
@@ -326,7 +354,38 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       return requestShape;
     }
 
-    const postPolicy = evaluatePostChannelPolicy(requestShape.channelId, deps.env);
+    if (isChannelId(requestShape.channelId)) {
+      const initialPolicy = evaluatePostChannelPolicy(requestShape.channelId, deps.env);
+      if (initialPolicy.allowed === false) {
+        return createError(
+          "INVALID_ARGUMENT",
+          `messages post blocked by channel policy: ${initialPolicy.reason}. [POST_CHANNEL_POLICY]`,
+          "Review SLACK_MCP_POST_CHANNEL_ALLOWLIST and SLACK_MCP_POST_CHANNEL_DENYLIST.",
+          COMMAND_ID,
+        );
+      }
+    }
+
+    let resolvedToken: ResolvedSlackToken | undefined;
+    let resolvedChannelId = requestShape.channelId;
+    try {
+      if (!isChannelId(requestShape.channelId) || dryRunOrError === false) {
+        resolvedToken = await resolveTokenForContext(request.context, deps.env, deps.resolveToken);
+      }
+      if (!isChannelId(requestShape.channelId)) {
+        if (resolvedToken === undefined) {
+          throw new Error("Token resolution invariant failed.");
+        }
+        resolvedChannelId = await deps.resolveChannel(requestShape.channelId, {
+          token: resolvedToken.token,
+          env: deps.env,
+        });
+      }
+    } catch (error) {
+      return mapSlackClientError(error, COMMAND_ID);
+    }
+
+    const postPolicy = evaluatePostChannelPolicy(resolvedChannelId, deps.env);
     if (postPolicy.allowed === false) {
       return createError(
         "INVALID_ARGUMENT",
@@ -336,74 +395,102 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
       );
     }
 
-    const mrkdwnText = convertMarkdownToSlackMrkdwn(requestShape.text);
+    const convertedText = payloadFromFile
+      ? requestShape.text
+      : convertMarkdownToSlackMrkdwn(requestShape.text);
     const blockPayload = requestShape.blocksPayload;
+    const mrkdwnText =
+      (blockPayload?.blocks.length ?? 0) > 0 || (blockPayload?.attachments.length ?? 0) > 0
+        ? truncateBlockFallbackText(convertedText)
+        : convertedText;
+    const resolvedRequest = {
+      channel: resolvedChannelId,
+      text: mrkdwnText,
+      thread_ts: requestShape.threadTs,
+      blocks: blockPayload?.blocks,
+      attachments: blockPayload?.attachments,
+      unfurl_links: requestShape.unfurlLinks,
+      unfurl_media: requestShape.unfurlMedia,
+      reply_broadcast: requestShape.replyBroadcast,
+    };
 
     if (dryRunOrError) {
+      let artifact: { path: string; bytes: number } | undefined;
+      if (typeof payloadOut === "string") {
+        const path = payloadOut.trim();
+        const serialized = `${JSON.stringify(resolvedRequest, null, 2)}\n`;
+        let created = false;
+        let handle: Awaited<ReturnType<typeof open>> | undefined;
+        try {
+          handle = await open(path, "wx", 0o600);
+          created = true;
+          await handle.writeFile(serialized, "utf8");
+        } catch (error) {
+          if (created) {
+            await rm(path, { force: true });
+          }
+          const exists = error instanceof Error && Reflect.get(error, "code") === "EEXIST";
+          return createError(
+            "INVALID_ARGUMENT",
+            exists
+              ? `messages post --payload-out refuses to overwrite existing file: ${path}.`
+              : `messages post could not write payload artifact: ${path}.`,
+            exists
+              ? "Choose a new artifact path, then send it with --payload=@file."
+              : "Confirm the parent directory exists and is writable.",
+            COMMAND_ID,
+          );
+        } finally {
+          await handle?.close();
+        }
+        artifact = { path, bytes: Buffer.byteLength(serialized) };
+      }
+
       return {
         ok: true,
         command: COMMAND_ID,
-        message: `Dry run: message post validated for ${requestShape.channelId}.`,
+        message: `Dry run: message post validated for ${resolvedChannelId}.`,
         data: {
           dryRun: true,
-          request: {
-            channel: requestShape.channelId,
-            text: mrkdwnText,
-            thread_ts: requestShape.threadTs,
-            blocks: blockPayload?.blocks,
-            attachments: blockPayload?.attachments,
-            unfurl_links: requestShape.unfurlLinks,
-            unfurl_media: requestShape.unfurlMedia,
-            reply_broadcast: requestShape.replyBroadcast,
-          },
+          request: resolvedRequest,
+          artifact,
         },
         textLines: [
-          `Dry run: validated message post to ${requestShape.channelId}.`,
+          `Dry run: validated message post to ${resolvedChannelId}.`,
           `thread_ts=${requestShape.threadTs ?? "(none)"}`,
         ],
       };
     }
 
-    const tokenOverride = request.context.tokenTypeOverride;
-    const resolveForPost =
-      tokenOverride !== undefined
-        ? () => resolveTokenForContext(request.context, deps.env, deps.resolveToken)
-        : deps.resolveToken;
-    const preferredType = tokenOverride ?? "xoxb";
-
     try {
-      return await withTokenFallback(
-        preferredType,
-        deps.env,
-        async (resolvedToken) => {
-          const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
-          const postMessagePayload = {
-            channel: requestShape.channelId,
-            text: mrkdwnText,
-            threadTs: requestShape.threadTs,
-            blocks: blockPayload?.blocks,
-            attachments: blockPayload?.attachments,
-            unfurlLinks: requestShape.unfurlLinks,
-            unfurlMedia: requestShape.unfurlMedia,
-            replyBroadcast: requestShape.replyBroadcast,
-          };
-          const data = await client.postMessage(postMessagePayload);
+      if (resolvedToken === undefined) {
+        throw new Error("Token resolution invariant failed.");
+      }
+      const client = deps.createClient({ token: resolvedToken.token, env: deps.env });
+      const postMessagePayload = {
+        channel: resolvedChannelId,
+        text: mrkdwnText,
+        threadTs: requestShape.threadTs,
+        blocks: blockPayload?.blocks,
+        attachments: blockPayload?.attachments,
+        unfurlLinks: requestShape.unfurlLinks,
+        unfurlMedia: requestShape.unfurlMedia,
+        replyBroadcast: requestShape.replyBroadcast,
+      };
+      const data = await client.postMessage(postMessagePayload);
 
-          return {
-            ok: true,
-            command: COMMAND_ID,
-            message: `Message posted to ${data.channel}.`,
-            data: {
-              channel: data.channel,
-              ts: data.ts,
-              thread_ts: requestShape.threadTs,
-              message: data.message,
-            },
-            textLines: [`Posted message to ${data.channel} at ${data.ts}.`],
-          };
+      return {
+        ok: true,
+        command: COMMAND_ID,
+        message: `Message posted to ${data.channel}.`,
+        data: {
+          channel: data.channel,
+          ts: data.ts,
+          thread_ts: requestShape.threadTs,
+          message: data.message,
         },
-        resolveForPost,
-      );
+        textLines: [`Posted message to ${data.channel} at ${data.ts}.`],
+      };
     } catch (error) {
       return mapSlackClientError(error, COMMAND_ID);
     }
@@ -411,3 +498,5 @@ export const createMessagesPostHandler = (depsOverrides: Partial<MessagesPostHan
 };
 
 export const messagesPostHandler = createMessagesPostHandler();
+
+import { open, rm } from "node:fs/promises";

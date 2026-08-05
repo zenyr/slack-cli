@@ -12,7 +12,7 @@ import type { CliOptions, CliResult, CommandRequest } from "../types";
 
 const COMMAND_ID = "channels.search";
 const USAGE_HINT =
-  "Usage: slack channels search <query(required,non-empty)> [--type <public|private|im|mpim>] [--json]";
+  "Usage: slack channels search <query> | --query=<text> [--type <public|private|im|mpim>] [--json]";
 
 const formatVisibility = (isPrivate: boolean): string => {
   return isPrivate ? "private" : "public";
@@ -74,16 +74,25 @@ const mapSlackClientError = (error: SlackClientError): CliResult => {
     case "SLACK_CONFIG_ERROR":
     case "SLACK_AUTH_ERROR":
     case "SLACK_API_ERROR":
-      return createError("INVALID_ARGUMENT", error.message, error.hint, COMMAND_ID);
+      return createError("INVALID_ARGUMENT", error.message, error.hint, COMMAND_ID, {
+        needed: error.needed,
+        provided: error.provided,
+      });
     case "SLACK_HTTP_ERROR": {
       const retryHint =
         error.retryAfterSeconds === undefined
           ? error.hint
           : `${error.hint ?? "Retry later."} Retry after ${error.retryAfterSeconds}s.`;
-      return createError("INTERNAL_ERROR", error.message, retryHint, COMMAND_ID);
+      return createError("INTERNAL_ERROR", error.message, retryHint, COMMAND_ID, {
+        needed: error.needed,
+        provided: error.provided,
+      });
     }
     case "SLACK_RESPONSE_ERROR":
-      return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID);
+      return createError("INTERNAL_ERROR", error.message, error.hint, COMMAND_ID, {
+        needed: error.needed,
+        provided: error.provided,
+      });
   }
 };
 
@@ -129,7 +138,25 @@ export const createChannelsSearchHandler = (
 
   return async (request: CommandRequest): Promise<CliResult> => {
     try {
-      const query = request.positionals.join(" ").trim();
+      const positionalQuery = request.positionals.join(" ").trim();
+      const optionQuery = request.options.query;
+      if (positionalQuery.length > 0 && optionQuery !== undefined) {
+        return createError(
+          "INVALID_ARGUMENT",
+          "channels search accepts either positional <query> or --query, not both.",
+          USAGE_HINT,
+          COMMAND_ID,
+        );
+      }
+      if (optionQuery === true) {
+        return createError(
+          "INVALID_ARGUMENT",
+          "channels search --query requires a value.",
+          USAGE_HINT,
+          COMMAND_ID,
+        );
+      }
+      const query = (typeof optionQuery === "string" ? optionQuery : positionalQuery).trim();
       if (query.length === 0) {
         return createError(
           "INVALID_ARGUMENT",
