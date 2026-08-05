@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Slack CLI · MCP v1.3 패리티 보고서</title>
+    <style>
+      :root {
+        --canvas: #f7f6f2;
+        --paper: #fffefa;
+        --ink: #20211f;
+        --muted: #74746d;
+        --line: #dfded7;
+        --line-strong: #c9c7bd;
+        --green-bg: #e8f1e8;
+        --green: #315f39;
+        --yellow-bg: #f7efd7;
+        --yellow: #825e12;
+        --red-bg: #f7e7e5;
+        --red: #8d3832;
+        --blue-bg: #e5eff4;
+        --blue: #285e78;
+        --mono-bg: #efeee9;
+        --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        --sans: "Avenir Next", Avenir, "Helvetica Neue", Arial, sans-serif;
+        --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          linear-gradient(90deg, transparent 31px, rgba(32, 33, 31, 0.035) 32px, transparent 33px),
+          var(--canvas);
+        background-size: 64px 64px;
+        font-family: var(--sans);
+        line-height: 1.65;
+      }
+
+      a { color: inherit; }
+      button { font: inherit; }
+      code, .mono { font-family: var(--mono); }
+
+      .shell {
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid rgba(32, 33, 31, 0.1);
+        background: rgba(247, 246, 242, 0.93);
+        backdrop-filter: blur(14px);
+      }
+
+      .topbar-inner {
+        display: flex;
+        min-height: 58px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .mark {
+        display: grid;
+        width: 25px;
+        height: 25px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 3px;
+        transform: rotate(4deg);
+      }
+
+      .mark i { display: block; border: 1px solid var(--ink); }
+      .mark i:nth-child(1) { background: var(--green-bg); }
+      .mark i:nth-child(2) { background: var(--yellow-bg); }
+      .mark i:nth-child(3) { background: var(--blue-bg); }
+      .mark i:nth-child(4) { background: var(--red-bg); }
+
+      nav { display: flex; gap: 20px; }
+      nav a {
+        color: var(--muted);
+        font-size: 12px;
+        text-decoration: none;
+      }
+      nav a:hover { color: var(--ink); }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+        gap: 70px;
+        padding: 104px 0 74px;
+        border-bottom: 1px solid var(--line-strong);
+      }
+
+      .eyebrow, .section-index {
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 840px;
+        margin: 18px 0 24px;
+        font-family: var(--serif);
+        font-size: clamp(50px, 7.3vw, 92px);
+        font-weight: 500;
+        letter-spacing: -0.055em;
+        line-height: 0.94;
+      }
+
+      .hero-copy {
+        max-width: 710px;
+        margin: 0;
+        color: #50514d;
+        font-size: clamp(17px, 2vw, 21px);
+      }
+
+      .hero-meta {
+        align-self: end;
+        border-top: 1px solid var(--ink);
+      }
+
+      .meta-row {
+        display: grid;
+        grid-template-columns: 95px 1fr;
+        gap: 20px;
+        padding: 13px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+      }
+      .meta-row dt { color: var(--muted); }
+      .meta-row dd { margin: 0; font-family: var(--mono); word-break: break-word; }
+
+      section { padding: 86px 0; border-bottom: 1px solid var(--line-strong); }
+      .section-head {
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr);
+        gap: 36px;
+        margin-bottom: 42px;
+      }
+      h2 {
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(35px, 5vw, 56px);
+        font-weight: 500;
+        letter-spacing: -0.04em;
+        line-height: 1.04;
+      }
+      .section-lead { max-width: 720px; margin: 16px 0 0; color: var(--muted); }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: 1.2fr repeat(3, 1fr);
+        gap: 12px;
+      }
+      .metric, .card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--paper);
+      }
+      .metric { min-height: 176px; padding: 26px; }
+      .metric.major { background: var(--ink); color: var(--paper); }
+      .metric-label { color: var(--muted); font-size: 12px; }
+      .major .metric-label { color: #bdbdb5; }
+      .metric-value {
+        margin-top: 16px;
+        font-family: var(--serif);
+        font-size: 59px;
+        letter-spacing: -0.05em;
+        line-height: 1;
+      }
+      .metric-note { margin-top: 16px; color: var(--muted); font-size: 12px; }
+      .major .metric-note { color: #bdbdb5; }
+
+      .callout {
+        display: grid;
+        grid-template-columns: 40px minmax(0, 1fr);
+        gap: 18px;
+        margin-top: 12px;
+        padding: 25px;
+        border: 1px solid var(--line);
+        border-left: 4px solid var(--blue);
+        background: var(--blue-bg);
+      }
+      .callout-number { font-family: var(--serif); font-size: 31px; line-height: 1; }
+      .callout p { margin: 0; }
+
+      .change-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 12px;
+      }
+      .change-card { grid-column: span 4; padding: 27px; }
+      .change-card.wide { grid-column: span 8; }
+      .change-card h3 { margin: 18px 0 10px; font-size: 18px; line-height: 1.35; }
+      .change-card p { margin: 0; color: var(--muted); font-size: 14px; }
+      .tag {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-family: var(--mono);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .tag.green { color: var(--green); background: var(--green-bg); }
+      .tag.blue { color: var(--blue); background: var(--blue-bg); }
+      .tag.yellow { color: var(--yellow); background: var(--yellow-bg); }
+      .tag.red { color: var(--red); background: var(--red-bg); }
+
+      .attachment-panel {
+        display: grid;
+        grid-template-columns: 0.75fr 1.25fr;
+        overflow: hidden;
+      }
+      .attachment-copy { padding: 38px; border-right: 1px solid var(--line); }
+      .attachment-copy h3 { margin: 12px 0; font-family: var(--serif); font-size: 35px; font-weight: 500; }
+      .attachment-copy p { color: var(--muted); }
+      .attachment-modes { padding: 14px 32px; }
+      .mode {
+        display: grid;
+        grid-template-columns: 120px minmax(0, 1fr);
+        gap: 22px;
+        padding: 25px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .mode:last-child { border-bottom: 0; }
+      .mode-name { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+      .mode p { margin: 0; color: var(--muted); font-size: 14px; }
+      .gate {
+        margin-top: 24px;
+        padding: 13px 15px;
+        overflow-wrap: anywhere;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--mono-bg);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .filterbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+      .filter {
+        border: 1px solid var(--line-strong);
+        border-radius: 5px;
+        padding: 8px 12px;
+        color: var(--muted);
+        background: transparent;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .filter[aria-pressed="true"] { border-color: var(--ink); color: var(--paper); background: var(--ink); }
+
+      .tool-table { overflow: hidden; }
+      .tool-row {
+        display: grid;
+        grid-template-columns: 1.25fr 1fr 100px 1.5fr;
+        gap: 20px;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+      }
+      .tool-row:last-child { border-bottom: 0; }
+      .tool-row.header { color: var(--muted); background: var(--mono-bg); font-size: 11px; text-transform: uppercase; }
+      .tool-name { font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+      .tool-note { color: var(--muted); }
+      .tool-row[hidden] { display: none; }
+
+      .commit-list { border-top: 1px solid var(--ink); }
+      .commit {
+        display: grid;
+        grid-template-columns: 105px minmax(180px, 0.75fr) minmax(0, 1.25fr);
+        gap: 28px;
+        padding: 20px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .commit code { font-size: 12px; }
+      .commit strong { font-size: 14px; }
+      .commit span { color: var(--muted); font-size: 13px; }
+
+      .boundary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+      .boundary { padding: 27px; }
+      .boundary h3 { margin: 16px 0 8px; font-size: 17px; }
+      .boundary p { margin: 0; color: var(--muted); font-size: 14px; }
+
+      .verification {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .terminal { overflow: hidden; background: #252622; color: #eae9e3; }
+      .terminal-bar { display: flex; gap: 7px; padding: 13px 16px; border-bottom: 1px solid #41423d; }
+      .terminal-bar i { width: 8px; height: 8px; border-radius: 50%; background: #76776f; }
+      .terminal pre { margin: 0; padding: 25px; overflow-x: auto; font: 12px/1.8 var(--mono); }
+      .verification-note { padding: 32px; }
+      .verification-note h3 { margin: 0 0 16px; font-family: var(--serif); font-size: 31px; font-weight: 500; }
+      .verification-note p { color: var(--muted); }
+
+      footer { padding: 45px 0 70px; color: var(--muted); font-size: 12px; }
+      .footer-inner { display: flex; justify-content: space-between; gap: 20px; }
+
+      .reveal { opacity: 0; transform: translateY(10px); transition: opacity 500ms ease, transform 500ms ease; }
+      .reveal.visible { opacity: 1; transform: none; }
+
+      @media (max-width: 820px) {
+        nav { display: none; }
+        .hero, .section-head, .attachment-panel, .verification { grid-template-columns: 1fr; }
+        .hero { gap: 48px; padding-top: 72px; }
+        .metric-grid { grid-template-columns: 1fr 1fr; }
+        .change-card, .change-card.wide { grid-column: span 12; }
+        .attachment-copy { border-right: 0; border-bottom: 1px solid var(--line); }
+        .boundary-grid { grid-template-columns: 1fr; }
+        .tool-row { grid-template-columns: 1fr 90px; }
+        .tool-row > :nth-child(2), .tool-row > :nth-child(4) { display: none; }
+        .commit { grid-template-columns: 90px 1fr; gap: 12px; }
+        .commit span { grid-column: 2; }
+      }
+
+      @media (max-width: 520px) {
+        .shell { width: min(100% - 24px, 1180px); }
+        section { padding: 66px 0; }
+        .metric-grid { grid-template-columns: 1fr; }
+        .metric { min-height: 145px; }
+        .mode { grid-template-columns: 1fr; gap: 7px; }
+        .attachment-copy, .attachment-modes { padding: 24px; }
+        .footer-inner { display: block; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        .reveal { opacity: 1; transform: none; transition: none; }
+      }
+
+      @media print {
+        .topbar, .filterbar { display: none; }
+        body { background: #fff; }
+        .shell { width: 100%; }
+        section, .card, .metric { break-inside: avoid; }
+        .reveal { opacity: 1; transform: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="shell topbar-inner">
+        <div class="brand">
+          <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          Slack CLI / Parity 1.3
+        </div>
+        <nav aria-label="보고서 목차">
+          <a href="#summary">요약</a>
+          <a href="#changes">변경</a>
+          <a href="#attachment">첨부파일</a>
+          <a href="#tools">도구</a>
+          <a href="#verification">검증</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="shell">
+      <header class="hero reveal">
+        <div>
+          <div class="eyebrow">Upstream MCP v1.3.0 → Bun CLI</div>
+          <h1>무엇이 바뀌었고,<br />어디까지 따라잡았나.</h1>
+          <p class="hero-copy">
+            16개 도구 기준이던 Slack MCP 서버를 최신 22개 도구 기준으로 다시 분석했습니다.
+            CLI에 적용 가능한 계약은 구현했고, Edge 인증과 MCP 전송에 묶인 기능은 경계를 명시했습니다.
+          </p>
+        </div>
+        <dl class="hero-meta">
+          <div class="meta-row"><dt>Upstream</dt><dd>source/master@b88c0de</dd></div>
+          <div class="meta-row"><dt>Runtime</dt><dd>v1.3.0@a079b3c</dd></div>
+          <div class="meta-row"><dt>Local branch</dt><dd>main · origin/main +11</dd></div>
+          <div class="meta-row"><dt>Generated</dt><dd>2026-07-20</dd></div>
+        </dl>
+      </header>
+
+      <section id="summary" class="reveal">
+        <div class="section-head">
+          <div class="section-index">01 / Summary</div>
+          <div>
+            <h2>결론부터 보면</h2>
+            <p class="section-lead">
+              upstream의 새 도구 6개와 기존 도구의 계약 변경을 분리해 반영했습니다. 전체 22개 중
+              16개는 CLI 방식으로 대응하며, 3개는 부분 대응, 3개는 Edge 인증 기반이라 미지원입니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="metric-grid">
+          <article class="metric major">
+            <div class="metric-label">Upstream MCP tools</div>
+            <div class="metric-value">22</div>
+            <div class="metric-note">v1.2.3의 16개에서 6개 증가</div>
+          </article>
+          <article class="metric">
+            <div class="metric-label">Full CLI adaptation</div>
+            <div class="metric-value">16</div>
+            <div class="metric-note">사용자 관점 기능 대응 완료</div>
+          </article>
+          <article class="metric">
+            <div class="metric-label">Partial</div>
+            <div class="metric-value">3</div>
+            <div class="metric-note">Edge·대형 워크스페이스 차이</div>
+          </article>
+          <article class="metric">
+            <div class="metric-label">Edge-only missing</div>
+            <div class="metric-value">3</div>
+            <div class="metric-note">saved_list / update / clear</div>
+          </article>
+        </div>
+
+        <div class="callout">
+          <div class="callout-number">1</div>
+          <p>
+            첨부파일 관련 upstream 전용 도구는 <code>attachment_get_data</code> 하나입니다.
+            파일 업로드, 삭제, 목록, 공개 링크 도구는 원래 MCP 표면에 없습니다.
+          </p>
+        </div>
+      </section>
+
+      <section id="changes" class="reveal">
+        <div class="section-head">
+          <div class="section-index">02 / Delivered</div>
+          <div>
+            <h2>CLI에 실제로 들어간 변화</h2>
+            <p class="section-lead">전송 계층을 그대로 복제하지 않고, 한 번 실행되는 CLI에 맞는 계약으로 옮겼습니다.</p>
+          </div>
+        </div>
+
+        <div class="change-grid">
+          <article class="card change-card wide">
+            <span class="tag green">Content integrity</span>
+            <h3>메시지 본문이 더 이상 조용히 사라지지 않습니다</h3>
+            <p>
+              원문 text를 우선 보존하고, 빈 경우 Block Kit의 header·section·context·rich text에서
+              본문을 복구합니다. legacy attachment의 제목·필드·footer와 email 파일 메타데이터도
+              메시지 내용으로 유지합니다.
+            </p>
+          </article>
+          <article class="card change-card">
+            <span class="tag blue">Channels</span>
+            <h3><code>channels me</code></h3>
+            <p>내가 속한 채널을 <code>users.conversations</code>의 native cursor로 조회합니다.</p>
+          </article>
+          <article class="card change-card">
+            <span class="tag blue">Discovery</span>
+            <h3>채널 검색 대상 확장</h3>
+            <p>name뿐 아니라 topic·purpose를 case-insensitive literal substring으로 검색합니다.</p>
+          </article>
+          <article class="card change-card">
+            <span class="tag green">Reliability</span>
+            <h3>검색 429 재시도</h3>
+            <p><code>Retry-After</code>를 따르며 최초 요청 후 최대 두 번만 재시도합니다.</p>
+          </article>
+          <article class="card change-card">
+            <span class="tag yellow">Schema</span>
+            <h3>사용자 ID 직접 조회</h3>
+            <p><code>U...</code>·<code>W...</code> 검색은 users.list 스캔 대신 users.info를 호출합니다.</p>
+          </article>
+          <article class="card change-card">
+            <span class="tag yellow">Composition</span>
+            <h3>blocks-only 전송</h3>
+            <p>유효한 blocks가 있으면 <code>messages post --payload</code>의 text를 생략할 수 있습니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="attachment" class="reveal">
+        <div class="section-head">
+          <div class="section-index">03 / Attachment</div>
+          <div>
+            <h2>첨부파일 계약을 CLI답게 옮겼습니다</h2>
+            <p class="section-lead">
+              upstream은 본문을 MCP content로 즉시 반환합니다. CLI는 기존 metadata 기본 동작을 유지하면서
+              명시적인 content·save 모드를 추가했습니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="card attachment-panel">
+          <div class="attachment-copy">
+            <span class="tag red">Opt-in safety</span>
+            <h3>최대 5 MiB,<br />명시적 활성화</h3>
+            <p>
+              다운로드 전 files.info의 크기를 검사하고, 실제 응답 크기도 다시 확인합니다.
+              <code>url_private_download</code>를 우선 사용하고 <code>url_private</code>로 폴백합니다.
+            </p>
+            <div class="gate">SLACK_MCP_ATTACHMENT_TOOL=true<br />또는 SLACK_MCP_ENABLED_TOOLS=attachment_get_data</div>
+          </div>
+          <div class="attachment-modes">
+            <div class="mode">
+              <div class="mode-name">default</div>
+              <p>메타데이터만 반환합니다. 파일 내용은 다운로드하지 않습니다.</p>
+            </div>
+            <div class="mode">
+              <div class="mode-name">--content</div>
+              <p>텍스트 MIME은 <code>encoding: none</code>, 나머지는 <code>encoding: base64</code>로 반환합니다.</p>
+            </div>
+            <div class="mode">
+              <div class="mode-name">--save</div>
+              <p>임시 디렉터리 <code>0700</code>, 무작위 파일명과 권한 <code>0600</code>으로 저장합니다.</p>
+            </div>
+            <div class="mode">
+              <div class="mode-name">difference</div>
+              <p>upstream의 native MCP image content는 CLI 전송에 없으므로 base64를 사용합니다.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tools" class="reveal">
+        <div class="section-head">
+          <div class="section-index">04 / Surface</div>
+          <div>
+            <h2>22개 도구의 현재 상태</h2>
+            <p class="section-lead">
+              아래 상태는 MCP 프로토콜 자체의 구현 여부가 아니라, CLI에서 동등한 사용자 기능을 제공하는지 기준입니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="filterbar" role="group" aria-label="도구 상태 필터">
+          <button type="button" class="filter" data-filter="all" aria-pressed="true">전체 22</button>
+          <button type="button" class="filter" data-filter="full" aria-pressed="false">Full 16</button>
+          <button type="button" class="filter" data-filter="partial" aria-pressed="false">Partial 3</button>
+          <button type="button" class="filter" data-filter="missing" aria-pressed="false">Missing 3</button>
+        </div>
+
+        <div class="card tool-table">
+          <div class="tool-row header"><span>Upstream tool</span><span>CLI equivalent</span><span>Status</span><span>Note</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">conversations_history</span><span>messages history</span><span class="tag green">Full</span><span class="tool-note">동등 기능</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">conversations_replies</span><span>messages replies</span><span class="tag green">Full</span><span class="tool-note">동등 기능</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">conversations_add_message</span><span>messages post</span><span class="tag green">Full</span><span class="tool-note">blocks-only 포함</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">reactions_add</span><span>reactions add</span><span class="tag green">Full</span><span class="tool-note">동등 기능</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">reactions_remove</span><span>reactions remove</span><span class="tag green">Full</span><span class="tool-note">동등 기능</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">attachment_get_data</span><span>attachment get --content</span><span class="tag green">Full</span><span class="tool-note">이미지는 base64</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">conversations_search_messages</span><span>messages search / fetch</span><span class="tag green">Full</span><span class="tool-note">429 retry 포함</span></div>
+          <div class="tool-row" data-status="partial"><span class="tool-name">conversations_unreads</span><span>messages unreads</span><span class="tag yellow">Partial</span><span class="tool-note">Edge counts·muted 상태 없음</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">conversations_mark</span><span>messages mark</span><span class="tag green">Full</span><span class="tool-note">동일 opt-in gate</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">conversations_leave</span><span>channels leave</span><span class="tag green">Full</span><span class="tool-note">기존 구현</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">conversations_join</span><span>channels join</span><span class="tag green">Full</span><span class="tool-note">기존 구현</span></div>
+          <div class="tool-row" data-status="partial"><span class="tool-name">channels_list</span><span>channels list</span><span class="tag yellow">Partial</span><span class="tool-note">query scan 최대 5페이지</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">channels_me</span><span>channels me</span><span class="tag green">Full</span><span class="tool-note">native cursor</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">usergroups_list</span><span>usergroups list</span><span class="tag green">Full</span><span class="tool-note">동등 기능</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">usergroups_me</span><span>usergroups me *</span><span class="tag green">Full</span><span class="tool-note">CLI subcommand로 분리</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">usergroups_create</span><span>usergroups create</span><span class="tag green">Full</span><span class="tool-note">동등 기능</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">usergroups_update</span><span>usergroups update</span><span class="tag green">Full</span><span class="tool-note">동등 기능</span></div>
+          <div class="tool-row" data-status="full"><span class="tool-name">usergroups_users_update</span><span>usergroups users update</span><span class="tag green">Full</span><span class="tool-note">추가 --yes 보호</span></div>
+          <div class="tool-row" data-status="partial"><span class="tool-name">users_search</span><span>users search</span><span class="tag yellow">Partial</span><span class="tool-note">Edge·Slack Connect 미지원</span></div>
+          <div class="tool-row" data-status="missing"><span class="tool-name">saved_list</span><span>없음</span><span class="tag red">Missing</span><span class="tool-note">xoxc/xoxd Edge 전용</span></div>
+          <div class="tool-row" data-status="missing"><span class="tool-name">saved_update</span><span>없음</span><span class="tag red">Missing</span><span class="tool-note">xoxc/xoxd Edge 전용</span></div>
+          <div class="tool-row" data-status="missing"><span class="tool-name">saved_clear_completed</span><span>없음</span><span class="tag red">Missing</span><span class="tool-note">xoxc/xoxd Edge 전용</span></div>
+        </div>
+      </section>
+
+      <section class="reveal">
+        <div class="section-head">
+          <div class="section-index">05 / Commits</div>
+          <div><h2>리뷰 가능한 단위로 나눴습니다</h2></div>
+        </div>
+        <div class="commit-list">
+          <div class="commit"><code>8ec8bd1</code><strong>User resolution tests</strong><span>fetch·history·context·replies 회귀 범위 고정</span></div>
+          <div class="commit"><code>576a29d</code><strong>Message integrity</strong><span>Block Kit·attachment·email 본문 보존 및 검색 retry</span></div>
+          <div class="commit"><code>ffaaa43</code><strong>Channels me</strong><span>내 채널 조회와 native cursor</span></div>
+          <div class="commit"><code>03e9449</code><strong>Attachment parity</strong><span>content·save·gate·크기 제한</span></div>
+          <div class="commit"><code>edecd31</code><strong>Schema deltas</strong><span>user ID 검색과 blocks-only post</span></div>
+          <div class="commit"><code>d745ee3</code><strong>Channel query</strong><span>name·topic·purpose 필터</span></div>
+          <div class="commit"><code>4719c96</code><strong>Spec synchronization</strong><span>22개 도구, README, 패리티·upstream 문서</span></div>
+        </div>
+      </section>
+
+      <section class="reveal">
+        <div class="section-head">
+          <div class="section-index">06 / Boundary</div>
+          <div>
+            <h2>이번에 하지 않은 것</h2>
+            <p class="section-lead">누락이 아니라 현재 CLI 아키텍처와 인증 경계에 따른 의도적 제외입니다.</p>
+          </div>
+        </div>
+        <div class="boundary-grid">
+          <article class="card boundary">
+            <span class="tag red">Auth boundary</span>
+            <h3>Edge saved 도구</h3>
+            <p><code>saved_*</code>는 브라우저 세션 토큰 xoxc/xoxd와 비공개 Edge API가 선행 조건입니다.</p>
+          </article>
+          <article class="card boundary">
+            <span class="tag blue">Transport boundary</span>
+            <h3>Native MCP image</h3>
+            <p>CLI에는 MCP image content type이 없으므로 안전하고 이식 가능한 base64 결과를 제공합니다.</p>
+          </article>
+          <article class="card boundary">
+            <span class="tag yellow">Architecture boundary</span>
+            <h3>MCP 서버 lifecycle</h3>
+            <p>현재 제품은 one-shot Bun CLI입니다. stdio·SSE·HTTP MCP 서버를 병렬로 추가하지 않았습니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="verification" class="reveal">
+        <div class="section-head">
+          <div class="section-index">07 / Verification</div>
+          <div><h2>전체 회귀 검증 완료</h2></div>
+        </div>
+        <div class="verification">
+          <div class="card terminal" aria-label="검증 명령 결과">
+            <div class="terminal-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+            <pre>$ bun test
+511 pass
+0 fail
+
+$ bun run typecheck
+4 successful
+
+$ bun run lint
+Checked 143 files</pre>
+          </div>
+          <div class="card verification-note">
+            <span class="tag green">Clean</span>
+            <h3>main 워크트리 정상</h3>
+            <p>
+              패리티 변경은 모두 커밋되었고 검증 시점의 <code>main/</code>은 clean이었습니다.
+              원격 push는 수행하지 않았습니다.
+            </p>
+            <p>
+              별도 <code>worktree-3/</code>에 있던 기존 미추적 <code>test_results.txt</code>는 데이터 보호 원칙에 따라 건드리지 않았습니다.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="shell footer-inner">
+        <span>Slack CLI · MCP v1.3 parity report</span>
+        <span class="mono">self-contained / no external assets</span>
+      </div>
+    </footer>
+
+    <script>
+      const buttons = document.querySelectorAll("[data-filter]");
+      const rows = document.querySelectorAll("[data-status]");
+
+      for (const button of buttons) {
+        button.addEventListener("click", () => {
+          const filter = button.dataset.filter;
+          for (const candidate of buttons) {
+            candidate.setAttribute("aria-pressed", String(candidate === button));
+          }
+          for (const row of rows) {
+            row.hidden = filter !== "all" && row.dataset.status !== filter;
+          }
+        });
+      }
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("visible");
+              observer.unobserve(entry.target);
+            }
+          }
+        },
+        { threshold: 0.08 },
+      );
+
+      for (const element of document.querySelectorAll(".reveal")) {
+        observer.observe(element);
+      }
+    </script>
+  </body>
+</html>
