@@ -39,11 +39,6 @@ describe("reactions client path", () => {
         return new Response(
           JSON.stringify({
             ok: true,
-            type: "message",
-            channel: "C123",
-            message: {
-              ts: "1700000000.000001",
-            },
           }),
           { status: 200 },
         );
@@ -80,11 +75,6 @@ describe("reactions client path", () => {
         return new Response(
           JSON.stringify({
             ok: true,
-            type: "message",
-            channel: "C456",
-            message: {
-              ts: "1700000002.000003",
-            },
           }),
           { status: 200 },
         );
@@ -142,21 +132,11 @@ describe("reactions client path", () => {
     });
   });
 
-  test("addReaction rejects malformed response payload", async () => {
+  test("addReaction accepts Slack's minimal success payload", async () => {
     process.env[XOXP_ENV_KEY] = "xoxp-test-token";
 
     const mockedFetch: typeof fetch = Object.assign(
-      async () => {
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            type: "message",
-            channel: "C123",
-            message: {},
-          }),
-          { status: 200 },
-        );
-      },
+      async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
       {
         preconnect: originalFetch.preconnect,
       },
@@ -165,15 +145,16 @@ describe("reactions client path", () => {
     globalThis.fetch = mockedFetch;
 
     const client = createSlackWebApiClient();
+    const result = await client.addReaction({
+      channel: "C123",
+      timestamp: "1700000000.000001",
+      name: "thumbsup",
+    });
 
-    await expect(
-      client.addReaction({
-        channel: "C123",
-        timestamp: "1700000000.000001",
-        name: "thumbsup",
-      }),
-    ).rejects.toMatchObject({
-      code: "SLACK_RESPONSE_ERROR",
+    expect(result).toEqual({
+      channel: "C123",
+      ts: "1700000000.000001",
+      name: "thumbsup",
     });
   });
 

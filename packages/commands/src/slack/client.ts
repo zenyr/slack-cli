@@ -1825,30 +1825,11 @@ export const createSlackWebApiClient = (
     return { channel, timestamp, name };
   };
 
-  const readReactionResult = (
-    payloadData: Record<string, unknown>,
-    params: SlackReactionParams,
-    method: "reactions.add" | "reactions.remove",
-  ): SlackReactionResult => {
-    const channel = readString(payloadData, "channel");
-    const itemType = readString(payloadData, "type");
-    const message = readRecord(payloadData, "message");
-    const ts = message === undefined ? undefined : readString(message, "ts");
-
-    if (channel === undefined || ts === undefined || itemType !== "message") {
-      throw createSlackClientError({
-        code: "SLACK_RESPONSE_ERROR",
-        message: `Slack API returned malformed ${method} payload.`,
-        hint: "Verify token scopes and channel access for reaction methods.",
-      });
-    }
-
-    return {
-      channel,
-      ts,
-      name: params.name,
-    };
-  };
+  const toReactionResult = (params: SlackReactionParams): SlackReactionResult => ({
+    channel: params.channel,
+    ts: params.timestamp,
+    name: params.name,
+  });
 
   const addReaction = async (params: SlackReactionParams): Promise<SlackReactionResult> => {
     const normalized = normalizeReactionParams(params);
@@ -1857,8 +1838,8 @@ export const createSlackWebApiClient = (
       timestamp: normalized.timestamp,
       name: normalized.name,
     });
-    const payloadData = await callApiPost("reactions.add", payload);
-    return readReactionResult(payloadData, normalized, "reactions.add");
+    await callApiPost("reactions.add", payload);
+    return toReactionResult(normalized);
   };
 
   const removeReaction = async (params: SlackReactionParams): Promise<SlackReactionResult> => {
@@ -1868,8 +1849,8 @@ export const createSlackWebApiClient = (
       timestamp: normalized.timestamp,
       name: normalized.name,
     });
-    const payloadData = await callApiPost("reactions.remove", payload);
-    return readReactionResult(payloadData, normalized, "reactions.remove");
+    await callApiPost("reactions.remove", payload);
+    return toReactionResult(normalized);
   };
 
   const getReactions = async (params: {
