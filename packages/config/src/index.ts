@@ -9,6 +9,8 @@ export type CliCommand = {
   name: string;
   args: string;
   description: string;
+  examples?: string[];
+  mcpTools?: string[];
 };
 
 export const CLI_NAME = "slack";
@@ -68,6 +70,7 @@ export const COMMANDS: CliCommand[] = [
     name: "channels search",
     args: "<query> | --query=<text> [--type <public|private|im|mpim>] [--json]",
     description: "Search channels by name",
+    examples: ['slack channels search "project-alpha"'],
   },
   {
     name: "channels join",
@@ -93,6 +96,8 @@ export const COMMANDS: CliCommand[] = [
     name: "users search",
     args: "<query(required,non-empty)> [--cursor=<cursor>] [--limit=<n>] [--json]",
     description: "Search users",
+    examples: ['slack users search "Jane Doe"'],
+    mcpTools: ["users_search"],
   },
   {
     name: "users status get",
@@ -158,6 +163,8 @@ export const COMMANDS: CliCommand[] = [
     name: "messages search",
     args: "<query> [--channel <value>] [--im <value>] [--with <value>] [--user <value>] [--after <YYYY-MM-DD|1d|1w|30d|90d>] [--before <YYYY-MM-DD|1d|1w|30d|90d>] [--on <YYYY-MM-DD|1d|1w|30d|90d>] [--during <period>] [--threads] [--limit=<n>] [--cursor=<page>] [--json]",
     description: "Search messages",
+    examples: ['slack messages search "deployment failed" --after=1d --limit=20'],
+    mcpTools: ["conversations_search_messages"],
   },
   {
     name: "messages fetch",
@@ -179,6 +186,8 @@ export const COMMANDS: CliCommand[] = [
     args: "<channel-id|#name|name> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|-|@file>] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] [--json]",
     description:
       "Post message to channel (payload text optional only with non-empty blocks; markdown auto-converted to mrkdwn)",
+    examples: ['slack messages post C123 "Hello" --dry-run --xoxb'],
+    mcpTools: ["conversations_add_message"],
   },
   {
     name: "messages post-ephemeral",

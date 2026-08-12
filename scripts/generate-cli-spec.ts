@@ -3,12 +3,22 @@ import { CLI_NAME, COMMANDS, RESOURCES, TOOLS } from "../packages/config/src/ind
 
 const OUTPUT_PATH = new URL("../skill/cli-spec.json", import.meta.url);
 
+const commands = toCommandSchemas(COMMANDS);
+const knownTools = new Set(TOOLS);
+for (const command of commands) {
+  for (const tool of command.mcpTools ?? []) {
+    if (!knownTools.has(tool)) {
+      throw new Error(`Command ${command.name} references unknown MCP tool: ${tool}`);
+    }
+  }
+}
+
 const spec = {
   schemaVersion: 1,
   cli: {
     name: CLI_NAME,
   },
-  commands: toCommandSchemas(COMMANDS),
+  commands,
   resources: RESOURCES,
   tools: TOOLS,
 };

@@ -3,6 +3,16 @@ import { describe, expect, test } from "bun:test";
 import { isRecord, parseJsonOutput, runCliWithBuffer } from "./test-utils";
 
 describe("schema command", () => {
+  test("guides unknown targets through narrow help discovery", async () => {
+    const result = await runCliWithBuffer(["schema", "messages", "missing"]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr.join("\n")).toContain(
+      "Run 'slack --help' for namespaces, then 'slack <namespace> --help' for operations.",
+    );
+    expect(result.stderr.join("\n")).not.toContain("slack schema --json");
+  });
+
   test("lists command schemas in json mode", async () => {
     const result = await runCliWithBuffer(["schema", "--json"]);
 
@@ -15,6 +25,32 @@ describe("schema command", () => {
 
     expect(parsed.command).toBe("schema");
     expect(Array.isArray(parsed.data.commands)).toBe(true);
+  });
+
+  test("supports a compact namespace index", async () => {
+    const result = await runCliWithBuffer(["schema", "messages"]);
+    const output = result.stdout.join("\n");
+
+    expect(result.exitCode).toBe(0);
+    expect(output).toContain("- messages post:");
+    expect(output).toContain("- messages search:");
+    expect(output).not.toContain("supportsJsonOutput");
+    expect(output).not.toContain("--thread-ts");
+  });
+
+  test("renders exact schema as a YAML-like whitelist with MCP alignment", async () => {
+    const result = await runCliWithBuffer(["schema", "messages", "post"]);
+    const output = result.stdout.join("\n");
+
+    expect(result.exitCode).toBe(0);
+    expect(output).toContain("command: messages post");
+    expect(output).toContain("effect: mutate");
+    expect(output).toContain("io: [json, stdin, payload, dry-run]");
+    expect(output).toContain("auth: explicit[xoxp, xoxb]");
+    expect(output).toContain("mcp: [conversations_add_message]");
+    expect(output).toContain('  - slack messages post C123 "Hello" --dry-run --xoxb');
+    expect(output).not.toContain("supportsJsonOutput");
+    expect(output).not.toContain("conditionalSideEffects: []");
   });
 
   test("shows payload and dry-run capability for messages post", async () => {

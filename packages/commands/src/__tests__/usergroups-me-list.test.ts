@@ -41,7 +41,7 @@ const createMockClient = (
 
 describe("usergroups me list command", () => {
   test("help metadata exposes usergroups me list args", async () => {
-    const result = await runCliWithBuffer(["help", "usergroups", "--json"]);
+    const result = await runCliWithBuffer(["help", "usergroups", "me", "list", "--json"]);
 
     expect(result.exitCode).toBe(0);
     const parsed = parseJsonOutput(result.stdout);

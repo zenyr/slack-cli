@@ -49,7 +49,7 @@ const createMockClient = (
 
 describe("usergroups me leave command", () => {
   test("help metadata exposes usergroups me leave args", async () => {
-    const result = await runCliWithBuffer(["help", "usergroups", "--json"]);
+    const result = await runCliWithBuffer(["help", "usergroups", "me", "leave", "--json"]);
 
     expect(result.exitCode).toBe(0);
     const parsed = parseJsonOutput(result.stdout);

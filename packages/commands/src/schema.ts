@@ -22,6 +22,8 @@ export type CommandSchema = {
     mode: "explicit" | "restricted" | "default";
     allowed?: ("xoxp" | "xoxb")[];
   };
+  examples?: string[];
+  mcpTools?: string[];
 };
 
 const MUTATING_VERBS = new Set([
@@ -134,6 +136,8 @@ export const toCommandSchema = (command: CliCommand): CommandSchema => {
     supportsDryRun: args.includes("--dry-run[=<bool>]"),
     requiresConfirmation: args.includes("--yes"),
     tokenPolicy: toTokenPolicy(name),
+    ...(command.examples === undefined ? {} : { examples: command.examples }),
+    ...(command.mcpTools === undefined ? {} : { mcpTools: command.mcpTools }),
   };
 };
 

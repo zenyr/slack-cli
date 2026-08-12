@@ -49,7 +49,7 @@ const createMockClient = (
 
 describe("usergroups users update command", () => {
   test("help metadata exposes usergroups users update args", async () => {
-    const result = await runCliWithBuffer(["help", "usergroups", "--json"]);
+    const result = await runCliWithBuffer(["help", "usergroups", "users", "update", "--json"]);
 
     expect(result.exitCode).toBe(0);
     const parsed = parseJsonOutput(result.stdout);

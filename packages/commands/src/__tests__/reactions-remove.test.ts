@@ -82,7 +82,7 @@ describe("reactions remove handler", () => {
   });
 
   test("help metadata exposes reactions remove args only", async () => {
-    const result = await runCliWithBuffer(["help", "reactions", "--json"]);
+    const result = await runCliWithBuffer(["help", "reactions", "remove", "--json"]);
 
     expect(result.exitCode).toBe(0);
     const parsed = parseJsonOutput(result.stdout);

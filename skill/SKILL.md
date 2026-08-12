@@ -5,21 +5,26 @@ description: Unified Slack skill for lookup, auth, Block Kit composition, dry-ru
 
 # Slack CLI skill (local)
 
-## Runtime
+## CLI discovery
 
-- Binary: global `slack` command.
-- Introspection first: prefer `slack schema <command...> --json` when command capability/flags are unclear.
-- Mutation safety: typed `send*` helpers send once after local validation; raw CLI writes a dry-run payload artifact and sends that artifact.
-- Raw payload path: prefer `--payload=<json|->` for agent-generated message mutations over long bespoke flag chains.
+- Binary: global `slack`.
+- Reuse syntax already visible in the current context. Do not query help defensively.
+- Unknown namespace: run `slack --help` once.
+- Known namespace, unknown operation: run `slack <namespace> --help` once.
+- Known operation: run `slack schema <namespace> <operation>` once. This is the narrowest, most token-efficient source for args, side effects, stdin/raw-payload/dry-run support, and token policy.
+- Add `--json` to `schema` only when code must parse it. Human schema output is smaller.
+- On a CLI error, read its `hint`; make at most one targeted help/schema lookup if the hint is insufficient.
+- Never dump the full schema or enumerate every namespace to answer one command question.
+- Never truncate CLI output with `head`, `tail`, or line slicing. Narrow the query at the CLI instead.
+- Do not repeat equivalent help/schema queries in the same task.
 
-## Auth
+## Execution policy
 
-- Token resolve order: env `SLACK_MCP_XOXP_TOKEN` → env `SLACK_MCP_XOXB_TOKEN` → persisted store (active).
-- `xoxc`/`xoxd` unsupported.
-- Default: autoselect. use `--xoxp`/`--xoxb` only on target command invocation.
-- **`messages post`/`post-ephemeral`/`reply` and `reactions add`/`remove` require explicit `--xoxp` or `--xoxb`.** Omitting throws `MISSING_ARGUMENT`.
-- `auth login` uses `--type <xoxp|xoxb>`; `auth use` uses positional `<xoxp|xoxb>`.
-- Common mistake: `slack auth login --xoxb` -> `slack auth login --type xoxb --token <token>` or `slack auth use xoxb`.
+- Prefer plain output. Use `--json` only for structured extraction, integration, or debugging.
+- Before a mutation, resolve human names to stable IDs with the relevant narrow `search`, `list`, or `info` command.
+- Read exact auth and token requirements from the target command schema; do not memorize command lists.
+- Prefer typed `send*` helpers for messages. They validate locally and send once.
+- For raw message mutations, prefer `--payload` over long flag chains; dry-run to an artifact, inspect it, then send that exact artifact.
 
 ## User context
 
@@ -27,80 +32,22 @@ description: Unified Slack skill for lookup, auth, Block Kit composition, dry-ru
 - Bot: `<bot-user-id>`
 - Test channel: `<test-channel-id>`
 - If user says only "테스트 채널", use `<test-channel-id>`
-- "테스트해줘" / "test it" → post-ephemeral to test channel for owner. e.g.:
-  `slack messages post-ephemeral <test-channel-id> <user-id> <text> --xoxp [--blocks=...]`
-- Ephemeral target default: resolve with `slack auth whoami --json`; fall back to owner id only if identity is already known and unchanged
+- "테스트해줘" / "test it": post an ephemeral message to the owner in the test channel.
+- Resolve the ephemeral user with `slack auth whoami --json`; reuse a known unchanged owner ID instead of re-querying.
 
-```sh
-slack auth login --type <xoxp|xoxb> [--token <token>] [--json]
-printf '<token>' | slack auth login --type <xoxp|xoxb>
-slack auth use <xoxp|xoxb>
-slack auth whoami
-slack auth check
-slack auth logout
-```
+## Message lookup routing
 
-## Global flags
-
-```sh
---xoxp        force user token (xoxp) for this invocation
---xoxb        force bot token (xoxb) for this invocation
---json        structured JSON output
---help / -h
---version / -v
-```
-
-- `--xoxp` and `--xoxb` are mutually exclusive.
-- Restricted xoxp-only commands: `users status set`, `users status clear`, `messages search`, `messages unreads`, `messages mark`, `messages pin`. Using `--xoxb` with them throws immediately.
-- `channels join`/`leave` are described as xoxp-only because Slack requires a user token, although their schema token policy is `default`.
-
-## ID lookup (before mutations)
-
-```sh
-slack channels list --json | jq '.data[] | {id,name}'
-slack channels search <query> --json | jq '.data[] | {id,name}'
-slack users search <query> --json | jq '.data[] | {id,name}'
-slack usergroups list --json | jq '.data[] | {id,handle}'
-```
-
-## Channels
-
-```sh
-slack channels list [--type <public|private|im|mpim>] [--sort <name|popularity>] [--query=<text>] [--query-targets=<name,topic,purpose>] [--limit <n>] [--cursor <cursor>]
-slack channels me [--type <public|private|im|mpim>] [--limit <n>] [--cursor <cursor>]
-slack channels info <channel-id|#name|name>
-slack channels search <query> | --query=<text> [--type <public|private|im|mpim>]
-slack channels join <channel-id>
-slack channels leave <channel-id>
-```
-
-## Messages (selection rule)
-
-- `messages fetch <url>`: permalink input. one msg by default. add `--thread` for full thread.
-- `messages replies <channel-id> <thread-ts>`: already have channel+thread ts.
-- `messages context <url>`: nearby msgs around permalink.
+- `messages fetch`: one message from a permalink; request its thread only when needed.
+- `messages replies`: a full thread when channel + thread timestamp are known.
+- `messages context`: nearby messages around a permalink.
+- `messages history`: recent messages in a known channel.
+- `messages search`: cross-channel or filtered discovery.
 
 ### posting target resolution
 
-- Slack URL `https://...slack.com/archives/C...` -> extract channel id from URL
-- Thread reply/update and ts missing -> inspect recent msgs first, then ask user only if still ambiguous:
-
-```sh
-slack messages history <channel-id> --limit=5 --json
-slack messages replies <channel-id> <thread-ts> --json
-```
-
-```sh
-slack messages search <query> [--channel <value>] [--im <value>] [--with <value>] [--user <value>] [--after <YYYY-MM-DD|1d|1w|30d|90d>] [--before <YYYY-MM-DD|1d|1w|30d|90d>] [--on <YYYY-MM-DD|1d|1w|30d|90d>] [--during <period>] [--threads] [--limit=<n>] [--cursor=<page>]
-slack messages fetch <message-url> [--thread[=<bool>]] [--resolve-users[=<bool>]]
-slack messages history <channel-id> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]]
-slack messages context <message-url> [--before=<n>] [--after=<n>] [--resolve-users[=<bool>]]
-slack messages replies <channel-id(required,non-empty)> <thread-ts(required,non-empty)> OR <thread-permalink(required,non-empty)> [--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]]
-slack messages unreads [--include-messages[=<bool>]] [--channel-types=<all|dm|group_dm|partner|internal>] [--max-channels=<n>] [--max-messages-per-channel=<n>] [--mentions-only[=<bool>]] [--include-muted[=<bool>]]
-slack messages mark <channel-id(required,non-empty)> [--ts=<timestamp>]
-```
-
-- `messages search`, `unreads`, and `mark` are restricted to xoxp. `mark` also requires `SLACK_MCP_MARK_TOOL=true`.
+- Extract the channel ID from a Slack archive URL.
+- If a reply/update lacks a timestamp, inspect a small recent-message window first; ask only if still ambiguous.
+- Query the exact command schema before adding filters or performing a mutation.
 
 ## Block Kit
 
@@ -140,17 +87,14 @@ b.taskCard("t1", "제목", "complete", { output: rt("결과"), sources: [{ type:
 ```bash
 # bun --cwd 사용 — workdir 별도 승인 불필요
 bun --cwd <repo-root> -e "$(cat <<'EOF'
-import { b, el, fmt, blocks, inspectSchema, sendPost, runMain } from "./skill/blocks.ts";
+import { b, el, fmt, blocks, sendPost, runMain } from "./skill/blocks.ts";
 
 runMain(async () => {
-  const schema = await inspectSchema(["messages", "post"]);
   const payload = blocks([
     b.header("제목"),
     b.section(`${fmt.bold("굵게")}텍스트`),
     b.actions([el.button("확인", "btn_ok", { style: "primary" })]),
   ]);
-
-  if (!schema.data) throw new Error("schema unavailable");
 
   const result = await sendPost(payload, { channel: "<channel-id-or-name>" }, { token: "xoxp" });
   if (!result.ts || !result.channel) throw new Error("post coordinates unavailable");
@@ -185,7 +129,7 @@ EOF
   - type-checked builder calls do not need a preceding dry-run; call once after payload approval
 - helper-adjacent utilities:
   - `payload(...)`: normalize `{ text, blocks, attachments }` for direct CLI handoff
-  - `inspectSchema([...])`: call `slack schema ... --json` before mutation when unsure
+  - `inspectSchema([...])`: programmatic schema access when code must inspect fields; do not call for known helper usage
 
 Exports: `b` (blocks), `el` (elements), `txt` (text objects), `fmt` (mrkdwn format), `blocks` (payload assembler), `payload`, `inspectSchema`, `createSendHelpers`, `sendPost`, `sendReply`, `sendUpdate`, `sendEphemeralPost`, `sendEphemeralReply`, `runMain`
 
@@ -196,9 +140,7 @@ Exports: `b` (blocks), `el` (elements), `txt` (text objects), `fmt` (mrkdwn form
 ### agent-first send pattern
 
 ```ts
-import { blocks, b, inspectSchema, sendUpdate } from "./skill/blocks.ts";
-
-await inspectSchema(["messages", "update"]);
+import { blocks, b, sendUpdate } from "./skill/blocks.ts";
 
 const message = blocks([
   b.header("배포 상태"),
@@ -426,96 +368,21 @@ const ph = (w: number, h: number, bg: string, fg: string, text: string, font?: s
 
 ## Message write/edit/delete (raw CLI — fallback only)
 
-> **원칙: 메시지 전송은 항상 `./skill/blocks.ts` 빌더 패턴 우선.**
-> raw `slack messages post/reply/update` 사용 전 반드시 사용자에게 이유를 설명하고 명시적 동의를 받을 것.
-> 동의 없이 raw CLI로 전송 금지.
+> Prefer `./skill/blocks.ts`. Before raw `post`, `reply`, or `update`, explain why and obtain explicit user approval.
 
-```sh
-slack messages post <channel-id|#name|name> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|-|@file>] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
-slack messages post-ephemeral <channel-id> <user-id> <text|-> [--thread-ts=<ts>] [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] --xoxp|--xoxb
-slack messages reply <channel-id|#name|name|permalink> <thread-ts> <text|-> [--blocks[=<json|bool|->]] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] [--unfurl-links[=<bool>]] [--unfurl-media[=<bool>]] --xoxp|--xoxb
-slack messages reply <thread-permalink> <text|-> [--blocks[=<json|bool|->]] [--payload-out=<file> --dry-run] [--dry-run[=<bool>]] [--reply-broadcast[=<bool>]] --xoxp|--xoxb
-slack messages update <message-url> <text|-> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]] OR <channel-id> <timestamp> <text|-> [--blocks[=<json|bool|->]] [--payload=<json|->] [--dry-run[=<bool>]]
-slack messages delete <message-url> OR <channel-id> <timestamp>
-```
-
-- raw CLI default: run `--dry-run --payload-out=message.json --json`, inspect it, then send the exact normalized artifact with `slack messages post --payload=@message.json --xoxp|--xoxb --json`.
-- `--blocks` behavior: bare `--blocks` reads stdin and auto-builds Block Kit payload. Positional mode still requires `<text|->` even with `--blocks`.
-- `messages post --payload`: object/stdin input, or `@file` for a normalized post artifact. Rejects unknown fields and cannot mix with positional args. `text` may be omitted only when `blocks` is a non-empty array.
-- `messages post-ephemeral --payload`: requires `channel`, `user`, and non-empty `text`; cannot mix with positional args.
-- `messages update --payload`: requires `channel`, valid `ts`, and non-empty `text`; cannot mix with positional args.
-- `--dry-run`: validates normalized req without posting. `--payload-out` writes that req for exact reuse.
-- `text` with `--blocks`: plaintext fallback (notification/accessibility). `blocks()` auto-generates from all block content (mrkdwn stripped). Raw CLI: `text` should be a faithful plaintext summary/transcription of block content.
+- Run `slack schema messages <operation>` for current syntax and token policy. Do not retain copied signatures here.
+- Default raw-send flow: dry-run to a payload artifact, inspect it, then send that exact normalized artifact.
+- Use a faithful plaintext `text` fallback for notification and accessibility when sending blocks.
 - Channel post guard: allowlist/denylist policy may block post.
-- Post/reply channels accept IDs, `#name`, or bare names. Name resolution needs `channels:read` or `groups:read`; use an ID with write-only tokens.
-- Thread deletion: "delete thread" req → clarify root-only vs full thread. Deleting root leaves orphan replies; fetch via `replies <cid> <thread-ts>`, delete each ts.
-- Delete/update token match: msg created by xoxp → must delete/update with `--xoxp`. Same for xoxb. No auto-fallback; mismatch throws `cant_delete_message`/`cant_update_message`.
+- For "delete thread," clarify root-only versus all messages; deleting the root can leave replies orphaned.
+- Update/delete with the same token identity that authored the message.
 
-## Pins + reactions
+## Other CLI workflows
 
-```sh
-slack messages pin <channel-id> <timestamp>
-slack messages unpin <channel-id> <timestamp>
-slack messages pins <channel-id>
-
-slack reactions add <channel-id> <timestamp> <emoji-name>
-slack reactions remove <channel-id> <timestamp> <emoji-name>
-slack reactions list <channel-id> <timestamp>
-```
-
-- `messages pin` is restricted to xoxp; `unpin`/`pins` use default token selection.
-- `reactions add`/`remove` require explicit `--xoxp` or `--xoxb`; `list` uses default token selection.
-
-## Views
-
-```sh
-slack views publish <user-id(required,non-empty)> --view=<json|-> [--hash=<hash>] [--payload=<json|->] [--dry-run[=<bool>]]
-slack views clear <user-id(required,non-empty)> [--dry-run[=<bool>]]
-```
-
-- `views publish --payload` accepts only `user_id`, `view`, and optional `hash`; it cannot mix with positional args or `--view`.
-- Both commands support dry-run. `publish` accepts stdin/raw payload; `clear` publishes an empty Home view.
-
-## Users
-
-```sh
-slack users list [<query>] [--cursor=<cursor>] [--limit=<n>]
-slack users get <user-id> [user-id ...]
-slack users search <query(required,non-empty)> [--cursor=<cursor>] [--limit=<n>]
-slack users status get [user-id]
-slack users status set <emoji> <text> [--expiration=<30m|1h|2h|4h|today|unix-ts>]
-slack users status clear
-```
-
-- `status set/clear` are xoxp-only. `--xoxb` throws immediately.
-- `users status get` accepts optional `<user-id>`; omit for self.
-
-## Usergroups
-
-```sh
-slack usergroups list [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]]
-slack usergroups get <usergroup-id> [usergroup-id ...] [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]]
-slack usergroups create <name(required,non-empty)> [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>]
-slack usergroups update <usergroup-id(required,non-empty)> [--name=<name>] [--handle=<handle>] [--description=<text>] [--channels=<comma-separated-channel-ids>]
-slack usergroups users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes
-slack usergroups me list
-slack usergroups me join <usergroup-id(required,non-empty)>
-slack usergroups me leave <usergroup-id(required,non-empty)>
-```
-
-- `usergroups users update` is destructive replace. `--yes` mandatory.
-
-## Attachment / misc
-
-```sh
-slack attachment get <file-id> [--content[=<bool>]] [--save[=<bool>]]
-slack resources [--json]
-slack tools [--json]
-slack batch "<command arg...>" ["<command arg...>" ...] [--stop-on-error[=<bool>]] [--fail-on-error[=<bool>]]
-slack help
-slack schema [<command> [subcommand ...]] [--json]
-slack version
-```
+- Use root help to discover the namespace, namespace help to discover the operation, then exact schema for invocation.
+- Treat schema-reported mutations, token policy, confirmation, raw-payload, stdin, and dry-run fields as authoritative.
+- Replacement-style operations are destructive even when the command name says `update`; inspect the exact schema and require its confirmation guard.
+- Slack timestamps use `seconds.fraction`.
 
 ## Output + JSON policy
 
@@ -524,16 +391,3 @@ slack version
 - Use `--json` only for parsing/integration/debug.
 - Error shape: `{ ok: false, error, message, hint }`.
 - On error, read `hint` first.
-
-## Timestamp + examples
-
-- Slack ts format: `seconds.fraction` (example `1712345678.123456`).
-- Used by `--thread-ts`, `history`, `replies`, `delete`, `update`, `pin`, `unpin`, `reactions`.
-
-```sh
-CID=$(slack channels list --json | jq -r '.data[] | select(.name=="general") | .id')
-TS=$(slack messages search "keyword" --json | jq -r '.data.messages[0].ts')
-slack messages post "$CID" "reply" --thread-ts="$TS"
-
-slack usergroups users update <gid> $(slack users search "team" --json | jq -r '[.data[].id] | join(" ")') --yes
-```

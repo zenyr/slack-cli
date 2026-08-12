@@ -178,7 +178,8 @@
       "requiresConfirmation": false,
       "tokenPolicy": {
         "mode": "default"
-      }
+      },
+      "examples": ["slack channels search \"project-alpha\""]
     },
     {
       "name": "channels join",
@@ -258,7 +259,9 @@
       "requiresConfirmation": false,
       "tokenPolicy": {
         "mode": "default"
-      }
+      },
+      "examples": ["slack users search \"Jane Doe\""],
+      "mcpTools": ["users_search"]
     },
     {
       "name": "users status get",
@@ -475,7 +478,9 @@
       "tokenPolicy": {
         "mode": "restricted",
         "allowed": ["xoxp"]
-      }
+      },
+      "examples": ["slack messages search \"deployment failed\" --after=1d --limit=20"],
+      "mcpTools": ["conversations_search_messages"]
     },
     {
       "name": "messages fetch",
@@ -540,7 +545,9 @@
       "tokenPolicy": {
         "mode": "explicit",
         "allowed": ["xoxp", "xoxb"]
-      }
+      },
+      "examples": ["slack messages post C123 \"Hello\" --dry-run --xoxb"],
+      "mcpTools": ["conversations_add_message"]
     },
     {
       "name": "messages post-ephemeral",

@@ -66,7 +66,7 @@ describe("help command", () => {
   });
 
   test("channels help shows list query options", async () => {
-    const result = await runCliWithBuffer(["channels", "--help"]);
+    const result = await runCliWithBuffer(["channels", "list", "--help"]);
     const output = result.stdout.join("\n");
 
     expect(result.exitCode).toBe(0);
@@ -74,61 +74,30 @@ describe("help command", () => {
     expect(output).toContain("[--query-targets=<name,topic,purpose>]");
   });
 
-  test("messages namespace help includes supported search and replies options", async () => {
-    const result = await runCliWithBuffer(["messages", "--help"]);
+  test("exact messages replies help exposes its supported options", async () => {
+    const result = await runCliWithBuffer(["messages", "replies", "--help"]);
+    const output = result.stdout.join("\n");
 
     expect(result.exitCode).toBe(0);
-    expect(
-      result.stdout.some(
-        (line) =>
-          line.includes(
-            "replies <channel-id(required,non-empty)> <thread-ts(required,non-empty)>",
-          ) &&
-          line.includes(
-            "[--oldest=<ts>] [--latest=<ts>] [--limit=<n>] [--cursor=<cursor>] [--include-activity] [--resolve-users[=<bool>]] [--json]",
-          ),
-      ),
-    ).toBe(true);
-    expect(result.stdout.some((line) => line.includes("search <query> [--channel"))).toBe(true);
-    expect(result.stdout.some((line) => line.includes("--after <YYYY-MM-DD|1d|1w|30d|90d>"))).toBe(
-      true,
-    );
-    expect(result.stdout.some((line) => line.includes("--before <YYYY-MM-DD|1d|1w|30d|90d>"))).toBe(
-      true,
-    );
-    expect(result.stdout.some((line) => line.includes("--threads"))).toBe(true);
-    expect(result.stdout.some((line) => line.includes("--sort=<oldest|newest>"))).toBe(false);
-    expect(result.stdout.some((line) => line.includes("--filter-text=<text>"))).toBe(false);
-    expect(result.stderr.length).toBe(0);
+    expect(output).toContain("replies <channel-id(required,non-empty)>");
+    expect(output).toContain("[--resolve-users[=<bool>]]");
+    expect(output).not.toContain("messages search");
   });
 
-  test("users namespace help shows required search query syntax", async () => {
-    const result = await runCliWithBuffer(["users", "--help"]);
+  test("users namespace is compact and exact search help carries syntax", async () => {
+    const index = await runCliWithBuffer(["users", "--help"]);
+    const detail = await runCliWithBuffer(["users", "search", "--help"]);
 
-    expect(result.exitCode).toBe(0);
-    expect(
-      result.stdout.some((line) =>
-        line.includes("list [<query>] [--cursor=<cursor>] [--limit=<n>] [--json]"),
-      ),
-    ).toBe(true);
-    expect(
-      result.stdout.some((line) => line.includes("get <user-id> [user-id ...] [--json]")),
-    ).toBe(true);
-    expect(
-      result.stdout.some((line) =>
-        line.includes(
-          "search <query(required,non-empty)> [--cursor=<cursor>] [--limit=<n>] [--json]",
-        ),
-      ),
-    ).toBe(true);
-    expect(result.stdout.some((line) => line.includes("xoxc"))).toBe(false);
-    expect(result.stdout.some((line) => line.includes("xoxd"))).toBe(false);
-    expect(result.stdout.some((line) => line.includes("list [<query>] [--json]"))).toBe(false);
-    expect(result.stderr.length).toBe(0);
+    expect(index.exitCode).toBe(0);
+    expect(index.stdout.join("\n")).not.toContain("--cursor");
+    expect(detail.stdout.join("\n")).toContain(
+      "search <query(required,non-empty)> [--cursor=<cursor>] [--limit=<n>] [--json]",
+    );
+    expect(detail.stdout.join("\n")).toContain('slack users search "Jane Doe"');
   });
 
   test("messages namespace help shows blocks-only payload rule", async () => {
-    const result = await runCliWithBuffer(["messages", "--help"]);
+    const result = await runCliWithBuffer(["messages", "post", "--help"]);
 
     expect(result.exitCode).toBe(0);
     expect(
@@ -139,7 +108,7 @@ describe("help command", () => {
   });
 
   test("attachment namespace help shows content and save modes", async () => {
-    const result = await runCliWithBuffer(["attachment", "--help"]);
+    const result = await runCliWithBuffer(["attachment", "get", "--help"]);
 
     expect(result.exitCode).toBe(0);
     expect(
@@ -160,32 +129,39 @@ describe("help command", () => {
     expect(limitResult.stderr.some((line) => line.includes("--limit=<n>"))).toBe(true);
   });
 
-  test("usergroups namespace help shows extended list and users update syntax", async () => {
-    const result = await runCliWithBuffer(["usergroups", "--help"]);
+  test("nested exact command help resolves the full path", async () => {
+    const result = await runCliWithBuffer(["usergroups", "users", "update", "--help"]);
+    const output = result.stdout.join("\n");
 
     expect(result.exitCode).toBe(0);
-    expect(
-      result.stdout.some((line) =>
-        line.includes(
-          "list [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
-        ),
-      ),
-    ).toBe(true);
-    expect(
-      result.stdout.some((line) =>
-        line.includes(
-          "get <usergroup-id> [usergroup-id ...] [--include-users[=<bool>]] [--include-disabled[=<bool>]] [--include-count[=<bool>]] [--json]",
-        ),
-      ),
-    ).toBe(true);
-    expect(
-      result.stdout.some((line) =>
-        line.includes(
-          "users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]",
-        ),
-      ),
-    ).toBe(true);
-    expect(result.stderr.length).toBe(0);
+    expect(output).toContain(
+      "users update <usergroup-id(required,non-empty)> <user-id(required,non-empty)> [user-id ...] --yes [--json]",
+    );
+    expect(output).not.toContain("include-disabled");
+  });
+
+  test("exact command help excludes sibling operations and exposes hot-path examples", async () => {
+    const result = await runCliWithBuffer(["messages", "post", "--help"]);
+    const output = result.stdout.join("\n");
+
+    expect(result.exitCode).toBe(0);
+    expect(output).toContain("usage: slack messages post");
+    expect(output).toContain('slack messages post C123 "Hello" --dry-run --xoxb');
+    expect(output).toContain("details: slack schema messages post");
+    expect(output).not.toContain("messages search");
+    expect(output).not.toContain("messages replies");
+  });
+
+  test("namespace help is an operation index without option signatures", async () => {
+    const result = await runCliWithBuffer(["messages", "--help"]);
+    const output = result.stdout.join("\n");
+
+    expect(result.exitCode).toBe(0);
+    expect(output).toContain("post");
+    expect(output).toContain("search");
+    expect(output).not.toContain("--thread-ts");
+    expect(output).not.toContain("--resolve-users");
+    expect(output).toContain("details: slack messages <command> --help");
   });
 
   test("unknown namespace returns error", async () => {

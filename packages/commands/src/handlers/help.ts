@@ -103,6 +103,23 @@ const renderRootHelp = (groups: CommandGroup[]): string[] => {
   return lines;
 };
 
+const renderCommandHelp = (command: CliCommand): string[] => {
+  const usage = toCommandLine(command.name, command.args);
+  const lines = [
+    `${CLI_NAME} ${command.name}`,
+    command.description,
+    "",
+    `usage: ${CLI_NAME} ${usage}`,
+  ];
+
+  if (command.examples !== undefined && command.examples.length > 0) {
+    lines.push("", "examples:", ...command.examples.map((example) => `  ${example}`));
+  }
+
+  lines.push("", `details: ${CLI_NAME} schema ${command.name}`);
+  return lines;
+};
+
 const renderNamespaceHelp = (group: CommandGroup): string[] => {
   if (group.subcommands.length === 0 && group.standalone !== undefined) {
     const tokens = splitCommandName(group.standalone.name);
@@ -121,11 +138,8 @@ const renderNamespaceHelp = (group: CommandGroup): string[] => {
 
   const subcommandEntries = group.subcommands.map((command) => {
     const tokens = splitCommandName(command.name);
-    const subcommand = tokens.slice(1).join(" ");
-    const label = toCommandLine(subcommand, command.args);
-
     return {
-      label,
+      label: tokens.slice(1).join(" "),
       description: command.description,
     };
   });
@@ -143,6 +157,9 @@ const renderNamespaceHelp = (group: CommandGroup): string[] => {
   for (const entry of subcommandEntries) {
     lines.push(`  ${entry.label.padEnd(maxWidth)}${entry.description}`);
   }
+
+  lines.push("");
+  lines.push(`details: ${CLI_NAME} ${group.name} <command> --help`);
 
   if (group.name === "auth") {
     lines.push("");
@@ -178,6 +195,27 @@ export const helpHandler = (request: CommandRequest): CliResult => {
       `Run '${CLI_NAME} --help' to see available namespaces.`,
       "help",
     );
+  }
+
+  const targetName = request.positionals.join(" ").trim();
+  if (request.positionals.length > 1) {
+    const command = COMMANDS.find((candidate) => candidate.name === targetName);
+    if (command === undefined) {
+      return createError(
+        "INVALID_ARGUMENT",
+        `Unknown command: ${targetName}`,
+        `Run '${CLI_NAME} ${namespace} --help' to see available operations.`,
+        "help",
+      );
+    }
+
+    return {
+      ok: true,
+      command: "help",
+      message: `Help for ${targetName}`,
+      data: { cli: CLI_NAME, command: targetName },
+      textLines: renderCommandHelp(command),
+    };
   }
 
   return {

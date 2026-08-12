@@ -168,7 +168,7 @@ describe("channels me command", () => {
   });
 
   test("registers help and schema metadata", async () => {
-    const help = await runCliWithBuffer(["help", "channels"]);
+    const help = await runCliWithBuffer(["help", "channels", "me"]);
     expect(help.stdout.join("\n")).toContain("me [--type <public|private|im|mpim>]");
 
     const schema = await runCliWithBuffer(["schema", "channels", "me", "--json"]);
